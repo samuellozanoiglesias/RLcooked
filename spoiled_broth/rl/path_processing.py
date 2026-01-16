@@ -30,11 +30,6 @@ class PathProcessor:
         self._cache_hits = 0
         self._cache_misses = 0
         
-        # ========== DEBUG SECTION - DELETE EASILY ==========
-        self.debug_enabled = True  # Set to False to disable all debug output
-        self.debug_iteration = 0
-        # ===================================================
-        
     def is_enabled(self) -> bool:
         """Check if collision detection is enabled."""
         return self.collision_enabled
@@ -101,14 +96,16 @@ class PathProcessor:
                 # No path to any neighbor found
                 if self.collision_enabled:
                     # Check if fallback path exists (collision blocking)
-                    # Get static obstacles for fallback check too
+                    # Get STATIONARY obstacles for fallback check - moving agents will move away
                     static_obstacles = set()
                     if game is not None:
                         for other_agent_id, other_agent in game.gameObjects.items():
                             if (other_agent_id != agent_id and 
                                 other_agent_id.startswith('ai_rl_') and
                                 hasattr(other_agent, 'slot_x') and hasattr(other_agent, 'slot_y')):
-                                static_obstacles.add((other_agent.slot_x, other_agent.slot_y))
+                                # Only treat as static obstacle if agent is NOT actively moving
+                                if other_agent_id not in self.active_paths:
+                                    static_obstacles.add((other_agent.slot_x, other_agent.slot_y))
                     
                     for neighbor_xy in neighbors:
                         # Check if path would be blocked by static obstacles
@@ -116,7 +113,6 @@ class PathProcessor:
                             neighbor_node = Node(neighbor_xy[0], neighbor_xy[1])
                             fallback = find_path(grid, start_node, neighbor_node)
                             if fallback and len(fallback) > 1:
-                                print("[PathProcessor WARNING] Path exists but blocked by collisions.")
                                 return -1, -1
                 return None, None
         
@@ -125,7 +121,6 @@ class PathProcessor:
                 
         # Store agent speed for collision detection
         self._requesting_agent_speed = agent_speed
-        
 
         if not self.collision_enabled:
             # Simple A* pathfinding without collision detection
@@ -137,15 +132,14 @@ class PathProcessor:
             else:
                 return None, None
         else:
-            # Collision-aware pathfinding
-            path = self._find_collision_free_path(grid, start_node, target_node, agent_id, current_time, game)
+            # Collision-aware pathfinding with multiple path attempts
+            path = self._find_collision_free_path_with_alternatives(grid, start_node, target_node, agent_id, current_time, game)
             if path and len(path) > 1:
                 distance = sum(euclidean_distance(path[i], path[i + 1]) for i in range(len(path) - 1))
                 return distance, path
             else:
                 path = find_path(grid, start_node, target_node)
                 if path and len(path) > 1:
-                    print("[PathProcessor WARNING] WALKABLE - Path exists but blocked by collisions.")
                     return -1, -1  # Indicate path blocked by collisions
                 else:
                     return None, None
@@ -177,8 +171,8 @@ class PathProcessor:
         open_set = [(0, 0, counter, start_node, [start_node])]
         visited = set()
         
-        # Reduce iteration limit for better performance
-        max_iterations = 500  # Reduced from 1000
+        # Increase limits for circular maps that may need longer alternative routes
+        max_iterations = 1500  # Increased for better alternative path exploration
         
         for iteration in range(max_iterations):
             if not open_set:
@@ -196,8 +190,8 @@ class PathProcessor:
             if current_node.x == target_node.x and current_node.y == target_node.y:
                 return current_path
             
-            # Early termination if path is getting too long
-            if len(current_path) > 20:  # Reasonable path length limit
+            # Increase path length limit for circular maps
+            if len(current_path) > 40:  # Increased limit to allow longer alternative routes
                 continue
             
             # Explore neighbors
@@ -209,8 +203,12 @@ class PathProcessor:
                 new_path = current_path + [neighbor]
                 
                 # Enhanced collision check: check both static obstacles and dynamic paths
-                if self._node_has_collision(neighbor, static_obstacles) or \
-                   (len(new_path) > 3 and self._path_has_collision(new_path, agent_id, current_time)):
+                if self._node_has_collision(neighbor, static_obstacles):
+                    continue
+                
+                # More lenient collision checking - only check path collisions for longer paths
+                # This allows more exploration of alternative routes
+                if len(new_path) > 5 and self._path_has_collision(new_path, agent_id, current_time):
                     continue
                 
                 tentative_g = g_score + 1  # Use Manhattan distance (faster than euclidean)
@@ -221,6 +219,141 @@ class PathProcessor:
                 heapq.heappush(open_set, (f, tentative_g, counter, neighbor, new_path))
         
         return None  # No collision-free path found
+    
+    def _find_collision_free_path_with_alternatives(self, grid, start_node: Node, target_node: Node, 
+                                                  agent_id: str, current_time: float, game=None) -> Optional[List[Node]]:
+        """Find collision-free path by trying multiple alternative routes.
+        
+        First tries the standard collision-aware A*, then if that fails, tries:
+        1. Different heuristic weights to favor exploration
+        2. Randomized tie-breaking to find alternative routes
+        3. Multiple starting directions to explore different paths
+        
+        Args:
+            grid: Game grid for pathfinding
+            start_node: Starting node
+            target_node: Target node
+            agent_id: ID of the requesting agent
+            current_time: Current game time for collision detection
+            game: Game instance to get all agent positions for obstacle detection
+            
+        Returns:
+            Optional[List[Node]]: First collision-free path found, or None if all attempts fail
+        """
+        # First attempt: Standard collision-aware pathfinding
+        path = self._find_collision_free_path(grid, start_node, target_node, agent_id, current_time, game)
+        if path:
+            return path
+                
+        # Strategy 1: Different heuristic weights (favor exploration over direct routes)
+        for heuristic_weight in [0.5, 1.5, 2.0]:
+            path = self._find_collision_free_path_weighted(grid, start_node, target_node, agent_id, 
+                                                         current_time, game, heuristic_weight)
+            if path:
+                return path
+        
+        # Strategy 2: Try different initial directions to force exploration of different routes
+        start_neighbors = self._get_valid_neighbors(grid, start_node, set())
+        for start_direction in start_neighbors:
+            # Force path to go through this neighbor first
+            path = self._find_collision_free_path_via_waypoint(grid, start_node, start_direction, 
+                                                             target_node, agent_id, current_time, game)
+            if path:
+                return path
+        
+        return None
+    
+    def _find_collision_free_path_weighted(self, grid, start_node: Node, target_node: Node, 
+                                         agent_id: str, current_time: float, game=None,
+                                         heuristic_weight: float = 1.0) -> Optional[List[Node]]:
+        """Find collision-free path with weighted heuristic for alternative route exploration."""
+        # Get all agent positions as static obstacles
+        static_obstacles = set()
+        if game is not None:
+            for other_agent_id, other_agent in game.gameObjects.items():
+                if (other_agent_id != agent_id and 
+                    other_agent_id.startswith('ai_rl_') and
+                    hasattr(other_agent, 'slot_x') and hasattr(other_agent, 'slot_y')):
+                    static_obstacles.add((other_agent.slot_x, other_agent.slot_y))
+        
+        # Priority queue for A* with weighted heuristic
+        counter = 0
+        open_set = [(0, 0, counter, start_node, [start_node])]
+        visited = set()
+        
+        # Increased limits for alternative path finding
+        max_iterations = 2000
+        
+        for iteration in range(max_iterations):
+            if not open_set:
+                break
+                
+            f_score, g_score, _, current_node, current_path = heapq.heappop(open_set)
+            
+            node_key = (current_node.x, current_node.y)
+            if node_key in visited:
+                continue
+                
+            visited.add(node_key)
+            
+            # Check if we reached the goal
+            if current_node.x == target_node.x and current_node.y == target_node.y:
+                return current_path
+            
+            # Allow longer paths for alternative routes
+            if len(current_path) > 50:
+                continue
+            
+            # Explore neighbors
+            for neighbor in self._get_valid_neighbors(grid, current_node, static_obstacles):
+                neighbor_key = (neighbor.x, neighbor.y)
+                if neighbor_key in visited:
+                    continue
+                
+                new_path = current_path + [neighbor]
+                
+                # Check collisions with less aggressive early termination
+                if self._node_has_collision(neighbor, static_obstacles):
+                    continue
+                
+                # Only check path collisions for paths longer than 5 nodes to allow more exploration
+                if len(new_path) > 5 and self._path_has_collision(new_path, agent_id, current_time):
+                    continue
+                
+                tentative_g = g_score + 1
+                h_score = (abs(neighbor.x - target_node.x) + abs(neighbor.y - target_node.y)) * heuristic_weight
+                f = tentative_g + h_score
+                
+                counter += 1
+                heapq.heappush(open_set, (f, tentative_g, counter, neighbor, new_path))
+        
+        return None
+    
+    def _find_collision_free_path_via_waypoint(self, grid, start_node: Node, waypoint_node: Node,
+                                             target_node: Node, agent_id: str, current_time: float, 
+                                             game=None) -> Optional[List[Node]]:
+        """Find collision-free path by forcing it through a specific waypoint."""
+        # First segment: start to waypoint
+        first_path = self._find_collision_free_path(grid, start_node, waypoint_node, agent_id, current_time, game)
+        if not first_path:
+            return None
+        
+        # Calculate time at waypoint
+        first_segment_time = len(first_path) * 0.53  # Approximate time per step
+        waypoint_time = current_time + first_segment_time
+        
+        # Second segment: waypoint to target
+        second_path = self._find_collision_free_path(grid, waypoint_node, target_node, agent_id, waypoint_time, game)
+        if not second_path:
+            return None
+        
+        # Combine paths (remove duplicate waypoint node)
+        if len(second_path) > 1:
+            combined_path = first_path + second_path[1:]
+        else:
+            combined_path = first_path
+        
+        return combined_path
     
     def _get_walkable_neighbors_of_target(self, grid, target_xy: Tuple[int, int]) -> List[Tuple[int, int]]:
         """Get walkable neighboring tiles around a target position.
@@ -400,18 +533,12 @@ class PathProcessor:
         
         # Check for exact time-tile collisions
         collision_found = False
-        collision_details = []
         for time_key in requesting_snapshots:
             if time_key in other_snapshots:
                 if requesting_snapshots[time_key] == other_snapshots[time_key]:
                     collision_found = True
-                    collision_details.append((time_key, requesting_snapshots[time_key]))
-                    # ========== DEBUG SECTION - DELETE EASILY ==========
-                    if self.debug_enabled and len(collision_details) <= 3:  # Show first 3 collisions
-                        time_sec = time_key * 0.1
-                        tile = requesting_snapshots[time_key]
-                        print(f"  🔥 COLLISION at t={time_sec:.1f}s: Both agents at {tile}")
-                    # ===================================================        
+                    break
+        
         return collision_found
     
     def _distance(self, pos1: Tuple[float, float], pos2: Tuple[float, float]) -> float:

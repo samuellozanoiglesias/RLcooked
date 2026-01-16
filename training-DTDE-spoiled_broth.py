@@ -75,9 +75,9 @@ else:
 
 # Hyperparameters - Optimized for parallel training
 NUM_ENVS = NUM_ENV_WORKERS  # Use all environment workers
-INNER_SECONDS = 30 # In seconds
-TRAIN_BATCH_SIZE = 100  # Increased for better GPU utilization (NUM_ENVS * rollout_fragment_length * num_timesteps)
-SGD_MINIBATCH_SIZE = 10  # Optimized minibatch size for GPU
+INNER_SECONDS = 180 # In seconds
+TRAIN_BATCH_SIZE = 4000  # Increased for better GPU utilization (NUM_ENVS * rollout_fragment_length * num_timesteps)
+SGD_MINIBATCH_SIZE = 500  # Optimized minibatch size for GPU
 NUM_SGD_ITER = 10  # Number of SGD iterations per training batch
 SHOW_EVERY_N_EPOCHS = 1
 SAVE_EVERY_N_EPOCHS = 20

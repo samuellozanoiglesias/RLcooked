@@ -1,23 +1,3 @@
-"""
-=== DEBUG MODE ACTIVE ===
-This file contains extensive debug logging to diagnose the "inaccessible_tile" issue.
-
-Debug locations:
-1. Line ~250 (observe method): Logs observation calculation results, tiles, and paths
-2. Line ~370 (step method action processing): Logs action mapping and tile retrieval  
-3. Line ~395 (step method tile validation): Logs action type classification
-4. Line ~290 (reset method): Logs initialization of agent_action_paths/tiles
-5. Line ~245 (__init__ method): Logs initialization
-
-Also debugging in observation_space.py:
-- game_to_obs_vector_classic: Logs tile processing and final results
-
-TO REMOVE DEBUG:
-Search for "DEBUG" (case-sensitive) and remove all print() statements containing it.
-Also change agent_action_paths/tiles initialization back to {} if needed (currently lists []).
-=== END DEBUG NOTES ===
-"""
-
 import csv
 import os
 from pettingzoo import ParallelEnv
@@ -316,7 +296,6 @@ class GameEnv(ParallelEnv):
             self.path_processor.active_paths.clear()
             
         # Clear pre-calculated paths
-        print(f"[DEBUG]: RESTART")
         self.agent_action_paths = {agent_id: [] for agent_id in self.agents}
         self.agent_action_tiles = {agent_id: [] for agent_id in self.agents}
 
@@ -366,19 +345,15 @@ class GameEnv(ParallelEnv):
                             print(f"  {reward_type}: {initial_val:.3f} -> {current_val:.3f} (ratio: {current_val/initial_val:.3f})")
 
     def observe(self, agent):
-        print(f"[DEBUG]: OBS agent_id: {agent} IS STARTING")
         obs_vector, considered_paths, considered_tiles = game_to_obs_vector(self.game, agent, game_mode=self.game_mode, path_processor=self.path_processor)
         
         # Store pre-calculated paths and tiles for this agent
-        print(f"[DEBUG]: OLD AGENT ACTION TILES: {self.agent_action_tiles[agent]}")
         self.agent_action_paths[agent] = considered_paths
         self.agent_action_tiles[agent] = considered_tiles
-        print(f"[DEBUG]: NEW AGENT ACTION TILES: {self.agent_action_tiles[agent]}")
         obs = obs_vector.flatten().astype(np.float32)
         return obs
 
     def step(self, actions):
-        print(f"[DEBUG]: STEP IS STARTING")
         # --- Simultaneous agent update for minimal delta_time ---
         self.agent_map = {agent_id: self.game.gameObjects[agent_id] for agent_id in self.agents}
         agent_penalties = {agent_id: 0.0 for agent_id in self.agents}
@@ -411,14 +386,11 @@ class GameEnv(ParallelEnv):
 
             # Check if agent is ready for a new action
             if busy_times[agent_id] <= 0:
-                print(f"[DEBUG]: Processing action for agent_id: {agent_id}, action_idx: {action_idx}")
                 self.total_actions_asked[agent_id] += 1
                 action_name = get_rl_action_space(self.game_mode)[action_idx]
                 
                 if agent_id in self.agent_action_tiles:        
                     cached_path = self.agent_action_paths[agent_id][action_idx]
-                    print(f"[DEBUG] agent_id: {agent_id}")  # DEBUG
-                    print(f"[DEBUG] self.agent_action_tiles[agent_id]: {self.agent_action_tiles[agent_id]}")  # DEBUG
                     tile_index = self.agent_action_tiles[agent_id][action_idx]
                 else:
                     cached_path = None
@@ -609,7 +581,6 @@ class GameEnv(ParallelEnv):
         }
 
         self.observations = {agent: self.observe(agent) for agent in self.agents}
-        print(f"[DEBUG]: Observations are being generated for agents: {self.agents}")
         terminations = self.dones
         truncations = {agent: False for agent in self.agents}
 
