@@ -8,12 +8,14 @@ generating comprehensive visualizations and statistics.
 Usage:
 nohup python analysis_classic.py <map_name> [options] > analysis_classic.log 2>&1 &
 
-Example:
-nohup python analysis_classic.py baseline_division_of_labor --study-name speeds > analysis_classic.log 2>&1 &
+Examples:
+nohup python analysis_classic.py baseline_division_of_labor_large --study_name speeds --game_type classic > analysis_classic.log 2>&1 &
+nohup python analysis_classic.py baseline_division_of_labor_large --study_name speeds --game_type classic_collision > analysis_classic_collision.log 2>&1 &
 """
 
 import sys
 import os
+import pandas as pd
 from spoiled_broth.analysis.utils import (
     setup_argument_parser, main_analysis_pipeline, MetricDefinitions
 )
@@ -188,6 +190,44 @@ def generate_individual_training_plots(analysis_results):
         # Get training metadata
         lr = training_df['lr'].iloc[0]
         attitude_key = training_df['attitude_key'].iloc[0]
+        speed_key = training_df['speed_key'].iloc[0] if 'speed_key' in training_df.columns else None
+        
+        # Handle game_type with proper NaN check
+        if 'game_type' in training_df.columns:
+            game_type_raw = training_df['game_type'].iloc[0]
+            # Check if it's NaN or 'nan' string and provide fallback
+            if pd.isna(game_type_raw) or str(game_type_raw).lower() == 'nan':
+                game_type = 'classic'
+            else:
+                game_type = str(game_type_raw)
+        else:
+            game_type = 'classic'
+        
+        # Extract individual speed values for each agent with proper NaN handling
+        walking_speed_1 = None
+        cutting_speed_1 = None
+        walking_speed_2 = None
+        cutting_speed_2 = None
+        
+        if 'walking_speed_1' in training_df.columns:
+            raw_val = training_df['walking_speed_1'].iloc[0]
+            walking_speed_1 = raw_val if not pd.isna(raw_val) else None
+            
+        if 'cutting_speed_1' in training_df.columns:
+            raw_val = training_df['cutting_speed_1'].iloc[0]
+            cutting_speed_1 = raw_val if not pd.isna(raw_val) else None
+            
+        if 'walking_speed_2' in training_df.columns:
+            raw_val = training_df['walking_speed_2'].iloc[0]
+            walking_speed_2 = raw_val if not pd.isna(raw_val) else None
+            
+        if 'cutting_speed_2' in training_df.columns:
+            raw_val = training_df['cutting_speed_2'].iloc[0]
+            cutting_speed_2 = raw_val if not pd.isna(raw_val) else None
+        
+        print(f"  Metadata: game_type={game_type}, speed_key={speed_key}")
+        print(f"  Agent 1 speeds: walk={walking_speed_1}, cut={cutting_speed_1}")
+        print(f"  Agent 2 speeds: walk={walking_speed_2}, cut={cutting_speed_2}")
         
         # Generate agent-specific metrics dynamically
         def get_agent_metrics(base_metrics, agent_num):
@@ -199,11 +239,11 @@ def generate_individual_training_plots(analysis_results):
         movement_metrics_2 = get_agent_metrics(base_movement_metrics, 2)
         
         # Generate individual training plots
-        generate_individual_basic_metrics_plots(training_df, individual_paths, training_id, lr, attitude_key, smoothing_factor)
-        generate_individual_combined_reward_plots(training_df, individual_paths, training_id, lr, attitude_key, smoothing_factor)
-        generate_individual_combined_delivery_cut_plots(training_df, individual_paths, training_id, lr, attitude_key, smoothing_factor)
-        generate_individual_meaningful_actions_combined(training_df, individual_paths, training_id, lr, attitude_key, base_rewarded_metrics, smoothing_factor)
-        generate_individual_combined_plots(training_df, individual_paths, training_id, lr, attitude_key, rewarded_metrics_1, rewarded_metrics_2, movement_metrics_1, movement_metrics_2, smoothing_factor)
+        generate_individual_basic_metrics_plots(training_df, individual_paths, training_id, lr, attitude_key, speed_key, game_type, walking_speed_1, cutting_speed_1, walking_speed_2, cutting_speed_2, smoothing_factor)
+        generate_individual_combined_reward_plots(training_df, individual_paths, training_id, lr, attitude_key, speed_key, game_type, walking_speed_1, cutting_speed_1, walking_speed_2, cutting_speed_2, smoothing_factor)
+        generate_individual_combined_delivery_cut_plots(training_df, individual_paths, training_id, lr, attitude_key, speed_key, game_type, walking_speed_1, cutting_speed_1, walking_speed_2, cutting_speed_2, smoothing_factor)
+        generate_individual_meaningful_actions_combined(training_df, individual_paths, training_id, lr, attitude_key, speed_key, game_type, walking_speed_1, cutting_speed_1, walking_speed_2, cutting_speed_2, base_rewarded_metrics, smoothing_factor)
+        generate_individual_combined_plots(training_df, individual_paths, training_id, lr, attitude_key, speed_key, game_type, walking_speed_1, cutting_speed_1, walking_speed_2, cutting_speed_2, rewarded_metrics_1, rewarded_metrics_2, movement_metrics_1, movement_metrics_2, smoothing_factor)
     
     print(f"Individual training plots saved to: {individual_smoothed_dir}")
 
@@ -217,6 +257,7 @@ def main():
     print(f"Cluster: {args.cluster}")
     print(f"Smoothing factor: {args.smoothing_factor}")
     print(f"Study name: {args.study_name}")
+    print(f"Game type: {args.game_type}")
 
     try:
         # Run main analysis pipeline
@@ -225,7 +266,8 @@ def main():
             map_name=args.map_name,
             cluster=args.cluster,
             smoothing_factor=args.smoothing_factor,
-            study_name=args.study_name
+            study_name=args.study_name,
+            game_type=args.game_type
         )
 
         # Generate classic-specific plots

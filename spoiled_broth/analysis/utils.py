@@ -111,7 +111,13 @@ class DataProcessor:
         with open(config_path, "r") as f:
             config_contents = f.read()
         
+        # Debug: Show REWARD_WEIGHTS line for troubleshooting
+        reward_weights_match = re.search(r"REWARD_WEIGHTS:\s*(.+)", config_contents)
+        if reward_weights_match:
+            print(f"  Found REWARD_WEIGHTS: {reward_weights_match.group(1)}")
+        
         matches = self.reward_pattern.findall(config_contents)
+        print(f"  Reward pattern matches: {matches}")
         if len(matches) != num_agents:
             print(f"Expected {num_agents} agents, found {len(matches)} in {folder_path}")
             return None
@@ -126,6 +132,55 @@ class DataProcessor:
         # Extract seed if present
         seed_match = re.search(r"INITIAL_SEED:\s*([0-9]+)", config_contents)
         seed = int(seed_match.group(1)) if seed_match else None
+        
+        # Extract game_type (classic or classic_collision)
+        game_type_match = re.search(r"GAME_VERSION:\s*(\S+)", config_contents)
+        game_type = game_type_match.group(1) if game_type_match else 'classic'
+        print(f"  GAME_VERSION extracted: {game_type}")
+        
+        # Extract walking and cutting speeds for each agent
+        walking_speeds = {}
+        cutting_speeds = {}
+        
+        # Parse WALKING_SPEEDS dictionary format
+        walking_speeds_match = re.search(r"WALKING_SPEEDS:\s*({[^}]+})", config_contents)
+        if walking_speeds_match:
+            try:
+                # Extract the dictionary string and evaluate it safely
+                speeds_dict_str = walking_speeds_match.group(1)
+                print(f"  Found WALKING_SPEEDS: {speeds_dict_str}")
+                
+                # Parse the dictionary manually to be safe
+                for i in range(1, num_agents + 1):
+                    agent_key = f"'ai_rl_{i}'"
+                    speed_match = re.search(rf"{agent_key}:\s*([0-9.eE+-]+)", speeds_dict_str)
+                    if speed_match:
+                        walking_speeds[i] = float(speed_match.group(1))
+                        print(f"    Extracted walking_speed_{i}: {walking_speeds[i]}")
+            except Exception as e:
+                print(f"  Error parsing WALKING_SPEEDS: {e}")
+        else:
+            print(f"  No WALKING_SPEEDS dictionary found in config")
+            
+        # Parse CUTTING_SPEEDS dictionary format  
+        cutting_speeds_match = re.search(r"CUTTING_SPEEDS:\s*({[^}]+})", config_contents)
+        if cutting_speeds_match:
+            try:
+                # Extract the dictionary string and evaluate it safely
+                speeds_dict_str = cutting_speeds_match.group(1)
+                print(f"  Found CUTTING_SPEEDS: {speeds_dict_str}")
+                
+                # Parse the dictionary manually to be safe
+                for i in range(1, num_agents + 1):
+                    agent_key = f"'ai_rl_{i}'"
+                    speed_match = re.search(rf"{agent_key}:\s*([0-9.eE+-]+)", speeds_dict_str)
+                    if speed_match:
+                        cutting_speeds[i] = float(speed_match.group(1))
+                        print(f"    Extracted cutting_speed_{i}: {cutting_speeds[i]}")
+            except Exception as e:
+                print(f"  Error parsing CUTTING_SPEEDS: {e}")
+        else:
+            print(f"  No CUTTING_SPEEDS dictionary found in config")
         
         # Load and clean CSV data
         with open(csv_path, 'r') as f:
@@ -302,18 +357,48 @@ class DataProcessor:
         if seed is not None:
             df.insert(len(matches) * 2 + 2, "seed", seed)
         
+        # Add game_type
+        insert_pos = len(matches) * 2 + 2 + (1 if seed is not None else 0)
+        df.insert(insert_pos, "game_type", game_type)
+        
+        # Add walking and cutting speeds for each agent
+        current_pos = insert_pos + 1  # Start after game_type column
+        for i in range(1, num_agents + 1):
+            if i in walking_speeds:
+                df.insert(current_pos, f"walking_speed_{i}", walking_speeds[i])
+                current_pos += 1
+            if i in cutting_speeds:
+                df.insert(current_pos, f"cutting_speed_{i}", cutting_speeds[i])
+                current_pos += 1
+        
         # Debug: Print DataFrame info
         print(f"Parsed training folder {folder_path}:")
         print(f"  NUM_ENVS detected: {num_envs}")
         print(f"  SEED detected: {seed if seed is not None else 'None'}")
+        print(f"  GAME_TYPE detected: {game_type}")
+        print(f"  Walking speeds: {walking_speeds}")
+        print(f"  Cutting speeds: {cutting_speeds}")
         print(f"  DataFrame shape: {df.shape}")
-        print(f"  Columns: {list(df.columns)}")
+        print(f"  All columns: {list(df.columns)}")
+        
+        # Check specifically for speed columns
+        speed_cols_found = []
+        for col in df.columns:
+            if 'speed' in col.lower():
+                speed_cols_found.append(col)
+        print(f"  Speed columns found: {speed_cols_found}")
+        
         if len(df) > 0:
             print(f"  Episodes range: {df['episode'].min()} to {df['episode'].max()}")
             print(f"  Sample data for first episode:")
             print(f"    Episode: {df.iloc[0]['episode']}")
             if 'seed' in df.columns:
                 print(f"    Seed: {df.iloc[0]['seed']}")
+            if 'game_type' in df.columns:
+                print(f"    Game type: {df.iloc[0]['game_type']}")
+            # Show speed values if they exist
+            for col in speed_cols_found:
+                print(f"    {col}: {df.iloc[0][col]}")
             # Show some key metrics if they exist
             key_metrics = ['pure_reward_ai_rl_1', 'deliver_ai_rl_1', 'cut_ai_rl_1', 'salad_ai_rl_1']
             for metric in key_metrics:
@@ -346,10 +431,18 @@ class DataProcessor:
                 group_cols.append(f'alpha_{i}')
             if f'beta_{i}' in df.columns:
                 group_cols.append(f'beta_{i}')
+            if f'walking_speed_{i}' in df.columns:
+                group_cols.append(f'walking_speed_{i}')
+            if f'cutting_speed_{i}' in df.columns:
+                group_cols.append(f'cutting_speed_{i}')
         
         # Add learning rate if present
         if 'lr' in df.columns:
             group_cols.append('lr')
+        
+        # Add game_type if present
+        if 'game_type' in df.columns:
+            group_cols.append('game_type')
             
         print(f"Grouping by: {group_cols}")
         
@@ -455,8 +548,8 @@ class DataProcessor:
             if study_dirs:
                 print(f"Found multiple study directories: {study_dirs}")
                 print("Please specify a study_name parameter. Example usage:")
-                print(f"  python analysis_pretrained.py {os.path.basename(raw_dir).replace('map_', '')} --study-name {study_dirs[0]}")
-                raise ValueError(f"Multiple study directories found. Please specify --study-name parameter from: {study_dirs}")
+                print(f"  python analysis_pretrained.py {os.path.basename(raw_dir).replace('map_', '')} --study_name {study_dirs[0]}")
+                raise ValueError(f"Multiple study directories found. Please specify --study_name parameter from: {study_dirs}")
             else:
                 # No training folders and no study folders - try direct processing
                 print("No training folders or study folders found, trying to process directory directly")
@@ -555,6 +648,10 @@ class DataProcessor:
         if num_agents == 1:
             df["attitude_key"] = df.apply(lambda row: f"{row['alpha_1']}_{row['beta_1']}", axis=1)
             
+            # Create speed key
+            if "walking_speed_1" in df.columns and "cutting_speed_1" in df.columns:
+                df["speed_key"] = df.apply(lambda row: f"{row['walking_speed_1']}_{row['cutting_speed_1']}", axis=1)
+            
             # Create total columns for single agent (check if source columns exist)
             if "pure_reward_ai_rl_1" in df.columns:
                 df["pure_reward_total"] = df["pure_reward_ai_rl_1"]
@@ -574,6 +671,35 @@ class DataProcessor:
                 axis=1
             )
             
+            # Create speed key for both agents (more robust handling)
+            speed_cols_1 = ["walking_speed_1", "cutting_speed_1"]
+            speed_cols_2 = ["walking_speed_2", "cutting_speed_2"]
+            
+            has_speed_1 = all(col in df.columns for col in speed_cols_1)
+            has_speed_2 = all(col in df.columns for col in speed_cols_2)
+            
+            if has_speed_1 and has_speed_2:
+                df["speed_key"] = df.apply(
+                    lambda row: f"{row['walking_speed_1']}_{row['cutting_speed_1']}_{row['walking_speed_2']}_{row['cutting_speed_2']}", 
+                    axis=1
+                )
+                print(f"Created speed_key with all 4 speed values")
+            elif has_speed_1:
+                df["speed_key"] = df.apply(
+                    lambda row: f"{row['walking_speed_1']}_{row['cutting_speed_1']}", 
+                    axis=1
+                )
+                print(f"Created speed_key with agent 1 speeds only")
+            elif has_speed_2:
+                df["speed_key"] = df.apply(
+                    lambda row: f"{row['walking_speed_2']}_{row['cutting_speed_2']}", 
+                    axis=1
+                )
+                print(f"Created speed_key with agent 2 speeds only")
+            else:
+                print(f"WARNING: No speed columns found for speed_key creation")
+                print(f"  Available columns containing 'speed': {[col for col in df.columns if 'speed' in col.lower()]}")
+            
             # Create total columns for two agents
             if "pure_reward_ai_rl_1" in df.columns and "pure_reward_ai_rl_2" in df.columns:
                 df["pure_reward_total"] = df["pure_reward_ai_rl_1"] + df["pure_reward_ai_rl_2"]
@@ -590,6 +716,19 @@ class DataProcessor:
                 print(f"    {col}: YES (sample value: {df[col].iloc[0] if len(df) > 0 else 'N/A'})")
             else:
                 print(f"    {col}: NO")
+        
+        # Show speed-related columns
+        speed_cols = [col for col in df.columns if 'speed' in col.lower()]
+        print(f"  Speed-related columns: {speed_cols}")
+        if speed_cols and len(df) > 0:
+            for col in speed_cols:
+                print(f"    {col}: {df[col].iloc[0]}")
+        
+        # Show if game_type column exists
+        if 'game_type' in df.columns:
+            print(f"  game_type: {df['game_type'].iloc[0] if len(df) > 0 else 'N/A'}")
+        else:
+            print(f"  game_type: NO")
         
         return df
 
@@ -1019,14 +1158,14 @@ def setup_argument_parser(experiment_type: str) -> argparse.ArgumentParser:
     )
     
     parser.add_argument(
-        '--smoothing-factor',
+        '--smoothing_factor',
         type=int,
         default=15,
         help='Smoothing factor for curve generation'
     )
     
     parser.add_argument(
-        '--output-format',
+        '--output_format',
         type=str,
         choices=['png', 'pdf', 'svg'],
         default='png',
@@ -1034,7 +1173,7 @@ def setup_argument_parser(experiment_type: str) -> argparse.ArgumentParser:
     )
     
     parser.add_argument(
-        '--individual-trainings',
+        '--individual_trainings',
         type=str,
         choices=['yes', 'no', 'Yes', 'No', 'YES', 'NO'],
         default='no',
@@ -1042,10 +1181,18 @@ def setup_argument_parser(experiment_type: str) -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        '--study-name',
+        '--study_name',
         type=str,
         default=None,
         help='Study name for specific study folders (optional)'
+    )
+    
+    parser.add_argument(
+        '--game_type',
+        type=str,
+        choices=['classic', 'classic_collision'],
+        default='classic',
+        help='Game type (classic or classic_collision)'
     )
     
     return parser
@@ -1053,17 +1200,19 @@ def setup_argument_parser(experiment_type: str) -> argparse.ArgumentParser:
 
 def main_analysis_pipeline(experiment_type: str, map_name: str,
                           cluster: str = 'cuenca', smoothing_factor: int = 15, 
-                          num_agents: Optional[int] = None, study_name: Optional[str] = None) -> Dict:
+                          num_agents: Optional[int] = None, study_name: Optional[str] = None,
+                          game_type: str = 'classic') -> Dict:
     """
     Main analysis pipeline that can be used by all experiment types.
     
     Args:
-        experiment_type: Type of experiment
+        experiment_type: Type of experiment (e.g., 'classic', 'competition', 'pretrained')
         map_name: Map name
         cluster: Cluster type
         smoothing_factor: Smoothing factor for plots
         num_agents: Number of agents (default: 2 for classic/competition, 1 for pretrained)
         study_name: Study name for specific study folders (optional)
+        game_type: Game type (classic or classic_collision) - used to construct path
         
     Returns:
         Dictionary containing processed data and paths
@@ -1075,8 +1224,14 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
     processor = DataProcessor(config)
     plotter = PlotGenerator(config)
     
+    # Use game_type in the experiment path if it's a classic-type experiment
+    if 'classic' in experiment_type.lower() or 'competition' in experiment_type.lower():
+        experiment_path = game_type
+    else:
+        experiment_path = experiment_type
+    
     # Set up directories and load data
-    paths = processor.setup_directories(experiment_type, map_name, cluster, study_name)
+    paths = processor.setup_directories(experiment_path, map_name, cluster, study_name)
     
     # Determine number of agents based on experiment type
     if num_agents is None:

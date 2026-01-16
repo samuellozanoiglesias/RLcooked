@@ -45,9 +45,12 @@ def update_agent_movement(self, agent, advanced_time):
     
     d_t = advanced_time / PHYSICS_STEPS
     
+    # Track if position changed for path processor update
+    initial_path_index = agent.path_index
+    
     for i in range(PHYSICS_STEPS):
         if agent.path_index >= len(agent.path):
-            return  # Finished path
+            break  # Finished path
             
         next_tile = agent.path[agent.path_index]
         target_pos = grid_to_world(next_tile, self.game.grid)
@@ -65,6 +68,15 @@ def update_agent_movement(self, agent, advanced_time):
         if close(agent.x, target_pos['x']) and close(agent.y, target_pos['y']):
             agent.path_index += 1
             # Note: slot_x and slot_y are calculated automatically from x and y pixel coordinates
+    
+    # Update path processor if agent moved and collision detection is enabled
+    if (hasattr(self, 'path_processor') and self.path_processor.is_enabled() and 
+        agent.path_index != initial_path_index):
+        self.path_processor.update_agent_position(
+            agent_id=agent.id,
+            current_position=(agent.slot_x, agent.slot_y),
+            path_index=agent.path_index
+        )
 
 def complete_agent_action(self, agent_id, agent, action_data, agent_events, own_food):
     """Complete an agent's action by updating game state directly."""
@@ -114,6 +126,10 @@ def complete_agent_action(self, agent_id, agent, action_data, agent_events, own_
     # Clear the busy state now that the action is complete
     self.busy_until[agent_id] = None
     self.action_info[agent_id] = None
+    
+    # Clear agent's path from collision tracking if enabled
+    if hasattr(self, 'path_processor') and self.path_processor.is_enabled():
+        self.path_processor.clear_agent_path(agent_id)
 
     return agent_events
 
@@ -263,8 +279,15 @@ def handle_delivery_action(self, agent, tile):
     agent.path_index = 0
 
 def setup_agent_path(self, agent, tile_index):
-    """Set up the agent's movement path to the target tile."""
+    """Set up the agent's movement path to the target tile using cached paths when possible."""
     
+    # If agent already has a path from the cached calculation, use it
+    if (hasattr(agent, 'path') and agent.path and 
+        hasattr(agent, 'path_index') and agent.path_index == 0):
+        # Path already set up from observation space calculation
+        return
+    
+    # Fallback: calculate path directly (should rarely be needed with new system)
     # Get target tile coordinates
     grid_w = self.game.grid.width
     x = tile_index % grid_w
@@ -309,8 +332,9 @@ def setup_agent_path(self, agent, tile_index):
             agent.path_index = 0
             return
     
-    # Calculate path
+    # Calculate path using A* pathfinding
     path = find_path(self.game.grid, start_node, goal_node)
+    
     if path:
         agent.path = path[1:]  # Skip current tile
         agent.path_index = 0

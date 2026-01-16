@@ -66,6 +66,8 @@ def make_train_rllib(config):
             "map_nr": config["MAP_NR"],
             "grid_size": config["GRID_SIZE"],
             "game_mode": config["GAME_VERSION"],
+            "collision_enabled": config.get("COLLISION_ENABLED", False),  # Add collision support
+            "path": path,  # Add path for collision debug logging
             "distance_map": distance_map_path,
             "walking_speeds": config.get("WALKING_SPEEDS", None),
             "cutting_speeds": config.get("CUTTING_SPEEDS", None),
@@ -148,6 +150,7 @@ def make_train_rllib(config):
                 "penalties_cfg": config.get("PENALTIES_CFG", None),
                 "rewards_cfg": config.get("REWARDS_CFG", None),
                 "dynamic_rewards_cfg": config.get("DYNAMIC_REWARDS_CFG", None),
+                "collision_enabled": config.get("COLLISION_ENABLED", False),
             },
             clip_actions=True,
         )

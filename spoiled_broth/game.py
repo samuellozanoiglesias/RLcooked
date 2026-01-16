@@ -107,6 +107,9 @@ class SpoiledBroth(BaseGame):
         # Assign pixel position
         agent.x = start_tile.slot_x * self.grid.tile_size + self.grid.tile_size // 2
         agent.y = start_tile.slot_y * self.grid.tile_size + self.grid.tile_size // 2
+        
+        # Set agent speed in pixels/second for movement
+        agent.speed = agent.walk_speed * BASE_WALKING_SPEED
     
         self.gameObjects[agent_id] = agent
 

@@ -16,7 +16,7 @@ CLUSTER = str(sys.argv[1]).lower()
 INPUT_PATH = sys.argv[2]
 MAP_NR = str(sys.argv[3]).lower()
 LR = float(sys.argv[4])
-GAME_VERSION = str(sys.argv[5]).lower() ## If game_version = classic, one type of food (tomato); if game_version = competition, two types of food (tomato and pumpkin)
+GAME_VERSION = str(sys.argv[5]).lower() ## If game_version = classic, one type of food (tomato); if game_version = competition, two types of food (tomato and pumpkin); if game_version ends with '_collision', enables collision detection
 if len(sys.argv) > 6:
     NUM_AGENTS = int(sys.argv[6])
     if NUM_AGENTS not in [1, 2]:
@@ -84,7 +84,7 @@ SAVE_EVERY_N_EPOCHS = 20
 PAYOFF_MATRIX = [1,1,-2]
 
 # Neural network architecture
-MLP_LAYERS = [512, 512, 256]
+MLP_LAYERS = [1024, 512, 256]
 
 # Game characteristics
 PENALTIES_CFG = {
@@ -109,8 +109,8 @@ else:
         "raw_food": 0.0,
         "plate": 0.0,
         "counter": 0.0,
-        "cut": 5.0,
-        "salad": 7.0,
+        "cut": 2.0,
+        "salad": 5.0,
         "deliver": 10.0,
     }
 
@@ -138,21 +138,6 @@ WAIT_FOR_ACTION_COMPLETION = True  # Flag to ensure actions complete before next
 
 reward_weights, walking_speeds, cutting_speeds = {}, {}, {}
 
-# Path definitions
-if NUM_AGENTS == 1:
-    save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{GAME_VERSION}/map_{MAP_NR}'
-    reward_weights[f"ai_rl_{agent_to_train}"] = (globals()[f"alpha_{agent_to_train}"], globals()[f"beta_{agent_to_train}"])
-    walking_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"walking_speed_{agent_to_train}"]
-    cutting_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"cutting_speed_{agent_to_train}"]
-else: 
-    save_dir = f'{local}/data/samuel_lozano/cooked/{GAME_VERSION}/map_{MAP_NR}'
-    for i in range(1, NUM_AGENTS + 1):
-        reward_weights[f"ai_rl_{i}"] = (globals()[f"alpha_{i}"], globals()[f"beta_{i}"])
-        walking_speeds[f"ai_rl_{i}"] = globals()[f"walking_speed_{i}"]
-        cutting_speeds[f"ai_rl_{i}"] = globals()[f"cutting_speed_{i}"]
-
-os.makedirs(save_dir, exist_ok=True)
-
 pretrained_policies = None
 # Load pretrained policies if specified
 if CHECKPOINT_PATHS != "none":
@@ -178,6 +163,28 @@ if CHECKPOINT_PATHS != "none":
                     pretrained_policies[f"ai_rl_{i+1}"] = {"source_policy_id": policy_id, "checkpoint_number": checkpoint_number, "path": checkpoint_path}
                 else:
                     pretrained_policies[f"ai_rl_{i+1}"] = None
+
+# Determine collision mode from game version
+COLLISION_ENABLED = GAME_VERSION.endswith('_collision')
+BASE_GAME_VERSION = GAME_VERSION.replace('_collision', '') if COLLISION_ENABLED else GAME_VERSION
+
+# Update save directory to reflect collision mode
+save_dir_base = GAME_VERSION  # Use full game version (including _collision suffix if present)
+
+# Path definitions
+if NUM_AGENTS == 1:
+    save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/map_{MAP_NR}'
+    reward_weights[f"ai_rl_{agent_to_train}"] = (globals()[f"alpha_{agent_to_train}"], globals()[f"beta_{agent_to_train}"])
+    walking_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"walking_speed_{agent_to_train}"]
+    cutting_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"cutting_speed_{agent_to_train}"]
+else: 
+    save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/map_{MAP_NR}'
+    for i in range(1, NUM_AGENTS + 1):
+        reward_weights[f"ai_rl_{i}"] = (globals()[f"alpha_{i}"], globals()[f"beta_{i}"])
+        walking_speeds[f"ai_rl_{i}"] = globals()[f"walking_speed_{i}"]
+        cutting_speeds[f"ai_rl_{i}"] = globals()[f"cutting_speed_{i}"]
+
+os.makedirs(save_dir, exist_ok=True)
 
 # Determine grid size from map file (text format)
 map_txt_path = os.path.join(os.path.dirname(__file__), 'spoiled_broth', 'maps', f'{MAP_NR}.txt')
@@ -206,7 +213,8 @@ config = {
     "LR": LR,
     "MAP_NR": MAP_NR,
     "REWARD_WEIGHTS": reward_weights,
-    "GAME_VERSION": GAME_VERSION,
+    "GAME_VERSION": BASE_GAME_VERSION,  # Use base version without collision suffix
+    "COLLISION_ENABLED": COLLISION_ENABLED,  # Add collision flag
     "GRID_SIZE": GRID_SIZE,
     "PAYOFF_MATRIX": PAYOFF_MATRIX,
     "WALKING_SPEEDS": walking_speeds,
@@ -222,11 +230,11 @@ config = {
     "DYNAMIC_PPO_PARAMS_CFG": DYNAMIC_PPO_PARAMS_CFG,
     # Hyperparameters
     "NUM_UPDATES": NUM_SGD_ITER,  # Number of SGD iterations per batch
-    "GAMMA": 0.99,     # Discount factor for future rewards (close to 1 = long-term, lower = short-term)
-    "GAE_LAMBDA": 0.99, # Lambda for Generalized Advantage Estimation (controls bias-variance tradeoff in advantage calculation)
-    "ENT_COEF": 0.05,   # Entropy coefficient (controls exploration: higher = more random actions)
-    "CLIP_EPS": 0.2,    # PPO clip parameter (limits how much the policy can change at each update; stabilizes training)
-    "VF_COEF": 0.5,     # Value function loss coefficient (relative weight of value loss vs. policy loss)
+    "GAMMA": 0.9,     # Discount factor for future rewards (close to 1 = long-term, lower = short-term)
+    "GAE_LAMBDA": 0.95, # Lambda for Generalized Advantage Estimation (controls bias-variance tradeoff in advantage calculation)
+    "ENT_COEF": 0.01,   # Entropy coefficient (controls exploration: higher = more random actions)
+    "CLIP_EPS": 0.3,    # PPO clip parameter (limits how much the policy can change at each update; stabilizes training)
+    "VF_COEF": 1.0,     # Value function loss coefficient (relative weight of value loss vs. policy loss)
     "FCNET_HIDDENS": MLP_LAYERS,  # Hidden layer sizes for MLP
     "FCNET_ACTIVATION": "tanh",  # Activation function for MLP ("tanh", "relu", etc.)
     # Resource allocation
