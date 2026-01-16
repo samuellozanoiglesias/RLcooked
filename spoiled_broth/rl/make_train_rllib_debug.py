@@ -247,9 +247,9 @@ def make_train_rllib_debug(config):
             logf.write(line + "\n")        
 
     # Save initial checkpoint at episode 0 (or start_episode if resuming)
-    initial_episode = start_episode
-    initial_checkpoint_path = trainer.save(os.path.join(path, f"checkpoint_{initial_episode}"))
-    print(f"Initial checkpoint saved at {initial_checkpoint_path} (episode {initial_episode})")
+    initial_checkpoint_result = trainer.save(os.path.join(path, f"checkpoint_{start_episode}"))
+    initial_checkpoint_path = initial_checkpoint_result.checkpoint.path
+    print(f"Initial checkpoint saved at {initial_checkpoint_path} (episode {start_episode})")
 
     # Track episode data for summary
     episode_data_summary = []
@@ -373,7 +373,8 @@ def make_train_rllib_debug(config):
                 except Exception:
                     pass  # Use fallback value
             
-            checkpoint_path = trainer.save(os.path.join(path, f"checkpoint_{current_episode}"))
+            checkpoint_result = trainer.save(os.path.join(path, f"checkpoint_{current_episode}"))
+            checkpoint_path = checkpoint_result.checkpoint.path
             print(f"Checkpoint saved at {checkpoint_path} (episode {current_episode})")
 
     # Get the final episode count from training_stats.csv

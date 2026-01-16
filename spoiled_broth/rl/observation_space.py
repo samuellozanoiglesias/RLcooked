@@ -73,8 +73,11 @@ def get_distance_and_path(path_processor, from_xy, to_xy, agent_id=None, game=No
     
     # Use path processor to calculate shortest path distance
     distance, path = path_processor.get_shortest_path_distance(
-        game.grid, from_xy, to_xy, agent_id, current_time, agent_speed
+        game.grid, from_xy, to_xy, agent_id, current_time, agent_speed, game
     )
+    if distance == -1 or path == -1:
+        # Path blocked by collisions
+        print("[get_distance_and_path] Path blocked by collisions.")
     return distance, path
 
 # ---- Classic mode without ownership awareness ---- #
@@ -142,10 +145,17 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
         tile_index = None
         for _idx, x, y in accessible_agent:
             d, path = get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed)
+            if d == -1:
+                print(f"[game_to_obs_vector_classic] Path blocked by collisions for tile type {tile_type}.")
+                print(f"  from {agent_pos} to {(x, y)}")
+                print(f"  actual min_dist: {min_dist}")
             if min_dist is None or (d < min_dist and d >= 0):
                 min_dist = d
                 considered_path = path
                 tile_index = _idx
+        print(f"[DEBUG] Agent {agent_id} position: {agent_pos}")
+        print(f"[DEBUG] Other agent position: {other_pos}")
+        print(f"[DEBUG] Tile type: {tile_type}, min_dist: {min_dist}, tile_index: {tile_index}")
         if min_dist is not None and min_dist >= 0:
             time_to_tile = (min_dist / agent_walking_speed + action_time) / normalization_factor
             considered_paths.append(considered_path)
@@ -156,6 +166,7 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
             time_to_tile = 1
             considered_paths.append(considered_path)
             considered_tiles.append(-1)
+            print(f"[DEBUG] Considered_tiles: {considered_tiles}, path blocked by collisions.")
             obs_vector.append(time_to_tile)
         else:
             considered_paths.append(None)
@@ -254,6 +265,8 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
         # Single agent case: append zeros for other agent inventory
         other_inventory = np.zeros(len(item_names), dtype=np.float32)
         obs_vector.extend(other_inventory.tolist())
+
+    print(f"[DEBUG] Considered_tiles: {considered_tiles}")
 
     return np.array(obs_vector, dtype=np.float32), considered_paths, considered_tiles
 

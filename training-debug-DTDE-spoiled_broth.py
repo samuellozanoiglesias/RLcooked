@@ -269,8 +269,9 @@ if final_episode_count is not None:
         f.write(f"NUM_EPISODES: {final_episode_count}\n")
 
 # Save the final policy
-final_checkpoint = trainer.save(os.path.join(path, f"checkpoint_final"))
-print(f"Final checkpoint saved at {final_checkpoint}")
+final_checkpoint_result = trainer.save(os.path.join(path, f"checkpoint_final"))
+final_checkpoint_path = final_checkpoint_result.checkpoint.path        
+print(f"Final checkpoint saved at {final_checkpoint_path}")
 if final_episode_count is not None:
     print(f"Debug training completed after {final_episode_count} episodes")
 

@@ -212,7 +212,6 @@ class GameEnv(ParallelEnv):
         self.accessibility_map = get_accessibility_map(map_nr)
                     
         # Initialize path processing system
-        print(f"[GameEnv] Initializing PathProcessor with collision_enabled={collision_enabled}")
         self.path_processor = PathProcessor(map_nr, collision_enabled)
 
         # Determine agent IDs from reward_weights or default to two agents
@@ -317,6 +316,7 @@ class GameEnv(ParallelEnv):
             self.path_processor.active_paths.clear()
             
         # Clear pre-calculated paths
+        print(f"[DEBUG]: RESTART")
         self.agent_action_paths = {agent_id: [] for agent_id in self.agents}
         self.agent_action_tiles = {agent_id: [] for agent_id in self.agents}
 
@@ -366,16 +366,19 @@ class GameEnv(ParallelEnv):
                             print(f"  {reward_type}: {initial_val:.3f} -> {current_val:.3f} (ratio: {current_val/initial_val:.3f})")
 
     def observe(self, agent):
+        print(f"[DEBUG]: OBS agent_id: {agent} IS STARTING")
         obs_vector, considered_paths, considered_tiles = game_to_obs_vector(self.game, agent, game_mode=self.game_mode, path_processor=self.path_processor)
         
         # Store pre-calculated paths and tiles for this agent
+        print(f"[DEBUG]: OLD AGENT ACTION TILES: {self.agent_action_tiles[agent]}")
         self.agent_action_paths[agent] = considered_paths
         self.agent_action_tiles[agent] = considered_tiles
-        
+        print(f"[DEBUG]: NEW AGENT ACTION TILES: {self.agent_action_tiles[agent]}")
         obs = obs_vector.flatten().astype(np.float32)
         return obs
 
     def step(self, actions):
+        print(f"[DEBUG]: STEP IS STARTING")
         # --- Simultaneous agent update for minimal delta_time ---
         self.agent_map = {agent_id: self.game.gameObjects[agent_id] for agent_id in self.agents}
         agent_penalties = {agent_id: 0.0 for agent_id in self.agents}
@@ -408,14 +411,16 @@ class GameEnv(ParallelEnv):
 
             # Check if agent is ready for a new action
             if busy_times[agent_id] <= 0:
+                print(f"[DEBUG]: Processing action for agent_id: {agent_id}, action_idx: {action_idx}")
                 self.total_actions_asked[agent_id] += 1
                 action_name = get_rl_action_space(self.game_mode)[action_idx]
                 
                 if agent_id in self.agent_action_tiles:        
                     cached_path = self.agent_action_paths[agent_id][action_idx]
+                    print(f"[DEBUG] agent_id: {agent_id}")  # DEBUG
+                    print(f"[DEBUG] self.agent_action_tiles[agent_id]: {self.agent_action_tiles[agent_id]}")  # DEBUG
                     tile_index = self.agent_action_tiles[agent_id][action_idx]
                 else:
-                    print(f"ERROR: agent_action_tiles missing for {agent_id}")
                     cached_path = None
                     tile_index = None
                 
@@ -565,9 +570,6 @@ class GameEnv(ParallelEnv):
         agent_events = update_agents_directly(self, advanced_time, agent_events, agent_food_type=self.agent_food_type, game_mode=self.game_mode)
         self.agent_map = {agent_id: self.game.gameObjects[agent_id] for agent_id in self.agents}
 
-        # Update collision tracking if enabled (no complex state management needed with precomputed data)
-        # The collision processor uses precomputed data, no real-time updates needed
-
         # Update totals for actions that just completed (for logging purposes only)
         # We should use the events that were already recorded during action selection, not re-evaluate
         for agent_id in self.agents:
@@ -605,20 +607,16 @@ class GameEnv(ParallelEnv):
             }
             for agent in self.agents
         }
-        
-        # Add collision system performance stats to first agent's info (for monitoring)
-        if self.agents and self.path_processor.is_enabled():
-            self.infos[self.agents[0]].update({
-                "path_stats": self.path_processor.get_performance_stats()
-            })
 
         self.observations = {agent: self.observe(agent) for agent in self.agents}
+        print(f"[DEBUG]: Observations are being generated for agents: {self.agents}")
         terminations = self.dones
         truncations = {agent: False for agent in self.agents}
 
         # If episode is done, aggregate and log
         if self.write_csv:
-            print(f"[Episode {self.episode_count}] Logging episode data to csv")
+            if self.episode_count % 100 == 0:
+                print(f"[Episode {self.episode_count}] Logging episode data to csv")
             row = {"episode": self.episode_count}
             for agent_id in self.agents:
                 row[f"pure_reward_{agent_id}"] = float(self.cumulated_pure_rewards[agent_id])

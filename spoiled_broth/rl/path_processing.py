@@ -26,6 +26,14 @@ class PathProcessor:
     def __init__(self, map_nr: int, collision_enabled: bool = True):
         self.collision_enabled = collision_enabled
         self.active_paths: Dict[str, AgentPathInfo] = {}  # Agent path information storage
+        self._collision_cache: Dict[str, bool] = {}  # Cache collision results
+        self._cache_hits = 0
+        self._cache_misses = 0
+        
+        # ========== DEBUG SECTION - DELETE EASILY ==========
+        self.debug_enabled = True  # Set to False to disable all debug output
+        self.debug_iteration = 0
+        # ===================================================
         
     def is_enabled(self) -> bool:
         """Check if collision detection is enabled."""
@@ -33,7 +41,7 @@ class PathProcessor:
     
     def get_shortest_path_distance(self, grid, from_xy: Tuple[int, int], to_xy: Tuple[int, int], 
                                  agent_id: str = None, current_time: float = 0.0, 
-                                 agent_speed: float = 1.875) -> Tuple[Optional[float], Optional[List[Node]]]:
+                                 agent_speed: float = 1.875, game=None) -> Tuple[Optional[float], Optional[List[Node]]]:
         """Calculate shortest path distance and return both distance and path.
         
         Args:
@@ -43,6 +51,7 @@ class PathProcessor:
             agent_id: ID of the requesting agent
             current_time: Current game time for collision detection
             agent_speed: Walking speed of the requesting agent in tiles/second (default 1.875 = 30/16)
+            game: Game instance to get all agent positions for obstacle detection
             
         Returns:
             tuple: (distance, path) where distance is path length or None if no path exists,
@@ -78,7 +87,7 @@ class PathProcessor:
                 if not self.collision_enabled:
                     path = find_path(grid, start_node, neighbor_node)
                 else:
-                    path = self._find_collision_free_path(grid, start_node, neighbor_node, agent_id, current_time)
+                    path = self._find_collision_free_path(grid, start_node, neighbor_node, agent_id, current_time, game)
                 
                 if path and len(path) > 1:
                     distance = sum(euclidean_distance(path[i], path[i + 1]) for i in range(len(path) - 1))
@@ -92,11 +101,23 @@ class PathProcessor:
                 # No path to any neighbor found
                 if self.collision_enabled:
                     # Check if fallback path exists (collision blocking)
+                    # Get static obstacles for fallback check too
+                    static_obstacles = set()
+                    if game is not None:
+                        for other_agent_id, other_agent in game.gameObjects.items():
+                            if (other_agent_id != agent_id and 
+                                other_agent_id.startswith('ai_rl_') and
+                                hasattr(other_agent, 'slot_x') and hasattr(other_agent, 'slot_y')):
+                                static_obstacles.add((other_agent.slot_x, other_agent.slot_y))
+                    
                     for neighbor_xy in neighbors:
-                        neighbor_node = Node(neighbor_xy[0], neighbor_xy[1])
-                        fallback = find_path(grid, start_node, neighbor_node)
-                        if fallback and len(fallback) > 1:
-                            return -1, -1
+                        # Check if path would be blocked by static obstacles
+                        if neighbor_xy not in static_obstacles:
+                            neighbor_node = Node(neighbor_xy[0], neighbor_xy[1])
+                            fallback = find_path(grid, start_node, neighbor_node)
+                            if fallback and len(fallback) > 1:
+                                print("[PathProcessor WARNING] Path exists but blocked by collisions.")
+                                return -1, -1
                 return None, None
         
         # Target is walkable - use original logic
@@ -105,6 +126,7 @@ class PathProcessor:
         # Store agent speed for collision detection
         self._requesting_agent_speed = agent_speed
         
+
         if not self.collision_enabled:
             # Simple A* pathfinding without collision detection
             path = find_path(grid, start_node, target_node)
@@ -116,45 +138,54 @@ class PathProcessor:
                 return None, None
         else:
             # Collision-aware pathfinding
-            path = self._find_collision_free_path(grid, start_node, target_node, agent_id, current_time)
+            path = self._find_collision_free_path(grid, start_node, target_node, agent_id, current_time, game)
             if path and len(path) > 1:
                 distance = sum(euclidean_distance(path[i], path[i + 1]) for i in range(len(path) - 1))
                 return distance, path
             else:
                 path = find_path(grid, start_node, target_node)
                 if path and len(path) > 1:
+                    print("[PathProcessor WARNING] WALKABLE - Path exists but blocked by collisions.")
                     return -1, -1  # Indicate path blocked by collisions
                 else:
                     return None, None
     
     def _find_collision_free_path(self, grid, start_node: Node, target_node: Node, 
-                                agent_id: str, current_time: float) -> Optional[List[Node]]:
-        """Find path that avoids collisions with other agent paths.
+                                agent_id: str, current_time: float, game=None) -> Optional[List[Node]]:
+        """Find path that avoids collisions with other agent paths - optimized version.
         
-        This implements collision-aware A* by checking if each potential path
-        conflicts with stored active agent paths.
         Args:
             grid: Game grid for pathfinding
             start_node: Starting node
             target_node: Target node
             agent_id: ID of the requesting agent
             current_time: Current game time for collision detection
+            game: Game instance to get all agent positions for obstacle detection
         """
+        # Get all agent positions as static obstacles
+        static_obstacles = set()
+        if game is not None:
+            for other_agent_id, other_agent in game.gameObjects.items():
+                if (other_agent_id != agent_id and 
+                    other_agent_id.startswith('ai_rl_') and
+                    hasattr(other_agent, 'slot_x') and hasattr(other_agent, 'slot_y')):
+                    static_obstacles.add((other_agent.slot_x, other_agent.slot_y))
+        
+        # Remove the problematic early return - always do collision detection when enabled
         # Priority queue for A* with collision awareness
-        # Use counter to break ties when f_score and g_score are equal
         counter = 0
-        open_set = [(0, 0, counter, start_node, [start_node])]  # (f_score, g_score, counter, node, path)
+        open_set = [(0, 0, counter, start_node, [start_node])]
         visited = set()
         
-        iterations = 0
-        while open_set:
-            iterations += 1
-            if iterations > 1000:  # Safety limit
-                print(f"[_find_collision_free_path] Hit iteration limit!")
+        # Reduce iteration limit for better performance
+        max_iterations = 500  # Reduced from 1000
+        
+        for iteration in range(max_iterations):
+            if not open_set:
                 break
+                
             f_score, g_score, _, current_node, current_path = heapq.heappop(open_set)
             
-            # Use node position as key for visited tracking
             node_key = (current_node.x, current_node.y)
             if node_key in visited:
                 continue
@@ -165,20 +196,25 @@ class PathProcessor:
             if current_node.x == target_node.x and current_node.y == target_node.y:
                 return current_path
             
+            # Early termination if path is getting too long
+            if len(current_path) > 20:  # Reasonable path length limit
+                continue
+            
             # Explore neighbors
-            for neighbor in self._get_valid_neighbors(grid, current_node):
+            for neighbor in self._get_valid_neighbors(grid, current_node, static_obstacles):
                 neighbor_key = (neighbor.x, neighbor.y)
                 if neighbor_key in visited:
                     continue
                 
                 new_path = current_path + [neighbor]
                 
-                # Check for collisions with other agent paths
-                if self._path_has_collision(new_path, agent_id, current_time):
+                # Enhanced collision check: check both static obstacles and dynamic paths
+                if self._node_has_collision(neighbor, static_obstacles) or \
+                   (len(new_path) > 3 and self._path_has_collision(new_path, agent_id, current_time)):
                     continue
                 
-                tentative_g = g_score + euclidean_distance(current_node, neighbor)
-                h_score = euclidean_distance(neighbor, target_node)
+                tentative_g = g_score + 1  # Use Manhattan distance (faster than euclidean)
+                h_score = abs(neighbor.x - target_node.x) + abs(neighbor.y - target_node.y)
                 f = tentative_g + h_score
                 
                 counter += 1
@@ -211,30 +247,32 @@ class PathProcessor:
         
         return neighbors
     
-    def _get_valid_neighbors(self, grid, node: Node) -> List[Node]:
-        """Get valid neighboring nodes for pathfinding."""
+    def _get_valid_neighbors(self, grid, node: Node, static_obstacles: set = None) -> List[Node]:
+        """Get valid neighboring nodes for pathfinding, avoiding static obstacles."""
         neighbors = []
         directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]  # Up, Down, Right, Left
+        
+        if static_obstacles is None:
+            static_obstacles = set()
         
         for dx, dy in directions:
             new_x, new_y = node.x + dx, node.y + dy
             
             # Check bounds
             if 0 <= new_x < grid.width and 0 <= new_y < grid.height:
-                # Check if tile is walkable
-                if grid.tiles[new_x][new_y].is_walkable:
+                # Check if tile is walkable and not blocked by static obstacles
+                if (grid.tiles[new_x][new_y].is_walkable and 
+                    (new_x, new_y) not in static_obstacles):
                     neighbors.append(Node(new_x, new_y))
         
         return neighbors
     
+    def _node_has_collision(self, node: Node, static_obstacles: set) -> bool:
+        """Check if a single node position collides with static obstacles."""
+        return (node.x, node.y) in static_obstacles
+    
     def _path_has_collision(self, path: List[Node], agent_id: str, current_time: float) -> bool:
-        """Check if a path collides with any active agent paths.
-        
-        Uses temporal-spatial collision detection considering:
-        - Current positions of all agents
-        - Agent movement speeds
-        - Future positions as agents move along their paths
-        - Time-based prediction of when agents will occupy positions
+        """Check if a path collides with any active agent paths with caching.
         
         Args:
             path: The path to check for collisions
@@ -244,26 +282,73 @@ class PathProcessor:
         Returns:
             bool: True if collision detected, False otherwise
         """
-        if not self.collision_enabled:
+        if not self.collision_enabled or not self.active_paths:
             return False
-            
-        # Check against all other active agent paths
+        
+        # Create cache key for this collision check
+        path_key = self._create_path_cache_key(path, agent_id, current_time)
+        if path_key in self._collision_cache:
+            self._cache_hits += 1
+            return self._collision_cache[path_key]
+        
+        self._cache_misses += 1
+        
+        # Early termination: if path is very short, quick check
+        if len(path) <= 2:
+            for other_agent_id, other_path_info in self.active_paths.items():
+                if other_agent_id != agent_id:
+                    # Quick position-based check for short paths
+                    other_pos = (round(other_path_info.current_position[0]), 
+                                round(other_path_info.current_position[1]))
+                    for node in path:
+                        if (node.x, node.y) == other_pos:
+                            self._collision_cache[path_key] = True
+                            return True
+        
+        # Full collision check for longer paths
         for other_agent_id, other_path_info in self.active_paths.items():
             if other_agent_id == agent_id:
                 continue
             
-            # Perform temporal-spatial collision check
-            if self._check_temporal_collision(path, other_path_info, current_time):
+            collision_detected = self._check_temporal_collision(path, other_path_info, current_time, agent_id)
+            
+            if collision_detected:
+                self._collision_cache[path_key] = True
                 return True
+        
+        self._collision_cache[path_key] = False
+        
+        # Limit cache size to prevent memory bloat
+        if len(self._collision_cache) > 1000:
+            # Remove oldest half of cache entries
+            keys_to_remove = list(self._collision_cache.keys())[:500]
+            for key in keys_to_remove:
+                del self._collision_cache[key]
         
         return False
     
-    def _check_temporal_collision(self, path: List[Node], other_path_info: AgentPathInfo, 
-                                 current_time: float) -> bool:
-        """Check if two paths will collide considering movement over time.
+    def _create_path_cache_key(self, path: List[Node], agent_id: str, current_time: float) -> str:
+        """Create a cache key for path collision detection."""
+        # Use path start/end and agent positions for cache key
+        if not path:
+            return f"{agent_id}_empty_{current_time:.1f}"
         
-        This checks for exact tile-based collisions: agents collide when they occupy
-        the same tile at the same time. Checks are performed every 0.5 seconds.
+        start = (path[0].x, path[0].y)
+        end = (path[-1].x, path[-1].y) if len(path) > 1 else start
+        
+        # Include other agent positions in cache key
+        other_positions = []
+        for other_id, info in self.active_paths.items():
+            if other_id != agent_id:
+                pos = (round(info.current_position[0]), round(info.current_position[1]))
+                other_positions.append(f"{other_id}_{pos[0]}_{pos[1]}")
+        
+        other_pos_str = "|".join(sorted(other_positions))
+        return f"{agent_id}_{start[0]}_{start[1]}_{end[0]}_{end[1]}_{len(path)}_{other_pos_str}"
+    
+    def _check_temporal_collision(self, path: List[Node], other_path_info: AgentPathInfo, 
+                                 current_time: float, requesting_agent_id: str = None) -> bool:
+        """Fast collision detection using precomputed path snapshots.
         
         Args:
             path: The candidate path to check
@@ -273,56 +358,61 @@ class PathProcessor:
         Returns:
             bool: True if paths will collide in space-time (same tile, same time)
         """
-        other_path = other_path_info.path
-        other_pos = other_path_info.current_position
-        other_speed = other_path_info.speed
-        other_path_idx = other_path_info.path_index
+        # Quick path validation
+        if not path or not other_path_info.path:
+            return False
         
-        # Get requesting agent speed (stored during pathfinding call) in tiles/second
+        # Get requesting agent speed - try to get it from stored paths first, then fallback
         requesting_agent_speed = getattr(self, '_requesting_agent_speed', 1.875)
         
-        # Time simulation parameters
-        time_step = 0.5  # Check collisions every 0.5 seconds as requested
-        max_simulation_time = 10.0  # Don't simulate beyond 10 time units
+        # Try to get the actual requesting agent's speed from stored paths if available
+        if requesting_agent_id and requesting_agent_id in self.active_paths:
+            requesting_agent_speed = self.active_paths[requesting_agent_id].speed
         
-        # Simulate both agents moving along their paths
-        requesting_time = 0.0
-        
-        requesting_idx = 0
-        other_idx = other_path_idx
-        
-        # Calculate initial tile positions
-        requesting_tile = self._get_current_tile_at_time(path, 0, requesting_agent_speed, requesting_time)
-        other_tile = self._get_current_tile_at_time_for_agent(
-            other_path, other_path_idx, other_pos, other_speed, requesting_time
+        # Calculate maximum time needed to complete both paths
+        requesting_path_time = self._calculate_path_completion_time(path, 0, requesting_agent_speed)
+        other_path_time = self._calculate_path_completion_time_for_agent(
+            other_path_info.path, other_path_info.path_index, 
+            other_path_info.current_position, other_path_info.speed
         )
         
-        while requesting_time < max_simulation_time:
-            # Get tile positions at current time
-            requesting_tile = self._get_current_tile_at_time(path, 0, requesting_agent_speed, requesting_time)
-            other_tile = self._get_current_tile_at_time_for_agent(
-                other_path, other_path_idx, other_pos, other_speed, requesting_time
-            )
-            
-            # Check if both agents are still on valid paths
-            if requesting_tile is None:
-                break  # Requesting agent finished their path
-            if other_tile is None:
-                # Other agent finished, check if they stay at final position
-                if len(other_path) > 0:
-                    final_tile = (other_path[-1].x, other_path[-1].y)
-                    if requesting_tile == final_tile:
-                        return True
-                break
-            
-            # Check for exact tile collision
-            if requesting_tile == other_tile:
-                return True
-            
-            # Advance time
-            requesting_time += time_step
+        # Use the maximum time between both paths
+        max_simulation_time = max(requesting_path_time, other_path_time)
         
-        return False
+        # Precompute path snapshots for both agents until paths complete
+        requesting_snapshots = self._get_path_snapshots(path, 0, requesting_agent_speed, max_simulation_time)
+        other_snapshots = self._get_path_snapshots_for_agent(
+            other_path_info.path, other_path_info.path_index, 
+            other_path_info.current_position, other_path_info.speed, max_simulation_time
+        )
+        
+        # Quick check: if paths don't overlap in time, no collision
+        if not requesting_snapshots or not other_snapshots:
+            return False
+        
+        # Convert to sets for fast intersection check
+        requesting_tiles = set(requesting_snapshots.values())
+        other_tiles = set(other_snapshots.values())
+        
+        # Quick overlap check - if no common tiles, no collision possible
+        if not requesting_tiles.intersection(other_tiles):
+            return False
+        
+        # Check for exact time-tile collisions
+        collision_found = False
+        collision_details = []
+        for time_key in requesting_snapshots:
+            if time_key in other_snapshots:
+                if requesting_snapshots[time_key] == other_snapshots[time_key]:
+                    collision_found = True
+                    collision_details.append((time_key, requesting_snapshots[time_key]))
+                    # ========== DEBUG SECTION - DELETE EASILY ==========
+                    if self.debug_enabled and len(collision_details) <= 3:  # Show first 3 collisions
+                        time_sec = time_key * 0.1
+                        tile = requesting_snapshots[time_key]
+                        print(f"  🔥 COLLISION at t={time_sec:.1f}s: Both agents at {tile}")
+                    # ===================================================        
+        return collision_found
     
     def _distance(self, pos1: Tuple[float, float], pos2: Tuple[float, float]) -> float:
         """Calculate Euclidean distance between two positions."""
@@ -347,110 +437,215 @@ class PathProcessor:
         
         return (new_x, new_y)
     
-    def _get_current_tile_at_time(self, path: List[Node], start_idx: int, 
-                                 speed: float, elapsed_time: float) -> Optional[Tuple[int, int]]:
-        """Calculate which tile an agent occupies at a specific time along their path.
+    def _get_path_snapshots(self, path: List[Node], start_idx: int, speed: float, 
+                           max_time: float) -> Dict[int, Tuple[int, int]]:
+        """Precompute path positions at 0.1-second intervals until max_time is reached.
+        Agent stays at final position after completing the path.
+        
+        Returns:
+            Dict mapping time_step*10 -> (x, y) tile coordinates
+        """
+        if not path or start_idx >= len(path):
+            return {}
+        
+        snapshots = {}
+        time_step = 0.1
+        current_time = 0.0
+        
+        # Calculate total path distance
+        total_distance = 0.0
+        for i in range(start_idx, len(path) - 1):
+            dist = abs(path[i+1].x - path[i].x) + abs(path[i+1].y - path[i].y)
+            total_distance += dist
+        
+        path_completion_time = total_distance / speed if speed > 0 else 0.0
+        
+        # Generate snapshots until max_time is reached
+        while current_time <= max_time:
+            time_key = int(round(current_time * 10))  # Convert to int key (0.1s = 1, 0.2s = 2, etc.)
+            
+            if current_time >= path_completion_time and path_completion_time > 0:
+                # Agent has completed path and stays at final position
+                final_tile = (path[-1].x, path[-1].y)
+                snapshots[time_key] = final_tile
+                
+            else:
+                # Agent is still moving along the path
+                distance_traveled = speed * current_time
+                
+                # Find current position along path
+                remaining_distance = distance_traveled
+                current_path_idx = start_idx
+                current_pos = (float(path[start_idx].x), float(path[start_idx].y))
+                
+                # Move along path segments
+                while remaining_distance > 0 and current_path_idx < len(path) - 1:
+                    next_node = path[current_path_idx + 1]
+                    segment_distance = abs(next_node.x - current_pos[0]) + abs(next_node.y - current_pos[1])
+                    
+                    if remaining_distance >= segment_distance:
+                        # Complete this segment
+                        current_pos = (float(next_node.x), float(next_node.y))
+                        remaining_distance -= segment_distance
+                        current_path_idx += 1
+                    else:
+                        # Partial segment
+                        if segment_distance > 0:
+                            ratio = remaining_distance / segment_distance
+                            current_pos = (
+                                current_pos[0] + ratio * (next_node.x - current_pos[0]),
+                                current_pos[1] + ratio * (next_node.y - current_pos[1])
+                            )
+                        remaining_distance = 0
+                
+                tile = (round(current_pos[0]), round(current_pos[1]))
+                snapshots[time_key] = tile
+            
+            current_time += time_step
+        
+        return snapshots
+    
+    def _get_path_snapshots_for_agent(self, path: List[Node], start_path_idx: int,
+                                     current_position: Tuple[float, float], speed: float,
+                                     max_time: float) -> Dict[int, Tuple[int, int]]:
+        """Generate snapshots for an agent already in motion until max_time is reached.
+        Agent stays at final position after completing the path."""
+        if not path or start_path_idx >= len(path):
+            return {}
+        
+        snapshots = {}
+        time_step = 0.1
+        current_time = 0.0
+        
+        # Calculate remaining path distance and completion time
+        remaining_distance = 0.0
+        
+        # Distance from current position to next waypoint
+        if start_path_idx < len(path):
+            target_pos = (path[start_path_idx].x, path[start_path_idx].y)
+            remaining_distance += abs(target_pos[0] - current_position[0]) + abs(target_pos[1] - current_position[1])
+        
+        # Distance for remaining path segments
+        for i in range(start_path_idx, len(path) - 1):
+            dist = abs(path[i+1].x - path[i].x) + abs(path[i+1].y - path[i].y)
+            remaining_distance += dist
+        
+        path_completion_time = remaining_distance / speed if speed > 0 else 0.0
+        
+        # Start from current position and simulate movement
+        current_pos = current_position
+        path_idx = start_path_idx
+        
+        while current_time <= max_time:
+            time_key = int(round(current_time * 10))  # Convert to int key (0.1s = 1, 0.2s = 2, etc.)
+            tile = (round(current_pos[0]), round(current_pos[1]))
+            snapshots[time_key] = tile
+            
+            if current_time >= path_completion_time and path_completion_time > 0:
+                # Agent has completed path and stays at final position
+                if path_idx < len(path):
+                    # Move to final position if not already there
+                    final_pos = (path[-1].x, path[-1].y)
+                    current_pos = final_pos
+                    path_idx = len(path)
+            
+            else:
+                # Agent is still moving along the path
+                distance_to_move = speed * time_step
+                
+                while distance_to_move > 0 and path_idx < len(path):
+                    target = (path[path_idx].x, path[path_idx].y)
+                    dist_to_target = abs(target[0] - current_pos[0]) + abs(target[1] - current_pos[1])
+                    
+                    if dist_to_target <= distance_to_move:
+                        # Reach this waypoint
+                        current_pos = target
+                        distance_to_move -= dist_to_target
+                        path_idx += 1
+                        
+                        # Check if we've completed the path
+                        if path_idx >= len(path):
+                            break
+                    else:
+                        # Partial movement toward target
+                        if dist_to_target > 0:
+                            ratio = distance_to_move / dist_to_target
+                            old_pos = current_pos
+                            current_pos = (
+                                current_pos[0] + ratio * (target[0] - current_pos[0]),
+                                current_pos[1] + ratio * (target[1] - current_pos[1])
+                            )
+                        
+                        distance_to_move = 0
+            
+            current_time += time_step
+        
+        return snapshots
+    
+    def _binary_search_segment(self, cumulative_distances: List[float], target_distance: float) -> int:
+        """Binary search to find which path segment contains the target distance."""
+        left, right = 0, len(cumulative_distances) - 1
+        
+        while left < right:
+            mid = (left + right) // 2
+            if cumulative_distances[mid] <= target_distance:
+                left = mid + 1
+            else:
+                right = mid
+        
+        return left - 1
+    
+    def _calculate_path_completion_time(self, path: List[Node], start_idx: int, speed: float) -> float:
+        """Calculate how long it takes to complete a path from a given starting index.
+        
+        Args:
+            path: The path to calculate completion time for
+            start_idx: Starting index in the path
+            speed: Movement speed in tiles/second
+            
+        Returns:
+            Time in seconds to complete the path
+        """
+        if not path or start_idx >= len(path) or speed <= 0:
+            return 0.0
+        
+        total_distance = 0.0
+        for i in range(start_idx, len(path) - 1):
+            dist = abs(path[i+1].x - path[i].x) + abs(path[i+1].y - path[i].y)
+            total_distance += dist
+        
+        return total_distance / speed
+    
+    def _calculate_path_completion_time_for_agent(self, path: List[Node], start_path_idx: int,
+                                                 current_position: Tuple[float, float], 
+                                                 speed: float) -> float:
+        """Calculate completion time for an agent already in motion on their path.
         
         Args:
             path: The agent's path
-            start_idx: Starting path index (usually 0 for new paths)
-            speed: Agent's movement speed in tiles/second
-            elapsed_time: Time elapsed since starting the path
+            start_path_idx: Current index in the path
+            current_position: Agent's current position
+            speed: Movement speed in tiles/second
             
         Returns:
-            (x, y) tile coordinates, or None if agent has finished the path
+            Time in seconds to complete remaining path
         """
-        if not path or start_idx >= len(path):
-            return None
+        if not path or start_path_idx >= len(path) or speed <= 0:
+            return 0.0
         
-        # Calculate total distance that can be traveled in elapsed_time
-        distance_traveled = speed * elapsed_time
-        current_distance = 0.0
-        current_idx = start_idx
+        total_distance = 0.0
         
-        # Walk through path segments until we've traveled the required distance
-        while current_idx < len(path) - 1:
-            next_idx = current_idx + 1
-            segment_distance = self._distance(
-                (path[current_idx].x, path[current_idx].y),
-                (path[next_idx].x, path[next_idx].y)
-            )
-            
-            if current_distance + segment_distance >= distance_traveled:
-                # Agent is somewhere in this segment
-                remaining_distance = distance_traveled - current_distance
-                progress = remaining_distance / segment_distance if segment_distance > 0 else 0.0
-                
-                # Interpolate position within the segment
-                start_pos = (path[current_idx].x, path[current_idx].y)
-                end_pos = (path[next_idx].x, path[next_idx].y)
-                current_pos = self._interpolate_position(start_pos, end_pos, progress)
-                
-                # Return the tile containing this position (round to nearest integer)
-                return (round(current_pos[0]), round(current_pos[1]))
-            
-            current_distance += segment_distance
-            current_idx += 1
+        # Distance from current position to next waypoint
+        if start_path_idx < len(path):
+            target_pos = (path[start_path_idx].x, path[start_path_idx].y)
+            total_distance += abs(target_pos[0] - current_position[0]) + abs(target_pos[1] - current_position[1])
         
-        # Agent has reached the end of the path
-        if current_idx < len(path):
-            return (path[current_idx].x, path[current_idx].y)
+        # Distance for remaining path segments
+        for i in range(start_path_idx, len(path) - 1):
+            dist = abs(path[i+1].x - path[i].x) + abs(path[i+1].y - path[i].y)
+            total_distance += dist
         
-        return None
-    
-    def _get_current_tile_at_time_for_agent(self, path: List[Node], start_path_idx: int,
-                                           current_position: Tuple[float, float], speed: float,
-                                           elapsed_time: float) -> Optional[Tuple[int, int]]:
-        """Calculate which tile an agent occupies, accounting for their current position in their path.
-        
-        Args:
-            path: The agent's full path
-            start_path_idx: Current index in the path where the agent is
-            current_position: Agent's current position (x, y)
-            speed: Agent's movement speed in tiles/second
-            elapsed_time: Time elapsed since the collision check started
-            
-        Returns:
-            (x, y) tile coordinates, or None if agent has finished the path
-        """
-        if not path or start_path_idx >= len(path):
-            return None
-        
-        # If no time has elapsed, return current tile
-        if elapsed_time <= 0:
-            return (round(current_position[0]), round(current_position[1]))
-        
-        # Calculate distance agent can travel in elapsed_time
-        distance_traveled = speed * elapsed_time
-        remaining_distance = distance_traveled
-        current_pos = current_position
-        current_idx = start_path_idx
-        
-        # Move through path segments
-        while current_idx < len(path) and remaining_distance > 0:
-            target_pos = (path[current_idx].x, path[current_idx].y)
-            distance_to_target = self._distance(current_pos, target_pos)
-            
-            if distance_to_target <= remaining_distance:
-                # Can reach this waypoint, move to it
-                current_pos = target_pos
-                remaining_distance -= distance_to_target
-                current_idx += 1
-            else:
-                # Can't reach waypoint, stop partway
-                progress = remaining_distance / distance_to_target if distance_to_target > 0 else 0.0
-                current_pos = self._interpolate_position(current_pos, target_pos, progress)
-                remaining_distance = 0
-        
-        # Return the tile containing the final position
-        return (round(current_pos[0]), round(current_pos[1]))
-    
-    def _interpolate_position(self, start_pos: Tuple[float, float], end_pos: Tuple[float, float],
-                            progress: float) -> Tuple[float, float]:
-        """Interpolate position between two points based on progress (0.0 to 1.0)."""
-        x = start_pos[0] + (end_pos[0] - start_pos[0]) * progress
-        y = start_pos[1] + (end_pos[1] - start_pos[1]) * progress
-        return (x, y)
+        return total_distance / speed
     
     def update_agent_path(self, agent_id: str, path: List[Node], current_position: Tuple[float, float],
                          path_index: int = 0, speed: float = 1.875):
@@ -495,10 +690,14 @@ class PathProcessor:
             del self.active_paths[agent_id]
     
     def get_performance_stats(self) -> Dict[str, int]:
-        """Get simple performance statistics."""
+        """Get performance statistics including cache efficiency."""
+        total_checks = self._cache_hits + self._cache_misses
+        cache_hit_rate = (self._cache_hits / total_checks * 100) if total_checks > 0 else 0
+        
         return {
             "active_paths": len(self.active_paths),
-            "collision_checks": 0,
-            "paths_found": 0,
-            "paths_blocked": 0
+            "cache_size": len(self._collision_cache),
+            "cache_hits": self._cache_hits,
+            "cache_misses": self._cache_misses,
+            "cache_hit_rate_percent": round(cache_hit_rate, 1)
         }

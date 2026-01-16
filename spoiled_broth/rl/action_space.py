@@ -127,7 +127,7 @@ def find_midpoint_tile(agent, other_agent, tile_candidates, collision_processor)
                 best_dist = total
     return best
 
-# Convert RL action to tile click
+# Convert RL action to tile click --- LEGACY FUNCTION ---
 def convert_action_to_tile(agent, game, action_name, collision_processor=None):
     """
     Given an agent, game state, and high-level action name (with _closest or _midpoint), return the tile index to click (or None for do_nothing).

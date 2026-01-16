@@ -53,7 +53,7 @@ with open(INPUT_PATH, "r") as f:
         globals()[f"walking_speed_{i+1}"], globals()[f"cutting_speed_{i+1}"] = [round(float(x), 4) for x in lines[2*i + 1].strip().split()]
 
 ##### Cluster config ##################
-NUM_ENV_WORKERS = 8  # Parallel environment workers
+NUM_ENV_WORKERS = 1  # Parallel environment workers
 NUM_LEARNER_WORKERS = 1  # GPU learner workers
 if CLUSTER == 'brigit':
     local = '/mnt/lustre/home/samuloza'
@@ -75,9 +75,9 @@ else:
 
 # Hyperparameters - Optimized for parallel training
 NUM_ENVS = NUM_ENV_WORKERS  # Use all environment workers
-INNER_SECONDS = 180 # In seconds
-TRAIN_BATCH_SIZE = 4000  # Increased for better GPU utilization (NUM_ENVS * rollout_fragment_length * num_timesteps)
-SGD_MINIBATCH_SIZE = 500  # Optimized minibatch size for GPU
+INNER_SECONDS = 30 # In seconds
+TRAIN_BATCH_SIZE = 100  # Increased for better GPU utilization (NUM_ENVS * rollout_fragment_length * num_timesteps)
+SGD_MINIBATCH_SIZE = 10  # Optimized minibatch size for GPU
 NUM_SGD_ITER = 10  # Number of SGD iterations per training batch
 SHOW_EVERY_N_EPOCHS = 1
 SAVE_EVERY_N_EPOCHS = 20
@@ -244,7 +244,7 @@ config = {
     "NUM_ENV_WORKERS": NUM_ENV_WORKERS,  # Parallel environment workers (CPU)
     "NUM_LEARNER_WORKERS": NUM_LEARNER_WORKERS,  # GPU learner workers
     # Performance optimizations
-    "ROLLOUT_FRAGMENT_LENGTH": 200,  # Steps per rollout fragment
+    "ROLLOUT_FRAGMENT_LENGTH": "auto",  # Steps per rollout fragment
     "BATCH_MODE": "complete_episodes",  # Collect complete episodes for better learning
     "COMPRESS_OBSERVATIONS": False,  # Disable compression for speed
     "NUM_CPUS_PER_WORKER": 1,  # CPU cores per environment worker
@@ -319,8 +319,9 @@ try:
             f.write(f"NUM_EPISODES: {final_episode_count}\n")
 
     # Save the final policy
-    final_checkpoint = trainer.save(os.path.join(path, f"checkpoint_final"))
-    print(f"Final checkpoint saved at {final_checkpoint}")
+    final_checkpoint_result = trainer.save(os.path.join(path, f"checkpoint_final"))
+    final_checkpoint_path = final_checkpoint_result.checkpoint.path        
+    print(f"Final checkpoint saved at {final_checkpoint_path}")
     if final_episode_count is not None:
         print(f"Training completed after {final_episode_count} episodes")
 
