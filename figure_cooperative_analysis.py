@@ -12,8 +12,16 @@ Usage:
     python figure_cooperative_analysis.py [options]
 
 Examples:
+    # Default (baseline vs encouraged)
     nohup python figure_cooperative_analysis.py --episode_range all --output_dir ./figures > figure_cooperative_analysis_all.log 2>&1 &
-    nohup python figure_cooperative_analysis.py --episode_range final --num_final_episodes 100 > figure_cooperative_analysis_final.log 2>&1 &    
+    nohup python figure_cooperative_analysis.py --episode_range final --num_final_episodes 100 > figure_cooperative_analysis_final.log 2>&1 &
+    nohup python figure_cooperative_analysis.py --episode_range final --study_name speeds --num_final_episodes 100 > figure_cooperative_analysis_speeds.log 2>&1 &
+    
+    # Custom maps (e.g., baseline vs forced)
+    nohup python figure_cooperative_analysis.py --episode_range final --map_name_1 baseline_division_of_labor_large --map_name_2 collision_division_of_labor_large --num_final_episodes 100 > figure_cooperative_analysis_baseline_forced.log 2>&1 &
+    
+    # Extended mode with additional metrics
+    nohup python figure_cooperative_analysis.py --episode_range final --extended --num_final_episodes 100 > figure_cooperative_analysis_extended.log 2>&1 &    
 """
 
 import sys
@@ -39,37 +47,48 @@ from spoiled_broth.analysis.utils import DataProcessor, AnalysisConfig
 class CooperativeAnalyzer:
     """Handles data loading and processing for cooperative analysis."""
     
-    def __init__(self):
+    def __init__(self, study_name: Optional[str] = None, 
+                 map_name_1: str = 'baseline_division_of_labor_large',
+                 map_name_2: str = 'encouraged_division_of_labor_large'):
         self.config = AnalysisConfig()
         self.data_processor = DataProcessor(self.config)
+        self.study_name = study_name
+        self.map_name_1 = map_name_1
+        self.map_name_2 = map_name_2
+        
+        # Extract short names for condition labels
+        # E.g., 'baseline_division_of_labor_large' -> 'baseline'
+        # E.g., 'encouraged_division_of_labor_large' -> 'encouraged'
+        self.map_1_short = self._extract_map_short_name(map_name_1)
+        self.map_2_short = self._extract_map_short_name(map_name_2)
         
         # Define experimental conditions mapping
         # Updated based on actual training configurations:
         # - Superstar: Both agents have 1.0_1.0 (walking=1.0, cutting=1.0)
         # - Mixed: Agent1 has 0.4_1.0 (walking=0.4, cutting=1.0), Agent2 has 1.0_0.2 (walking=1.0, cutting=0.2)
         self.condition_mapping = {
-            # Classic conditions  
-            ('baseline_division_of_labor_large', 'classic', 'mixed'): 'base_mixed',
-            ('baseline_division_of_labor_large', 'classic_collision', 'mixed'): 'base_mixed_collision', 
-            ('baseline_division_of_labor_large', 'classic', 'superstar'): 'base_superstar',
-            ('baseline_division_of_labor_large', 'classic_collision', 'superstar'): 'base_superstar_collision',
-            # Encouraged conditions
-            ('encouraged_division_of_labor_large', 'classic', 'mixed'): 'encouraged_mixed',
-            ('encouraged_division_of_labor_large', 'classic_collision', 'mixed'): 'encouraged_mixed_collision',
-            ('encouraged_division_of_labor_large', 'classic', 'superstar'): 'encouraged_superstar', 
-            ('encouraged_division_of_labor_large', 'classic_collision', 'superstar'): 'encouraged_superstar_collision'
+            # Map 1 conditions  
+            (map_name_1, 'classic', 'mixed'): f'{self.map_1_short}_mixed',
+            (map_name_1, 'classic_collision', 'mixed'): f'{self.map_1_short}_mixed_collision', 
+            (map_name_1, 'classic', 'superstar'): f'{self.map_1_short}_superstar',
+            (map_name_1, 'classic_collision', 'superstar'): f'{self.map_1_short}_superstar_collision',
+            # Map 2 conditions
+            (map_name_2, 'classic', 'mixed'): f'{self.map_2_short}_mixed',
+            (map_name_2, 'classic_collision', 'mixed'): f'{self.map_2_short}_mixed_collision',
+            (map_name_2, 'classic', 'superstar'): f'{self.map_2_short}_superstar', 
+            (map_name_2, 'classic_collision', 'superstar'): f'{self.map_2_short}_superstar_collision'
         }
         
-        # Color palette mapping
+        # Color palette mapping - dynamically generated based on map names
         self.color_palette = {
-            'base_mixed': '#FF6B6B',              # Red
-            'base_mixed_collision': '#FF9F40',    # Orange  
-            'base_superstar': '#90EE90',          # Light Green
-            'base_superstar_collision': '#228B22', # Dark Green
-            'encouraged_mixed': '#40E0D0',        # Teal
-            'encouraged_mixed_collision': '#4169E1', # Blue
-            'encouraged_superstar': '#8A2BE2',    # Purple
-            'encouraged_superstar_collision': '#FF69B4' # Pink
+            f'{self.map_1_short}_mixed': '#FF6B6B',              # Red
+            f'{self.map_1_short}_mixed_collision': '#FF9F40',    # Orange  
+            f'{self.map_1_short}_superstar': '#90EE90',          # Light Green
+            f'{self.map_1_short}_superstar_collision': '#228B22', # Dark Green
+            f'{self.map_2_short}_mixed': '#40E0D0',              # Teal
+            f'{self.map_2_short}_mixed_collision': '#4169E1',    # Blue
+            f'{self.map_2_short}_superstar': '#8A2BE2',          # Purple
+            f'{self.map_2_short}_superstar_collision': '#FF69B4' # Pink
         }
         
         # Performance metrics to analyze (updated for multi-agent cooperative data)
@@ -83,10 +102,38 @@ class CooperativeAnalyzer:
             'cut_ai_rl_1': 'Cuts Agent 1',
             'cut_ai_rl_2': 'Cuts Agent 2'
         }
+        
+        # Extended metrics for detailed analysis (4x2 layout)
+        self.extended_metrics = {
+            'salad_ai_rl_1': 'Salad Agent 1',
+            'salad_ai_rl_2': 'Salad Agent 2',
+            'plate_ai_rl_1': 'Plate Agent 1',
+            'plate_ai_rl_2': 'Plate Agent 2',
+            'raw_food_ai_rl_1': 'Raw Food Agent 1',
+            'raw_food_ai_rl_2': 'Raw Food Agent 2',
+            'counter_ai_rl_1': 'Counter Agent 1',
+            'counter_ai_rl_2': 'Counter Agent 2'
+        }
+    
+    def _extract_map_short_name(self, map_name: str) -> str:
+        """Extract a short identifier from the full map name.
+        
+        Examples:
+            'baseline_division_of_labor_large' -> 'baseline'
+            'encouraged_division_of_labor_large' -> 'encouraged'
+            'forced_division_of_labor_large' -> 'forced'
+        """
+        # Common pattern: {prefix}_division_of_labor_large
+        if '_division_of_labor' in map_name:
+            return map_name.split('_division_of_labor')[0]
+        # Fallback: use first word
+        return map_name.split('_')[0]
     
     def load_experimental_data(self) -> pd.DataFrame:
         """Load and combine data from all experimental conditions."""
         print("Loading experimental data from all conditions...")
+        if self.study_name:
+            print(f"Using study name: {self.study_name}")
         
         all_data = []
         
@@ -100,7 +147,8 @@ class CooperativeAnalyzer:
                 paths = self.data_processor.setup_directories(
                     experiment_type=game_type,
                     map_name=map_name,
-                    cluster='cuenca'
+                    cluster='cuenca',
+                    study_name=self.study_name
                 )
                 
                 # Load the data (using 2 agents since this is multi-agent cooperative data)
@@ -394,9 +442,11 @@ class CooperativeAnalyzer:
 class RaincloudPlotter:
     """Creates raincloud plots for cooperative analysis."""
     
-    def __init__(self, color_palette: Dict[str, str], performance_metrics: Dict[str, str]):
+    def __init__(self, color_palette: Dict[str, str], performance_metrics: Dict[str, str], 
+                 extended_metrics: Optional[Dict[str, str]] = None):
         self.color_palette = color_palette
         self.performance_metrics = performance_metrics
+        self.extended_metrics = extended_metrics or {}
         
         # Set up matplotlib style
         plt.style.use('default')
@@ -515,21 +565,39 @@ class RaincloudPlotter:
             spine.set_linewidth(1.0)
             spine.set_color('black')
     
-    def create_composite_figure(self, data: pd.DataFrame, output_path: str = None) -> plt.Figure:
-        """Create the complete 3x2 raincloud plot figure."""
+    def create_composite_figure(self, data: pd.DataFrame, output_path: str = None, 
+                                 extended: bool = False) -> plt.Figure:
+        """Create the complete raincloud plot figure.
         
-        print("Creating composite raincloud figure...")
+        Args:
+            data: DataFrame with processed data
+            output_path: Path to save figure
+            extended: If True, create 7x2 layout with extended metrics; if False, create 3x2 layout
+        """
         
-        # Create figure with 3x2 subplots
-        fig, axes = plt.subplots(3, 2, figsize=(16, 18))
-        fig.suptitle('Cooperative Performance Analysis', fontsize=16, fontweight='bold', y=0.95)
+        print(f"Creating {'extended' if extended else 'standard'} composite raincloud figure...")
+        
+        if extended:
+            # Extended mode: 7x2 layout (3 main + 4 extended rows)
+            fig, axes = plt.subplots(7, 2, figsize=(16, 32))
+            fig.suptitle('Cooperative Performance Analysis (Extended)', fontsize=16, fontweight='bold', y=0.98)
+        else:
+            # Standard mode: 3x2 layout
+            fig, axes = plt.subplots(3, 2, figsize=(16, 18))
+            fig.suptitle('Cooperative Performance Analysis', fontsize=16, fontweight='bold', y=0.95)
         
         # Flatten axes for easy iteration
         axes_flat = axes.flatten()
         
         # Create subplot for each metric
         metrics_list = list(self.performance_metrics.items())
-        subplot_labels = ['a', 'b', 'c', 'd', 'e', 'f']
+        
+        # Add extended metrics if in extended mode
+        if extended and self.extended_metrics:
+            metrics_list.extend(list(self.extended_metrics.items()))
+        
+        # Generate subplot labels
+        subplot_labels = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n']
         
         # Define speed information for agent-specific metrics  
         speed_info_mapping = {
@@ -567,11 +635,14 @@ class RaincloudPlotter:
                 labels.append(condition)
         
         # Place legend at the bottom
-        fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
-                  ncol=4, frameon=True, fancybox=True, shadow=True, fontsize=10)
-        
-        # Adjust layout to make room for legend
-        plt.subplots_adjust(bottom=0.06)
+        if extended:
+            fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, -0.01), 
+                      ncol=4, frameon=True, fancybox=True, shadow=True, fontsize=10)
+            plt.subplots_adjust(bottom=0.03)
+        else:
+            fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, -0.02), 
+                      ncol=4, frameon=True, fancybox=True, shadow=True, fontsize=10)
+            plt.subplots_adjust(bottom=0.06)
         
         # Save figure if output path provided
         if output_path:
@@ -619,6 +690,33 @@ def setup_argument_parser() -> argparse.ArgumentParser:
         help='Suffix to add to output filename'
     )
     
+    parser.add_argument(
+        '--study_name',
+        type=str,
+        default=None,
+        help='Study name for specific study folders (optional)'
+    )
+    
+    parser.add_argument(
+        '--map_name_1',
+        type=str,
+        default='baseline_division_of_labor_large',
+        help='First map name (default: baseline_division_of_labor_large)'
+    )
+    
+    parser.add_argument(
+        '--map_name_2',
+        type=str,
+        default='encouraged_division_of_labor_large',
+        help='Second map name (default: encouraged_division_of_labor_large)'
+    )
+    
+    parser.add_argument(
+        '--extended',
+        action='store_true',
+        help='Create extended plot with additional metrics (salad, plate, raw_food, counter) for both agents'
+    )
+    
     return parser
 
 
@@ -629,12 +727,20 @@ def main():
     
     try:
         # Initialize analyzer
-        analyzer = CooperativeAnalyzer()
+        analyzer = CooperativeAnalyzer(
+            study_name=args.study_name,
+            map_name_1=args.map_name_1,
+            map_name_2=args.map_name_2
+        )
         
         # Load experimental data
         print("=" * 60)
         print("COOPERATIVE ANALYSIS - RAINCLOUD PLOTS")
         print("=" * 60)
+        print(f"Map 1: {args.map_name_1}")
+        print(f"Map 2: {args.map_name_2}")
+        if args.study_name:
+            print(f"Study: {args.study_name}")
         
         df = analyzer.load_experimental_data()
         
@@ -649,14 +755,43 @@ def main():
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Generate filename
-        suffix = f"_{args.filename_suffix}" if args.filename_suffix else ""
-        filename = f"cooperative_analysis_{args.episode_range}{suffix}.png"
+        # Generate filename with all relevant parameters
+        filename_parts = ["cooperative_analysis"]
+        
+        # Add map names (short versions)
+        map_1_short = analyzer.map_1_short
+        map_2_short = analyzer.map_2_short
+        filename_parts.append(f"{map_1_short}_vs_{map_2_short}")
+        
+        # Add study name if specified
+        if args.study_name:
+            filename_parts.append(args.study_name)
+        
+        # Add episode selection type
+        filename_parts.append(args.episode_range)
+        
+        # Add 'extended' marker if using extended mode
+        if args.extended:
+            filename_parts.append('extended')
+        
+        # Add number of final episodes if using 'final' selection
+        if args.episode_range == 'final':
+            filename_parts.append(f"{args.num_final_episodes}eps")
+        
+        # Add custom suffix if provided
+        if args.filename_suffix:
+            filename_parts.append(args.filename_suffix)
+        
+        filename = "_".join(filename_parts) + ".png"
         output_path = output_dir / filename
         
         # Create raincloud plots
-        plotter = RaincloudPlotter(analyzer.color_palette, analyzer.performance_metrics)
-        fig = plotter.create_composite_figure(processed_df, str(output_path))
+        plotter = RaincloudPlotter(
+            analyzer.color_palette, 
+            analyzer.performance_metrics,
+            analyzer.extended_metrics
+        )
+        fig = plotter.create_composite_figure(processed_df, str(output_path), extended=args.extended)
         
         # Display results
         print(f"\nAnalysis completed successfully!")
@@ -665,6 +800,8 @@ def main():
         print(f"  Total episodes: {len(processed_df)}")
         print(f"  Conditions: {sorted(processed_df['condition'].unique())}")
         print(f"  Episode selection: {args.episode_range}")
+        if args.study_name:
+            print(f"  Study name: {args.study_name}")
         
         if args.episode_range == 'final':
             print(f"  Final episodes used: {args.num_final_episodes}")

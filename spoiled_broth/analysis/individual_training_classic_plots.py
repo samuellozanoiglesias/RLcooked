@@ -1,5 +1,4 @@
 import os
-import pandas as pd
 import matplotlib.pyplot as plt
 from spoiled_broth.analysis.utils import MetricDefinitions
 
@@ -14,8 +13,8 @@ def generate_individual_basic_metrics_plots(training_df, paths, training_id, lr,
     att2_base = f"{att_parts[2]}_{att_parts[3]}"
     
     # Add speed information to agent titles
-    att1_title = f"{att1_base} (W={walking_speed_1}, C={cutting_speed_1})" if walking_speed_1 is not None and cutting_speed_1 is not None else att1_base
-    att2_title = f"{att2_base} (W={walking_speed_2}, C={cutting_speed_2})" if walking_speed_2 is not None and cutting_speed_2 is not None else att2_base
+    att1_title = f"{att1_base} (W={walking_speed_1}, C={cutting_speed_1})" if walking_speed_1 is not None else att1_base
+    att2_title = f"{att2_base} (W={walking_speed_2}, C={cutting_speed_2})" if walking_speed_2 is not None else att2_base
     
     # Extract speed values for title
     speed_title = ""
@@ -104,8 +103,8 @@ def generate_individual_combined_reward_plots(training_df, paths, training_id, l
     att2_base = f"{att_parts[2]}_{att_parts[3]}"
     
     # Add speed information to agent titles
-    att1_title = f"{att1_base} (W={walking_speed_1}, C={cutting_speed_1})" if walking_speed_1 is not None and cutting_speed_1 is not None else att1_base
-    att2_title = f"{att2_base} (W={walking_speed_2}, C={cutting_speed_2})" if walking_speed_2 is not None and cutting_speed_2 is not None else att2_base
+    att1_title = f"{att1_base} (W={walking_speed_1}, C={cutting_speed_1})" if walking_speed_1 is not None else att1_base
+    att2_title = f"{att2_base} (W={walking_speed_2}, C={cutting_speed_2})" if walking_speed_2 is not None else att2_base
     
     plt.title(f"Pure Rewards - {game_type} - Training {training_id} - LR {lr} (Smoothed {N})\nAgent1={att1_title}, Agent2={att2_title}", fontsize=14)
     plt.xlabel("Episodes", fontsize=12)
@@ -164,8 +163,8 @@ def generate_individual_combined_delivery_cut_plots(training_df, paths, training
     att2_base = f"{att_parts[2]}_{att_parts[3]}"
     
     # Add speed information to agent titles
-    att1_title = f"{att1_base} (W={walking_speed_1}, C={cutting_speed_1})" if walking_speed_1 is not None and cutting_speed_1 is not None else att1_base
-    att2_title = f"{att2_base} (W={walking_speed_2}, C={cutting_speed_2})" if walking_speed_2 is not None and cutting_speed_2 is not None else att2_base
+    att1_title = f"{att1_base} (W={walking_speed_1}, C={cutting_speed_1})" if walking_speed_1 is not None else att1_base
+    att2_title = f"{att2_base} (W={walking_speed_2}, C={cutting_speed_2})" if walking_speed_2 is not None else att2_base
     
     # Agent 1 subplot
     if "deliver_ai_rl_1" in training_df.columns and "cut_ai_rl_1" in training_df.columns:
