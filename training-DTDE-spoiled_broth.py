@@ -53,7 +53,7 @@ with open(INPUT_PATH, "r") as f:
         globals()[f"walking_speed_{i+1}"], globals()[f"cutting_speed_{i+1}"] = [round(float(x), 4) for x in lines[2*i + 1].strip().split()]
 
 ##### Cluster config ##################
-NUM_ENV_WORKERS = 1  # Parallel environment workers
+NUM_ENV_WORKERS = 8  # Parallel environment workers
 NUM_LEARNER_WORKERS = 1  # GPU learner workers
 if CLUSTER == 'brigit':
     local = '/mnt/lustre/home/samuloza'
