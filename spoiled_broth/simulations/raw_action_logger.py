@@ -58,33 +58,22 @@ class RawActionLogger:
         
         return tile_type, x_tile, y_tile
     
-    def _calculate_rl_action_coordinates(self, agent_id: str, action_name: str, game: Any) -> tuple[Optional[int], Optional[int]]:
-        """Calculate target tile coordinates for an RL action."""
+    def _calculate_rl_action_coordinates(self, agent_id: str, action_index: int, game: Any, game_mode: str = "classic") -> tuple[Optional[int], Optional[int]]:
+        """Calculate target tile coordinates for an RL action using observation space (same as rllib_controller)."""
         try:            
             # Import here to avoid circular imports
-            from spoiled_broth.rl.action_space import convert_action_to_tile
+            from spoiled_broth.rl.observation_space import game_to_obs_vector
             
-            # Find the agent object
-            agent = None
-            for a_id, a_obj in game.gameObjects.items():
-                if a_id == agent_id and hasattr(a_obj, 'slot_x'):
-                    agent = a_obj
-                    break
+            # Generate observation to get considered tiles (same as rllib_controller)
+            path_processor = getattr(game, 'path_processor', None)
+            obs_vector, considered_paths, considered_tiles = game_to_obs_vector(
+                game, agent_id, game_mode=game_mode, path_processor=path_processor
+            )
             
-            if agent is None:
-                print(f"[RAW_ACTION_LOGGER] Could not find agent {agent_id}")
-                return None, None
-                
-            # Get distance map
-            distance_map = getattr(game, 'distance_map', None)
-            if distance_map is None:
-                print(f"[RAW_ACTION_LOGGER] No distance_map available for action '{action_name}'")
-                return None, None
+            # Get the tile index from the observation (same as rllib_controller)
+            tile_index = considered_tiles[action_index] if action_index < len(considered_tiles) else None
             
-            # Convert action to tile index
-            tile_index = convert_action_to_tile(agent, game, action_name, distance_map=distance_map)
-            
-            if tile_index is not None:
+            if tile_index is not None and tile_index != -1:
                 # Convert tile index to coordinates (1-indexed)
                 grid = getattr(game, 'grid', None)
                 if grid is not None:
@@ -141,7 +130,7 @@ class RawActionLogger:
             except Exception as e:
                 print(f"[RAW_ACTION_LOGGER] Error logging action for {agent_id}: {e}")
 
-    def log_rl_action(self, agent_id: str, rl_action_index: int, action_name: str, game: Any):
+    def log_rl_action(self, agent_id: str, rl_action_index: int, action_name: str, game: Any, game_mode: str = "classic"):
         """Log a high-level RL action to CSV."""
         with self.lock:
             try:
@@ -168,8 +157,8 @@ class RawActionLogger:
                 action_type = action_name
                 tile_type = get_tile_type(action_name)
                 
-                # Calculate target coordinates for the action
-                x_tile, y_tile = self._calculate_rl_action_coordinates(agent_id, action_name, game)
+                # Calculate target coordinates using observation space (same as rllib_controller)
+                x_tile, y_tile = self._calculate_rl_action_coordinates(agent_id, rl_action_index, game, game_mode)
                 action_number = rl_action_index
                                 
                 # Write action immediately to CSV in same format as ActionTracker

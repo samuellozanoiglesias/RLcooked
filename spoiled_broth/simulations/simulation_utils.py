@@ -108,6 +108,20 @@ def setup_simulation_argument_parser() -> argparse.ArgumentParser:
         help='Path to checkpoint configuration file with policy IDs and paths for each agent (format: policy_id\npath_to_checkpoint per agent), or "none" to use default checkpoint loading'
     )
     
+    parser.add_argument(
+        '--study_name',
+        type=str,
+        default='default',
+        help='Study name for organizing simulations (e.g., "speeds", "collision")'
+    )
+    
+    parser.add_argument(
+        '--game_type',
+        type=str,
+        default='',
+        help='Game type for folder organization (e.g., "classic", "classic_collision"). If empty, no game_type subfolder is used.'
+    )
+    
     return parser
 
 
@@ -117,7 +131,9 @@ def main_simulation_pipeline(map_nr: str, num_agents: int,
                            cluster: str = 'cuenca', duration: int = 180,
                            tick_rate: int = 24, video_fps: int = 24,
                            agent_initialization_period: float = 15.0,
-                           custom_checkpoints: str = 'none') -> Dict[str, Path]:
+                           custom_checkpoints: str = 'none',
+                           study_name: str = 'default',
+                           game_type: str = '') -> Dict[str, Path]:
     """
     Main simulation pipeline that can be used by different simulation scripts.
     
@@ -141,7 +157,7 @@ def main_simulation_pipeline(map_nr: str, num_agents: int,
     temp_config = SimulationConfig(cluster=cluster)
     temp_path_manager = PathManager(temp_config)
     temp_paths = temp_path_manager.setup_paths(
-        map_nr, num_agents, game_version, training_id, checkpoint_number
+        map_nr, num_agents, game_version, training_id, checkpoint_number, study_name, game_type
     )
     
     # Load agent speeds from training configuration
@@ -194,7 +210,9 @@ def main_simulation_pipeline(map_nr: str, num_agents: int,
         game_version=game_version,
         training_id=training_id,
         checkpoint_number=checkpoint_number,
-        timestamp=timestamp
+        timestamp=timestamp,
+        study_name=study_name,
+        game_type=game_type
     )
     
     return output_paths, walking_speeds, cutting_speeds

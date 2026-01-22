@@ -11,8 +11,14 @@ class Renderer2DModule(UIModule):
         self._module_name = Path(__file__).parent.name
 
     def serialize_for_agent(self, game, engine, agent_id: str) -> dict:
+        # Include grid dimensions for proper rendering
+        grid_width = getattr(game.grid, 'width', 8) if hasattr(game, 'grid') else 8
+        grid_height = getattr(game.grid, 'height', 8) if hasattr(game, 'grid') else 8
+        
         return {
-            "objects": getattr(game, "objects", [])
+            "objects": getattr(game, "objects", []),
+            "grid_width": grid_width,
+            "grid_height": grid_height
         }
 
     def get_static_path(self):

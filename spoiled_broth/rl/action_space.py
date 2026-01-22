@@ -3,6 +3,7 @@
 
 # For each action, add both 'closest' and 'midpoint' variants where relevant
 RL_ACTIONS_CLASSIC = [
+    "do_nothing",
     "pick_up_tomato_from_dispenser",
     "pick_up_plate_from_dispenser",
     "use_cutting_board",
@@ -20,6 +21,7 @@ RL_ACTIONS_CLASSIC = [
 ]
 
 RL_ACTIONS_COMPETITION = [
+    "do_nothing",
     "pick_up_tomato_from_dispenser",
     "pick_up_pumpkin_from_dispenser",
     "pick_up_plate_from_dispenser",
@@ -133,6 +135,10 @@ def convert_action_to_tile(agent, game, action_name, collision_processor=None):
     Given an agent, game state, and high-level action name (with _closest or _midpoint), return the tile index to click (or None for do_nothing).
     Uses the collision processor's pathfinder for efficient shortest path calculation.
     """
+    # Handle do_nothing action
+    if action_name == "do_nothing":
+        return None
+    
     # Parse action_name for target_mode
     if action_name.endswith("_midpoint"):
         base_action = action_name[:-9]

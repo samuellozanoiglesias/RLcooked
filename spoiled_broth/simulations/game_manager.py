@@ -6,6 +6,7 @@ Author: Samuel Lozano
 
 from typing import Tuple, Callable, Any
 from spoiled_broth.game import SpoiledBroth as Game
+from spoiled_broth.rl.path_processing import PathProcessor
 from .simulation_config import SimulationConfig
 
 
@@ -16,7 +17,8 @@ class GameManager:
         self.config = config
 
     def create_game_factory(self, map_nr: str, grid_size: Tuple[int, int], 
-                           walking_speeds: dict = None, cutting_speeds: dict = None) -> Callable:
+                           walking_speeds: dict = None, cutting_speeds: dict = None,
+                           game_type: str = '') -> Callable:
         """
         Create a game factory function for the simulation.
         
@@ -25,6 +27,7 @@ class GameManager:
             grid_size: Grid size tuple (width, height)
             walking_speeds: Dictionary of walking speeds for each agent
             cutting_speeds: Dictionary of cutting speeds for each agent
+            game_type: Game type (e.g., 'classic', 'classic_collision')
             
         Returns:
             Game factory function
@@ -37,6 +40,17 @@ class GameManager:
                 walking_speeds=walking_speeds,
                 cutting_speeds=cutting_speeds
             )
+            
+            # Check if collision detection should be enabled
+            collision_enabled = 'collision' in game_type.lower()
+            
+            # Create and attach PathProcessor if collisions are enabled
+            if collision_enabled:
+                game.path_processor = PathProcessor(map_nr, collision_enabled=True)
+                print(f"PathProcessor created with collision detection ENABLED for game_type: {game_type}")
+            else:
+                game.path_processor = PathProcessor(map_nr, collision_enabled=False)
+                print(f"PathProcessor created with collision detection DISABLED for game_type: {game_type}")
             
             # Reset game state
             self._reset_game_state(game)

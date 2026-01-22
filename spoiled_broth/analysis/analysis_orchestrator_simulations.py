@@ -11,7 +11,7 @@ class ComprehensiveAnalysisOrchestrator:
     """Main class that orchestrates both simulation and checkpoint analyses."""
     
     def __init__(self, base_cluster_dir="", map_nr=None, game_version="classic", num_agents=2,
-                 training_id=None, checkpoint_number=None, output_dir=None):
+                 training_id=None, checkpoint_number=None, output_dir=None, study_name='default', game_type='classic'):
         """
         Initialize the comprehensive analysis orchestrator.
         
@@ -23,6 +23,8 @@ class ComprehensiveAnalysisOrchestrator:
             training_id: Optional specific training ID for detailed analysis
             checkpoint_number: Optional specific checkpoint for detailed analysis
             output_dir: Custom output directory
+            study_name: Study name for simulation folders (default: 'default')
+            game_type: Game type for folder organization (default: 'classic')
         """
         self.base_cluster_dir = base_cluster_dir
         self.map_nr = map_nr
@@ -31,13 +33,15 @@ class ComprehensiveAnalysisOrchestrator:
         self.training_id = training_id
         self.checkpoint_number = checkpoint_number
         self.output_dir = output_dir
+        self.study_name = study_name
+        self.game_type = game_type
         
         # Determine the output directory
         if output_dir is None:
             if num_agents == 1:
-                self.map_base_dir = Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/pretraining/{game_version}/map_{map_nr}/")
+                self.map_base_dir = Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/pretraining/{game_type}/map_{map_nr}/")
             else:
-                self.map_base_dir = Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/{game_version}/map_{map_nr}/")
+                self.map_base_dir = Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/{game_type}/map_{map_nr}/")
             # Output figures should be one level up from the simulations directory
             self.output_dir = self.map_base_dir / "simulation_figures"
         else:
@@ -56,7 +60,7 @@ class ComprehensiveAnalysisOrchestrator:
     
     def find_all_training_directories(self):
         """Find all training directories for the specified map."""
-        base_map_dir = Path(f"{self.map_base_dir}/simulations")
+        base_map_dir = Path(f"{self.map_base_dir}/simulations/{self.study_name}")
         
         training_dirs = []
         
@@ -78,7 +82,7 @@ class ComprehensiveAnalysisOrchestrator:
     
     def find_all_checkpoints_for_training(self, training_id):
         """Find all checkpoint directories for a specific training."""
-        training_dir = Path(f"{self.map_base_dir}/simulations/Training_{training_id}")
+        training_dir = Path(f"{self.map_base_dir}/simulations/{self.study_name}/Training_{training_id}")
         
         checkpoints = []
         
@@ -250,7 +254,7 @@ class ComprehensiveAnalysisOrchestrator:
             training_id: Training ID
             checkpoint_number: Checkpoint number (resolved)
         """
-        checkpoint_dir = Path(f"{self.map_base_dir}/simulations/Training_{training_id}/checkpoint_{checkpoint_number}")
+        checkpoint_dir = Path(f"{self.map_base_dir}/simulations/{self.study_name}/Training_{training_id}/checkpoint_{checkpoint_number}")
         
         if not checkpoint_dir.exists():
             print(f"  Checkpoint directory does not exist: {checkpoint_dir}")
@@ -503,6 +507,8 @@ class ComprehensiveAnalysisOrchestrator:
             "--checkpoint_number", resolved_checkpoint,
             "--game_version", self.game_version,
             "--num_agents", str(self.num_agents),
+            "--study_name", self.study_name,
+            "--game_type", self.game_type,
         ]
         
         # Determine cluster argument
@@ -642,6 +648,8 @@ class ComprehensiveAnalysisOrchestrator:
             "--game_version", self.game_version,
             "--output_dir", str(self.output_dir),
             "--num_agents", str(self.num_agents),
+            "--study_name", self.study_name,
+            "--game_type", self.game_type,
         ]
         
         # Determine cluster argument

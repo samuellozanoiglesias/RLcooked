@@ -33,13 +33,14 @@ SEED = int(sys.argv[8]) if len(sys.argv) > 8 else 0
 # Line 3: path_to_checkpoint
 CHECKPOINT_PATHS = str(sys.argv[9]).lower() if len(sys.argv) > 9 else "none"
 REWARDS_ON_DELIVERY_ONLY = str(sys.argv[10]).lower() if len(sys.argv) > 10 else "true"
+RANDOM_INITIAL_STATE = str(sys.argv[11]).lower() if len(sys.argv) > 11 else "false"  # Flag to randomize initial game state (items on counters and in hands)
 
 # Optional when number of agents = 1:
 # Decide which agent to train (1 or 2)
 if NUM_AGENTS == 1:
     agent_to_train = 1  # Default to agent 1
-    if len(sys.argv) > 11:
-        agent_to_train = int(sys.argv[11])
+    if len(sys.argv) > 12:
+        agent_to_train = int(sys.argv[12])
         if agent_to_train not in [1, 2]:
             raise ValueError("When NUM_AGENTS=1, agent_to_train must be 1 or 2")
 
@@ -171,14 +172,17 @@ BASE_GAME_VERSION = GAME_VERSION.replace('_collision', '') if COLLISION_ENABLED 
 # Update save directory to reflect collision mode
 save_dir_base = GAME_VERSION  # Use full game version (including _collision suffix if present)
 
+# Determine initialization folder based on random_initial_state flag
+init_folder = "random_init" if RANDOM_INITIAL_STATE == "true" else "empty_init"
+
 # Path definitions
 if NUM_AGENTS == 1:
-    save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/map_{MAP_NR}'
+    save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/{init_folder}/map_{MAP_NR}'
     reward_weights[f"ai_rl_{agent_to_train}"] = (globals()[f"alpha_{agent_to_train}"], globals()[f"beta_{agent_to_train}"])
     walking_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"walking_speed_{agent_to_train}"]
     cutting_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"cutting_speed_{agent_to_train}"]
 else: 
-    save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/map_{MAP_NR}'
+    save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/{init_folder}/map_{MAP_NR}'
     for i in range(1, NUM_AGENTS + 1):
         reward_weights[f"ai_rl_{i}"] = (globals()[f"alpha_{i}"], globals()[f"beta_{i}"])
         walking_speeds[f"ai_rl_{i}"] = globals()[f"walking_speed_{i}"]
@@ -221,6 +225,7 @@ config = {
     "CUTTING_SPEEDS": cutting_speeds,
     "INITIAL_SEED": SEED,
     "WAIT_FOR_COMPLETION": WAIT_FOR_ACTION_COMPLETION,
+    "RANDOM_INITIAL_STATE": RANDOM_INITIAL_STATE,
     "SAVE_DIR": save_dir,
     "CHECKPOINTS": pretrained_policies,  # Add pretrained policies configuration
     # Reward and penalty configurations

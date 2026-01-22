@@ -27,24 +27,33 @@ def get_cutting_time(agent, game):
     return base_cutting_time / cutting_speed if cutting_speed > 0 else base_cutting_time
 
 ACTIONS_OBSERVATION_MAPPING_CLASSIC = {
-    0: 0, 1: 1, 2: 2, 3: 3, # Two dispensers, cutting board, delivery
-    4: 5, 5: 6, # Free counter (closest and midpoint)
-    6: 8, 7: 9, # Tomato on counter (closest and midpoint)
-    8: 11, 9: 12, # Plate on counter (closest and midpoint)
-    10: 14, 11: 15, # Tomato_cut on counter (closest and midpoint)
-    12: 17, 13: 18, # Tomato_salad on counter (closest and midpoint)
+    # 0: do_nothing - no observation mapping needed
+    1: 0,  # pick_up_tomato_from_dispenser
+    2: 1,  # pick_up_plate_from_dispenser
+    3: 2,  # use_cutting_board
+    4: 3,  # use_delivery
+    5: 5, 6: 6,  # put_down_item_on_free_counter (closest and midpoint)
+    7: 8, 8: 9,  # pick_up_tomato_from_counter (closest and midpoint)
+    9: 11, 10: 12,  # pick_up_plate_from_counter (closest and midpoint)
+    11: 14, 12: 15,  # pick_up_tomato_cut_from_counter (closest and midpoint)
+    13: 17, 14: 18,  # pick_up_tomato_salad_from_counter (closest and midpoint)
 }
 
 ACTIONS_OBSERVATION_MAPPING_COMPETITION = {
-    0: 0, 1: 1, 2: 2, 3: 3, 4: 4, # Three dispensers, cutting board, delivery
-    5: 6, 6: 7, # Free counter (closest and midpoint)
-    7: 9, 8: 10, # Tomato on counter (closest and midpoint)
-    9: 12, 10: 13, # Pumpkin on counter (closest and midpoint)
-    11: 15, 12: 16, # Plate on counter (closest and midpoint)
-    13: 18, 14: 19, # Tomato_cut on counter (closest and midpoint)
-    15: 21, 16: 22, # Pumpkin_cut on counter (closest and midpoint)
-    17: 24, 18: 25, # Tomato_salad on counter (closest and midpoint)
-    19: 26, 20: 27, # Pumpkin_salad on counter (closest and midpoint)
+    # 0: do_nothing - no observation mapping needed
+    1: 0,  # pick_up_tomato_from_dispenser
+    2: 1,  # pick_up_pumpkin_from_dispenser
+    3: 2,  # pick_up_plate_from_dispenser
+    4: 3,  # use_cutting_board
+    5: 4,  # use_delivery
+    6: 6, 7: 7,  # put_down_item_on_free_counter (closest and midpoint)
+    8: 9, 9: 10,  # pick_up_tomato_from_counter (closest and midpoint)
+    10: 12, 11: 13,  # pick_up_pumpkin_from_counter (closest and midpoint)
+    12: 15, 13: 16,  # pick_up_plate_from_counter (closest and midpoint)
+    14: 18, 15: 19,  # pick_up_tomato_cut_from_counter (closest and midpoint)
+    16: 21, 17: 22,  # pick_up_pumpkin_cut_from_counter (closest and midpoint)
+    18: 24, 19: 25,  # pick_up_tomato_salad_from_counter (closest and midpoint)
+    20: 26, 21: 27,  # pick_up_pumpkin_salad_from_counter (closest and midpoint)
 }
 
 class DistanceMatrixWrapper:
@@ -117,7 +126,8 @@ class GameEnv(ParallelEnv):
         penalties_cfg=None,
         rewards_cfg=None,
         dynamic_rewards_cfg=None,
-        collision_enabled=False  # New parameter for collision detection
+        collision_enabled=False,  # New parameter for collision detection
+        random_initial_state=False  # New parameter to randomize initial game state
     ):
         super().__init__()
         self.map_nr = map_nr
@@ -156,6 +166,7 @@ class GameEnv(ParallelEnv):
         self.initial_rewards_cfg = self.rewards_cfg.copy()  # Store initial rewards for dynamic updates
         self.dynamic_rewards_cfg = dynamic_rewards_cfg
         self.wait_for_action_completion = wait_for_completion
+        self.random_initial_state = random_initial_state  # Store flag for random initial states
 
         self.clickable_indices = None  # Initialize clickable indices storage
         
@@ -270,7 +281,10 @@ class GameEnv(ParallelEnv):
 
         self.game, self.action_spaces, self._clickable_mask, self.clickable_indices = init_game(self.agents, map_nr=self.map_nr, grid_size=self.grid_size, seed=episode_seed, game_mode=self.game_mode, walking_speeds=self.walking_speeds, cutting_speeds=self.cutting_speeds)
         self.game.clickable_indices = self.clickable_indices
-        random_game_state(self.game)
+        
+        # Only randomize initial state if flag is enabled
+        if self.random_initial_state:
+            random_game_state(self.game, game_mode=self.game_mode)
 
         self.agent_map = {agent_id: self.game.gameObjects[agent_id] for agent_id in self.agents}
         self.busy_until = {agent_id: None for agent_id in self.agents}
@@ -388,6 +402,24 @@ class GameEnv(ParallelEnv):
             if busy_times[agent_id] <= 0:
                 self.total_actions_asked[agent_id] += 1
                 action_name = get_rl_action_space(self.game_mode)[action_idx]
+                
+                # Handle do_nothing action
+                if action_name == "do_nothing":
+                    # Agent does nothing this step - minimal time advancement
+                    busy_times[agent_id] = MOVE_TIME
+                    self.busy_until[agent_id] = self._elapsed_time + busy_times[agent_id]
+                    
+                    # Store for logging
+                    self._logging_actions[agent_id] = {
+                        'elapsed_time': self._elapsed_time,
+                        'action_idx': action_idx,
+                        'action_name': action_name,
+                        'tile_index': -2,
+                        'action_type': 'do_nothing',
+                        'x': -2,
+                        'y': -2
+                    }
+                    continue
                 
                 if agent_id in self.agent_action_tiles:        
                     cached_path = self.agent_action_paths[agent_id][action_idx]

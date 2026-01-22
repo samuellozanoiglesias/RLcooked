@@ -125,6 +125,11 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
     considered_paths = []
     considered_tiles = []
     
+    # Add placeholder for do_nothing action (action index 0)
+    # do_nothing doesn't require a tile or path
+    considered_paths.append(None)
+    considered_tiles.append(-2)  # Use -2 to indicate do_nothing
+    
 
     # --- Add times to tile types ---
     for tile_type in tile_types:
@@ -305,6 +310,11 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
     obs_vector = []
     considered_paths = []
     considered_tiles = []
+    
+    # Add placeholder for do_nothing action (action index 0)
+    # do_nothing doesn't require a tile or path  
+    considered_paths.append(None)
+    considered_tiles.append(-2)  # Use -2 to indicate do_nothing
 
     # --- Add times to tile types ---
     for tile_type in tile_types:

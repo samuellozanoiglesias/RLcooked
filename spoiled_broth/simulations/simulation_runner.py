@@ -40,7 +40,9 @@ class SimulationRunner:
         
     def run_simulation(self, map_nr: str, num_agents: int,
                       game_version: str, training_id: str,
-                      checkpoint_number: str, timestamp: str) -> Dict[str, Path]:
+                      checkpoint_number: str, timestamp: str,
+                      study_name: str = 'default',
+                      game_type: str = '') -> Dict[str, Path]:
         """
         Run a complete simulation.
         
@@ -51,6 +53,7 @@ class SimulationRunner:
             training_id: Training identifier
             checkpoint_number: Checkpoint number (integer or "final")
             timestamp: Timestamp for file naming
+            study_name: Study name for organizing simulations
             
         Returns:
             Dictionary containing output file paths
@@ -61,7 +64,7 @@ class SimulationRunner:
         try:
             # Setup paths
             paths = self.path_manager.setup_paths(
-                map_nr, num_agents, game_version, training_id, checkpoint_number
+                map_nr, num_agents, game_version, training_id, checkpoint_number, study_name, game_type
             )
             
             # Get grid size
@@ -112,7 +115,7 @@ class SimulationRunner:
             
             # Setup game
             game_factory = self.game_manager.create_game_factory(
-                map_nr, grid_size, self.config.walking_speeds, self.config.cutting_speeds
+                map_nr, grid_size, self.config.walking_speeds, self.config.cutting_speeds, game_type
             )
             
             # Run the simulation

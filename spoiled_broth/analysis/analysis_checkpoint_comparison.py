@@ -33,7 +33,7 @@ sns.set_palette("husl")
 class CheckpointDeliveryAnalyzer:
     """Main class for analyzing deliveries across checkpoints and training_ids."""
     
-    def __init__(self, base_cluster_dir="", map_nr=None, game_version="classic", num_agents=2):
+    def __init__(self, base_cluster_dir="", map_nr=None, game_version="classic", num_agents=2, study_name='default', game_type='classic'):
         """
         Initialize the analyzer with specific parameters.
         
@@ -42,17 +42,21 @@ class CheckpointDeliveryAnalyzer:
             map_nr: Map number/name (e.g., "baseline_division_of_labor")
             game_version: Game version ("classic" or "competition")
             num_agents: Number of agents in the simulation (1 or 2)
+            study_name: Study name for simulation folders (default: 'default')
+            game_type: Game type for folder organization (default: 'classic')
         """
         self.base_cluster_dir = base_cluster_dir
         self.map_nr = map_nr
         self.game_version = game_version
         self.num_agents = num_agents
+        self.study_name = study_name
+        self.game_type = game_type
         
-        # Construct the base map directory path - updated for new structure
+        # Construct the base map directory path - updated for new structure with study_name
         if self.num_agents == 1:
-            self.base_map_dir = Path(f"{base_cluster_dir}/data/samuel_lozano/pretraining/cooked/{game_version}/map_{map_nr}/simulations")
+            self.base_map_dir = Path(f"{base_cluster_dir}/data/samuel_lozano/pretraining/cooked/{game_type}/map_{map_nr}/simulations/{study_name}")
         else:
-            self.base_map_dir = Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/{game_version}/map_{map_nr}/simulations")
+            self.base_map_dir = Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/{game_type}/map_{map_nr}/simulations/{study_name}")
 
         self.checkpoint_data = {}  # {training_id: {checkpoint: delivery_data}}
         
@@ -822,6 +826,10 @@ def main():
                        help='Output directory for results (default: map directory)')
     parser.add_argument('--num_agents', type=int, default=2,
                        help='Number of agents in the simulation (default: 2)')
+    parser.add_argument('--study_name', type=str, default='default',
+                       help='Study name for simulation folders (default: default)')
+    parser.add_argument('--game_type', type=str, default='classic',
+                       help='Game type for folder organization (default: classic)')
 
     args = parser.parse_args()
 
@@ -841,7 +849,9 @@ def main():
         base_cluster_dir=base_cluster_dir,
         map_nr=args.map_nr,
         game_version=args.game_version,
-        num_agents=args.num_agents
+        num_agents=args.num_agents,
+        study_name=args.study_name,
+        game_type=args.game_type
     )
 
     analyzer.run_analysis(args.output_dir)

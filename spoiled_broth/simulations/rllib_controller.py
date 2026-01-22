@@ -127,9 +127,9 @@ class RLlibController(Controller):
         
         # Select correct obs function
         game_mode = "competition" if self.competition else "classic"
-        distance_map = getattr(self.agent.game, 'distance_map', None)
-        obs_vector = game_to_obs_vector(
-            self.agent.game, self.agent_id, game_mode=game_mode, distance_map=distance_map
+        path_processor = getattr(self.agent.game, 'path_processor', None)
+        obs_vector, considered_paths, considered_tiles = game_to_obs_vector(
+            self.agent.game, self.agent_id, game_mode=game_mode, path_processor=path_processor
         )
         input_dict = {"obs": torch.tensor(obs_vector, dtype=torch.float32)}
 
@@ -149,6 +149,10 @@ class RLlibController(Controller):
         if 0 <= action < len(action_space):
             action_name = action_space[action]
             
+            # Get the tile index and path from observation generation (same as game_env)
+            tile_index = considered_tiles[action] if action < len(considered_tiles) else None
+            cached_path = considered_paths[action] if action < len(considered_paths) else None
+            
             # Log the observation vector associated with this action if observation_logger exists
             if hasattr(self.agent.game, 'observation_logger'):
                 try:
@@ -164,7 +168,7 @@ class RLlibController(Controller):
                 # For RL actions, we log the action name and eventual tile target
                 try:
                     self.agent.game.raw_action_logger.log_rl_action(
-                        self.agent_id, action, action_name, self.agent.game
+                        self.agent_id, action, action_name, self.agent.game, game_mode
                     )
                 except AttributeError:
                     # Fallback: log using original method but handle the mismatch gracefully
@@ -175,22 +179,44 @@ class RLlibController(Controller):
                     except Exception:
                         pass  # Skip logging if it fails
             
-            # Convert action name to tile index using the new action space logic
-            distance_map = getattr(self.agent.game, 'distance_map', None)
-            
-            # Check if we have the required inputs for convert_action_to_tile
-            if distance_map is None:
-                print(f"[RLLIB_DEBUG] Warning: No distance_map available for action '{action_name}', skipping action")
+            # Execute action using the same logic as game_env.step()
+            if tile_index is None:
+                # No valid tile found during observation (inaccessible)
                 return None
-                
-            tile_index = convert_action_to_tile(self.agent, self.agent.game, action_name, distance_map=distance_map)
-
-            if tile_index is not None:
+            elif tile_index == -1:
+                # Path blocked by collisions
+                return None
+            else:
+                # Action is valid - set up the path for the agent (same as game_env)
                 grid = self.agent.grid
                 x = tile_index % grid.width
                 y = tile_index // grid.width
                 tile = grid.tiles[x][y]
+                
                 if tile and hasattr(tile, "click"):
+                    # Set up the cached path for the agent
+                    if cached_path and len(cached_path) > 1:
+                        self.agent.path = cached_path[1:]  # Skip current tile
+                        self.agent.path_index = 0
+                    else:
+                        # No cached path - clear path
+                        self.agent.path = []
+                        self.agent.path_index = 0
+                    
+                    # Update path processor with agent's active path (same as game_env)
+                    path_processor = getattr(self.agent.game, 'path_processor', None)
+                    if path_processor and path_processor.is_enabled() and hasattr(self.agent, 'path') and self.agent.path:
+                        # Convert agent speed from pixels/second to tiles/second for collision detection
+                        agent_speed_pixels = getattr(self.agent, 'speed', 30.0)
+                        agent_speed_tiles = agent_speed_pixels / 16.0  # tile_size is 16 pixels
+                        path_processor.update_agent_path(
+                            agent_id=self.agent_id,
+                            path=self.agent.path,
+                            current_position=(self.agent.slot_x, self.agent.slot_y),
+                            path_index=0,
+                            speed=agent_speed_tiles
+                        )
+                    
                     # Don't mark agent as busy immediately - let movement happen first
                     # The agent will be marked as busy by the intent system when it reaches the tile
                     action_dict = {
@@ -208,8 +234,6 @@ class RLlibController(Controller):
                     return action_dict
                 else:
                     return None
-            else:
-                return None
         else:
             return None
         

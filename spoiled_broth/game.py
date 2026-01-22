@@ -135,12 +135,59 @@ class SpoiledBroth(BaseGame):
 
 MAX_PLAYERS = 4 # or import if needed
 
-def random_game_state(game):
-    # Only randomize agent positions (already done by add_agent)
-    # Note: No additional randomization needed here since agent positions are handled by add_agent with seeded RNG
+def random_game_state(game, game_mode="classic"):
+    """
+    Randomize the game state by placing random items on counters and in agent hands.
+    Agent positions remain fixed (already set by add_agent).
+    
+    Args:
+        game: SpoiledBroth game instance
+        game_mode: "classic" (tomato only) or "competition" (tomato + pumpkin)
+    """
+    # Define possible items based on game mode
+    if game_mode == "competition":
+        # Competition mode: both tomato and pumpkin
+        raw_items = ['tomato', 'pumpkin']
+        cut_items = ['tomato_cut', 'pumpkin_cut']
+        salad_items = ['tomato_salad', 'pumpkin_salad']
+    else:  # classic mode
+        # Classic mode: only tomato
+        raw_items = ['tomato']
+        cut_items = ['tomato_cut']
+        salad_items = ['tomato_salad']
+    
+    # Build weighted item lists for counters (higher probability for simpler items)
+    # Weights: raw/plate=4, cut=2, salad=1, None=9 (45% nothing, 20% raw, 20% plate, 10% cut, 5% salad)
+    counter_items = (
+        raw_items * 4 + 
+        ['plate'] * 4 + 
+        cut_items * 2 + 
+        salad_items * 1 + 
+        [None] * 9
+    )
+    
+    # Build weighted item lists for agent hands (even more skewed towards simple items)
+    # Weights: raw/plate=3, cut=1, salad=1, None=12 (60% nothing, 15% raw, 15% plate, 5% cut, 5% salad)
+    agent_items = (
+        raw_items * 3 + 
+        ['plate'] * 3 + 
+        cut_items * 1 + 
+        salad_items * 1 + 
+        [None] * 12
+    )
+    
+    # Randomize items on counters
+    for x in range(game.grid.width):
+        for y in range(game.grid.height):
+            tile = game.grid.tiles[x][y]
+            # Only randomize Counter tiles (type 2)
+            if hasattr(tile, '_type') and tile._type == 2:
+                tile.item = game.rng.choice(counter_items)
+    
+    # Randomize items in agent hands
     for agent in game.gameObjects.values():
-        if hasattr(agent, "item") and agent.item is not None:
-            agent.item = None
+        if hasattr(agent, "item"):
+            agent.item = game.rng.choice(agent_items)
 
 def load_max_distance(map_id, cache_dir=None):
     """

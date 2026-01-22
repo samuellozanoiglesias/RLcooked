@@ -14,10 +14,10 @@ Folder structure:
 
 Usage examples:
 # Run analysis for all trainings and all checkpoints:
-nohup python3 analysis_simulations.py --cluster cuenca --map_nr baseline_division_of_labor --game_version classic --num_agents 1 > log_analysis_simulations.out 2>&1 &
+nohup python3 analysis_simulations.py --cluster cuenca --map_nr baseline_division_of_labor --game_type classic --study_name default > log_analysis_simulations.out 2>&1 &
 
 # Run analysis for specific training, all checkpoints:
-nohup python3 analysis_simulations.py --cluster cuenca --map_nr baseline_division_of_labor --training_id 12345 --game_version classic > log_analysis_simulations.out 2>&1 &
+nohup python3 analysis_simulations.py --cluster cuenca --map_nr baseline_division_of_labor --training_id 12345 --num_agents 1 --game_type classic > log_analysis_simulations.out 2>&1 &
 
 # Run analysis for specific training and checkpoint:
 nohup python3 analysis_simulations.py --cluster cuenca --map_nr baseline_division_of_labor --training_id 12345 --checkpoint_number 50 --game_version classic > log_analysis_simulations.out 2>&1 &
@@ -60,6 +60,10 @@ def main():
                        help='Optional: specific training ID for detailed simulation analysis')
     parser.add_argument('--checkpoint_number', type=str, default=None,
                        help='Optional: specific checkpoint for detailed simulation analysis (e.g., "final", "50")')
+    parser.add_argument('--study_name', type=str, default='default',
+                       help='Study name for simulation folders (default: default)')
+    parser.add_argument('--game_type', type=str, default='classic',
+                       help='Game type for folder organization (default: classic)')
 
     args = parser.parse_args()
 
@@ -82,7 +86,9 @@ def main():
         num_agents=args.num_agents,
         training_id=args.training_id,
         checkpoint_number=args.checkpoint_number,
-        output_dir=args.output_dir
+        output_dir=args.output_dir,
+        study_name=args.study_name,
+        game_type=args.game_type
     )
 
     simulations_success, checkpoint_success = orchestrator.run_comprehensive_analysis()

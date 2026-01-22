@@ -1039,6 +1039,10 @@ def main():
                        help='Game version (default: classic)')
     parser.add_argument('--num_agents', type=int, default=2,
                        help='Number of agents in the simulation (default: 2)')
+    parser.add_argument('--study_name', type=str, default='default',
+                       help='Study name for simulation folders (default: default)')
+    parser.add_argument('--game_type', type=str, default='classic',
+                       help='Game type for folder organization (default: classic)')
     
     args = parser.parse_args()
 
@@ -1049,12 +1053,12 @@ def main():
     elif args.cluster.lower() == 'local':
         base_cluster_dir = "C:/OneDrive - Universidad Complutense de Madrid (UCM)/Doctorado"
 
-    # Updated for new folder structure: /data/.../map_{map_nr}/simulations/Training_{training_id}/checkpoint_{checkpoint_number}/
+    # Updated for new folder structure: /data/.../map_{map_nr}/simulations/{study_name}/Training_{training_id}/checkpoint_{checkpoint_number}/
     if args.num_agents == 1:
-        base_dir = f"{base_cluster_dir}/data/samuel_lozano/cooked/pretraining/{args.game_version}/map_{args.map_nr}"
+        base_dir = f"{base_cluster_dir}/data/samuel_lozano/cooked/pretraining/{args.game_type}/map_{args.map_nr}"
     else:
-        base_dir = f"{base_cluster_dir}/data/samuel_lozano/cooked/{args.game_version}/map_{args.map_nr}"
-    training_dir = f"{base_dir}/simulations/Training_{args.training_id}/"
+        base_dir = f"{base_cluster_dir}/data/samuel_lozano/cooked/{args.game_type}/map_{args.map_nr}"
+    training_dir = f"{base_dir}/simulations/{args.study_name}/Training_{args.training_id}/"
     simulation_dir = f"{training_dir}/checkpoint_{args.checkpoint_number}/"
     
     # Create a temporary analyzer to resolve checkpoint number if needed
