@@ -175,4 +175,5 @@ input*
 output*
 *.out
 *.log
+*.err
 logs*
