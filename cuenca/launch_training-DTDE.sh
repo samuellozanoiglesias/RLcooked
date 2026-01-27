@@ -5,25 +5,25 @@ LC_NUMERIC=en_US.UTF-8
 
 # Argumentos para el script Python
 cluster=cuenca
-input=input_0.4_0.2
-input_path=$input.txt
-map_nr=baseline_division_of_labor_large
+input=input_1.0_1.0
+input_path=inputs/$input.txt
+map_nr=encouraged_division_of_labor_large
 lr=0.0003
-game_version=classic
-num_epochs=20
-num_agents=1
+game_version=classic_collision
+num_epochs=400
+num_agents=2
 seeds=(0)  # Lista de seeds para ejecutar
-checkpoint_paths=none
+checkpoint_paths=checkpoints/checkpoints_encouraged_collision_stars.txt
 rewards_only_on_delivery=false
 random_initial_state=true
 ability_risk_enabled=false
-eta=0.0
+eta=1.0
 specialization_penalty_enabled=false
-agent_to_train=2 
+agent_to_train="" 
 
 # Iterar sobre cada seed
 for seed in "${seeds[@]}"; do
-    output_file=output_$map_nr-$num_agents-$game_version-$input-seed_$seed_$random_initial_state.txt
+    output_file=output_$map_nr-$num_agents-$game_version-$input-seed_$seed-$random_initial_state-$specialization_penalty_enabled.txt
     
     # Ejecutar el entrenamiento en segundo plano con nohup y argumentos
     nohup python /home/samuel_lozano/cooked/training-DTDE-spoiled_broth.py $cluster $input_path $map_nr $lr $game_version $num_agents $num_epochs $seed $checkpoint_paths $rewards_only_on_delivery $random_initial_state $ability_risk_enabled $eta $specialization_penalty_enabled $agent_to_train > $output_file 2>&1 &

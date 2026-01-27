@@ -15,24 +15,33 @@ Usage:
     python figure_cooperative_analysis.py [options]
 
 Examples:
-    # Default (baseline vs encouraged, random_init)
+    # Default (baseline vs encouraged, random_init, both specializations)
     nohup python figure_cooperative_analysis.py --episode_range all --output_dir ./figures > figure_cooperative_analysis_all.log 2>&1 &
-    nohup python figure_cooperative_analysis.py --episode_range final --num_final_episodes 100 > figure_cooperative_analysis_final.log 2>&1 &
+    nohup python figure_cooperative_analysis.py --episode_range final --num_episodes 100 > figure_cooperative_analysis_final.log 2>&1 &
     
-    # Analyze empty_init data
-    nohup python figure_cooperative_analysis.py --episode_range final --init_type empty_init --num_final_episodes 100 > figure_cooperative_analysis_empty_init.log 2>&1 &
+    # Analyze only specialized data
+    nohup python figure_cooperative_analysis.py --episode_range final --specialization specialized --num_episodes 100 > figure_cooperative_analysis_specialized.log 2>&1 &
+    
+    # Analyze only non-specialized data
+    nohup python figure_cooperative_analysis.py --episode_range final --specialization non_specialized --num_episodes 100 > figure_cooperative_analysis_non_specialized.log 2>&1 &
+    
+    # Analyze empty_init data (both specializations)
+    nohup python figure_cooperative_analysis.py --episode_range final --init_type empty_init --num_episodes 100 > figure_cooperative_analysis_empty_init.log 2>&1 &
     
     # Analyze speeds study with specific initialization
-    nohup python figure_cooperative_analysis.py --episode_range final --study_name speeds --init_type random_init --num_final_episodes 100 > figure_cooperative_analysis_speeds.log 2>&1 &
+    nohup python figure_cooperative_analysis.py --episode_range final --study_name speeds --init_type random_init --num_episodes 100 > figure_cooperative_analysis_speeds.log 2>&1 &
     
     # Analyze with eta parameter (reference-based reward shaping)
-    nohup python figure_cooperative_analysis.py --episode_range final --init_type random_init --eta 0.5 --num_final_episodes 100 > figure_cooperative_analysis_eta_0.5.log 2>&1 &
+    nohup python figure_cooperative_analysis.py --episode_range final --init_type random_init --eta 0.5 --num_episodes 100 > figure_cooperative_analysis_eta_0.5.log 2>&1 &
     
     # Custom maps (e.g., baseline vs forced) with empty_init
-    nohup python figure_cooperative_analysis.py --episode_range final --map_name_1 baseline_division_of_labor_large --map_name_2 collision_division_of_labor_large --init_type empty_init --num_final_episodes 100 > figure_cooperative_analysis_baseline_forced.log 2>&1 &
+    nohup python figure_cooperative_analysis.py --episode_range final --map_name_1 baseline_division_of_labor_large --map_name_2 collision_division_of_labor_large --init_type empty_init --num_episodes 100 > figure_cooperative_analysis_baseline_forced.log 2>&1 &
     
     # Extended mode with additional metrics
-    nohup python figure_cooperative_analysis.py --episode_range final --extended --init_type random_init --num_final_episodes 100 > figure_cooperative_analysis_extended.log 2>&1 &    
+    nohup python figure_cooperative_analysis.py --episode_range final --extended --init_type random_init --num_episodes 100 > figure_cooperative_analysis_extended.log 2>&1 &
+    
+    # Analyze specific episodes around episode 500
+    nohup python figure_cooperative_analysis.py --episode_range specific --target_episode 500 --num_episodes 20 > figure_cooperative_analysis_ep500.log 2>&1 &    
 """
 
 import sys
@@ -63,7 +72,8 @@ class CooperativeAnalyzer:
                  map_name_2: str = 'encouraged_division_of_labor_large',
                  init_type: str = 'random_init',
                  eta: float = 0.0,
-                 eta_provided: bool = False):
+                 eta_provided: bool = False,
+                 specialization_mode: Optional[str] = None):
         self.config = AnalysisConfig()
         self.data_processor = DataProcessor(self.config)
         self.study_name = study_name
@@ -72,7 +82,8 @@ class CooperativeAnalyzer:
         self.init_type = init_type
         self.eta = eta
         self.eta_provided = eta_provided
-        self.detected_specialization = None  # Will be set during data loading
+        self.specialization_mode = specialization_mode  # None=both, 'specialized', or 'non_specialized'
+        self.detected_specializations = []  # Track which specializations were found
         
         # Extract short names for condition labels
         # E.g., 'baseline_division_of_labor_large' -> 'baseline'
@@ -84,7 +95,8 @@ class CooperativeAnalyzer:
         # Updated based on actual training configurations:
         # - Superstar: Both agents have 1.0_1.0 (walking=1.0, cutting=1.0)
         # - Mixed: Agent1 has 0.4_1.0 (walking=0.4, cutting=1.0), Agent2 has 1.0_0.2 (walking=1.0, cutting=0.2)
-        self.condition_mapping = {
+        # Base condition mapping (will be expanded with specialization if analyzing both)
+        self.base_condition_mapping = {
             # Map 1 conditions  
             (map_name_1, 'classic', 'mixed'): f'{self.map_1_short}_mixed',
             (map_name_1, 'classic_collision', 'mixed'): f'{self.map_1_short}_mixed_collision', 
@@ -98,7 +110,8 @@ class CooperativeAnalyzer:
         }
         
         # Color palette mapping - dynamically generated based on map names
-        self.color_palette = {
+        # Base colors for specialized (or when not distinguishing)
+        self.base_color_palette = {
             f'{self.map_1_short}_mixed': '#FF6B6B',              # Red
             f'{self.map_1_short}_mixed_collision': '#FF9F40',    # Orange  
             f'{self.map_1_short}_superstar': '#90EE90',          # Light Green
@@ -109,12 +122,15 @@ class CooperativeAnalyzer:
             f'{self.map_2_short}_superstar_collision': '#FF69B4' # Pink
         }
         
+        # Will be expanded in load_experimental_data if analyzing both specializations
+        self.color_palette = self.base_color_palette.copy()
+        
         # Performance metrics to analyze (updated for multi-agent cooperative data)
         # These will be created from individual agent metrics
-        # Arranged for 3x2 layout: (total_deliveries, total_cuts), (deliveries_agent1, deliveries_agent2), (cuts_agent1, cuts_agent2)
+        # Arranged for 3x2 layout: (total_deliveries, total_counters), (deliveries_agent1, deliveries_agent2), (cuts_agent1, cuts_agent2)
         self.performance_metrics = {
             'total_deliveries': 'Total Deliveries (Combined)',
-            'total_cuts': 'Total Cuts (Combined)', 
+            'total_counters': 'Total Counters (Combined)', 
             'useful_delivery_ai_rl_1': 'Deliveries Agent 1',
             'useful_delivery_ai_rl_2': 'Deliveries Agent 2',
             'cut_ai_rl_1': 'Cuts Agent 1',
@@ -147,73 +163,93 @@ class CooperativeAnalyzer:
         # Fallback: use first word
         return map_name.split('_')[0]
     
-    def load_experimental_data(self) -> pd.DataFrame:
-        """Load and combine data from all experimental conditions."""
+    def load_experimental_data(self) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+        """Load and combine data from all experimental conditions.
+        
+        Returns:
+            If analyzing single specialization: pd.DataFrame
+            If analyzing both specializations: Dict[str, pd.DataFrame] with keys:
+                - 'non_specialized': All conditions using non_specialized data
+                - 'mixed': Mixed conditions with specialized data, stars conditions with non_specialized data
+                - 'specialized': All conditions using specialized data
+        """
         print("Loading experimental data from all conditions...")
         if self.study_name:
             print(f"Using study name: {self.study_name}")
+        if self.specialization_mode is None:
+            print("Specialization mode: Creating three figures (non_specialized, mixed, specialized)")
+        else:
+            print(f"Specialization mode: {self.specialization_mode}")
         
-        all_data = []
+        # Determine which specialization modes to try
+        if self.specialization_mode is None:
+            # When analyzing both, we'll create three datasets
+            spec_modes_to_analyze = ['specialized', 'non_specialized']
+            create_three_datasets = True
+        elif self.specialization_mode:
+            spec_modes_to_analyze = [self.specialization_mode]
+            create_three_datasets = False
+        else:
+            spec_modes_to_analyze = [None]  # No specialization folder
+            create_three_datasets = False
         
-        # Load data for each experimental condition
-        for (map_name, game_type, speed_config), condition_name in self.condition_mapping.items():
-            print(f"\nProcessing condition: {condition_name}")
-            print(f"  Map: {map_name}, Game type: {game_type}, Speed config: {speed_config}")
+        # Store data separately for each specialization mode
+        # When create_three_datasets is True, we'll store data organized by (spec_mode, speed_config)
+        data_by_spec_and_speed = {} if create_three_datasets else None
+        data_by_specialization = {}
+        
+        # Load data for each specialization mode
+        for spec_mode in spec_modes_to_analyze:
+            all_data = []  # Reset for each specialization mode
             
-            try:
-                # Set up paths for this condition with init_type and eta in the correct order
-                # Only include eta folder if eta was explicitly provided (even if it's 0)
+            # Load all conditions for this specialization mode
+            for (map_name, game_type, speed_config), condition_name in self.base_condition_mapping.items():
+                # Keep original condition name (no suffix)
+                print(f"\nProcessing condition: {condition_name}")
+                print(f"  Map: {map_name}, Game type: {game_type}, Speed config: {speed_config}")
+                if spec_mode:
+                    print(f"  Specialization: {spec_mode}")
                 
-                if self.eta_provided:
-                    # Build path with eta folder
-                    eta_folder = f"eta_{self.eta}"
+                try:
+                    # Set up paths for this condition with init_type and eta in the correct order
+                    # Only include eta folder if eta was explicitly provided (even if it's 0)
                     
-                    # Try to auto-detect specialization folder
-                    spec_folders_to_try = ["specialized", "non_specialized", ""]  # Empty for backwards compatibility
-                    
-                    for spec_folder in spec_folders_to_try:
-                        if self.study_name:
-                            # Use study_name folder structure: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{study_name}/
-                            if spec_folder:
-                                test_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{self.study_name}"
-                            else:
-                                test_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{self.study_name}"
-                        else:
-                            # Default structure: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/
-                            if spec_folder:
-                                test_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{spec_folder}"
-                            else:
-                                test_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}"
+                    if self.eta_provided:
+                        # Build path with eta folder
+                        eta_folder = f"eta_{self.eta}" if self.eta != 0 else "eta_0"
                         
-                        # Check if this directory exists
-                        if os.path.exists(test_dir):
-                            raw_dir = test_dir
-                            detected_spec_folder = spec_folder  # Track which folder was found
-                            break
-                    else:
-                        # Default to non-specialized if none found
-                        detected_spec_folder = None
-                        if self.study_name:
-                            raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{self.study_name}"
+                        # Use the specific specialization mode (no fallback)
+                        if spec_mode:
+                            spec_folder = spec_mode
                         else:
-                            raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}"
-                
-                # Store detected specialization for this condition
-                if 'detected_spec_folder' not in locals():
-                    detected_spec_folder = None
-                
-                # Store the first detected specialization (should be consistent across conditions)
-                if self.detected_specialization is None and detected_spec_folder:
-                    self.detected_specialization = detected_spec_folder
-                    print(f"  Detected specialization mode: {self.detected_specialization}")
-                else:
-                    # No eta folder - use original structure when eta is not provided
-                    if self.study_name:
-                        # Use study_name folder structure: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{study_name}/
-                        raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{self.study_name}"
+                            spec_folder = ""  # No specialization folder
+                        
+                        # Build directory path
+                        if self.study_name:
+                            # Use study_name folder structure
+                            if spec_folder:
+                                raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{self.study_name}"
+                            else:
+                                raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{self.study_name}"
+                        else:
+                            # Default structure
+                            if spec_folder:
+                                raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{spec_folder}"
+                            else:
+                                raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}"
+                    
                     else:
-                        # Default structure: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/
-                        raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}"
+                        # No eta folder - use original structure when eta is not provided
+                        if self.study_name:
+                            # Use study_name folder structure
+                            raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{self.study_name}"
+                        else:
+                            # Default structure
+                            raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}"
+                
+                except Exception as e:
+                    print(f"  Error loading condition {condition_name}: {e}")
+                    continue
                 
                 paths = {
                     'raw_dir': raw_dir,
@@ -224,7 +260,6 @@ class CooperativeAnalyzer:
                 }
                 
                 # Create the directories if they don't exist
-                import os
                 for dir_path in [paths['raw_dir'], paths['figures_dir'], paths['smoothed_figures_dir']]:
                     os.makedirs(dir_path, exist_ok=True)
                 
@@ -255,8 +290,26 @@ class CooperativeAnalyzer:
                     df_filtered['map_name'] = map_name 
                     df_filtered['game_type_clean'] = game_type
                     df_filtered['speed_condition'] = speed_config
+                    if spec_mode:
+                        df_filtered['specialization'] = spec_mode
                     
-                    all_data.append(df_filtered)
+                    # Add color palette entry for this specific condition
+                    if condition_name not in self.color_palette:
+                        # Get base color
+                        base_color = self.base_color_palette.get(condition_name, '#666666')
+                        self.color_palette[condition_name] = base_color
+                    
+                    # Store data appropriately
+                    if create_three_datasets:
+                        # Store by (spec_mode, speed_config) tuple for later combining
+                        key = (spec_mode, speed_config)
+                        if key not in data_by_spec_and_speed:
+                            data_by_spec_and_speed[key] = []
+                        data_by_spec_and_speed[key].append(df_filtered)
+                    else:
+                        # Normal storage for single specialization mode
+                        all_data.append(df_filtered)
+                    
                     print(f"  Loaded {len(df_filtered)} episodes")
                     
                     # Debug: Check if our target metrics exist
@@ -268,30 +321,94 @@ class CooperativeAnalyzer:
                     
                 else:
                     print(f"  Warning: No data loaded for condition {condition_name}")
-                    
-            except Exception as e:
-                print(f"  Error loading condition {condition_name}: {e}")
-                continue
-        
-        if not all_data:
-            raise ValueError("No data could be loaded from any experimental condition")
             
-        # Combine all data
-        combined_df = pd.concat(all_data, ignore_index=True)
+            # Store data for this specialization mode if we have any (only for non-create_three_datasets mode)
+            if not create_three_datasets and all_data:
+                if spec_mode:
+                    data_by_specialization[spec_mode] = pd.concat(all_data, ignore_index=True)
+                else:
+                    # No specialization mode - just return single DataFrame
+                    data_by_specialization['default'] = pd.concat(all_data, ignore_index=True)
+        
+        # Return based on what we collected
+        if not data_by_specialization and not create_three_datasets:
+            raise ValueError("No data could be loaded from any experimental condition")
+        
+        # If creating three datasets, combine data accordingly
+        if create_three_datasets:
+            print("\n" + "=" * 60)
+            print("CREATING THREE DATASETS")
+            print("=" * 60)
+            
+            # Dataset 1: All non_specialized (both stars and mixed)
+            dataset_1_data = []
+            for (spec_mode, speed_config), data_list in data_by_spec_and_speed.items():
+                if spec_mode == 'non_specialized':
+                    dataset_1_data.extend(data_list)
+            
+            if dataset_1_data:
+                data_by_specialization['non_specialized'] = pd.concat(dataset_1_data, ignore_index=True)
+                print(f"Dataset 1 (non_specialized): {len(data_by_specialization['non_specialized'])} episodes")
+            
+            # Dataset 2: Mixed from specialized, Stars from non_specialized
+            dataset_2_data = []
+            for (spec_mode, speed_config), data_list in data_by_spec_and_speed.items():
+                if spec_mode == 'specialized' and speed_config == 'mixed':
+                    dataset_2_data.extend(data_list)
+                elif spec_mode == 'non_specialized' and speed_config == 'superstar':
+                    dataset_2_data.extend(data_list)
+            
+            if dataset_2_data:
+                data_by_specialization['mixed'] = pd.concat(dataset_2_data, ignore_index=True)
+                print(f"Dataset 2 (mixed): {len(data_by_specialization['mixed'])} episodes")
+            
+            # Dataset 3: All specialized (both stars and mixed)
+            dataset_3_data = []
+            for (spec_mode, speed_config), data_list in data_by_spec_and_speed.items():
+                if spec_mode == 'specialized':
+                    dataset_3_data.extend(data_list)
+            
+            if dataset_3_data:
+                data_by_specialization['specialized'] = pd.concat(dataset_3_data, ignore_index=True)
+                print(f"Dataset 3 (specialized): {len(data_by_specialization['specialized'])} episodes")
+            
+            if not data_by_specialization:
+                raise ValueError("No data could be loaded from any experimental condition")
+            
+            print("\n" + "=" * 60)
+            for spec_mode, df in data_by_specialization.items():
+                print(f"\n{spec_mode.upper()} data: {len(df)} episodes across {df['condition'].nunique()} conditions")
+                print(f"  Conditions: {sorted(df['condition'].unique())}")
+            print(f"Datasets created: {sorted(data_by_specialization.keys())}")
+            return data_by_specialization
+        
+        # If analyzing both specializations (old logic - shouldn't happen now), return dict with separate DataFrames
+        if self.specialization_mode is None and len(data_by_specialization) > 1:
+            for spec_mode, df in data_by_specialization.items():
+                print(f"\n{spec_mode.upper()} data: {len(df)} episodes across {df['condition'].nunique()} conditions")
+                print(f"  Conditions: {sorted(df['condition'].unique())}")
+            print(f"Specialization modes found: {sorted(data_by_specialization.keys())}")
+            return data_by_specialization
+        
+        # Otherwise, return single DataFrame
+        combined_df = list(data_by_specialization.values())[0]
         print(f"\nTotal loaded data: {len(combined_df)} episodes across {combined_df['condition'].nunique()} conditions")
         print(f"Conditions found: {sorted(combined_df['condition'].unique())}")
+        if self.detected_specializations:
+            print(f"Specialization modes found: {sorted(self.detected_specializations)}")
         
         return combined_df
     
     def prepare_episode_data(self, df: pd.DataFrame, episode_selection: str = 'all', 
-                           num_final_episodes: int = 100) -> pd.DataFrame:
+                           num_episodes: int = 100, target_episode: Optional[int] = None) -> pd.DataFrame:
         """
         Prepare data based on episode selection criteria.
         
         Args:
             df: Combined dataframe with all experimental data
-            episode_selection: 'all', 'final', or 'average'
-            num_final_episodes: Number of final episodes to use if episode_selection='final'
+            episode_selection: 'all', 'final', 'average', or 'specific'
+            num_episodes: Number of episodes to use (for 'final' or 'specific' modes)
+            target_episode: Target episode number (required for 'specific' mode)
             
         Returns:
             Processed dataframe ready for plotting
@@ -323,12 +440,74 @@ class CooperativeAnalyzer:
                         continue
                     
                     # Take final episodes from complete episodes only
-                    final_episodes = complete_episodes.tail(num_final_episodes)
+                    final_episodes = complete_episodes.tail(num_episodes)
                     final_data.append(final_episodes)
             
             final_df = pd.concat(final_data, ignore_index=True)
-            print(f"Using final {num_final_episodes} episodes: {len(final_df)} total episodes")
+            print(f"Using final {num_episodes} episodes: {len(final_df)} total episodes")
             return final_df
+            
+        elif episode_selection == 'specific':
+            # Use N episodes around a specific target episode
+            if target_episode is None:
+                raise ValueError("target_episode must be provided when using episode_selection='specific'")
+            
+            specific_data = []
+            half_window = num_episodes // 2
+            
+            for condition in df['condition'].unique():
+                condition_df = df[df['condition'] == condition].copy()
+                
+                # Group by training session (timestamp)
+                for timestamp in condition_df['timestamp'].unique():
+                    training_df = condition_df[condition_df['timestamp'] == timestamp].copy()
+                    training_df = training_df.sort_values('episode')
+                    
+                    # Filter out incomplete episodes
+                    complete_episodes = self._filter_complete_episodes(training_df)
+                    
+                    if len(complete_episodes) == 0:
+                        print(f"    Warning: No complete episodes found for training {timestamp}")
+                        continue
+                    
+                    # Convert target_episode (1-based index within training) to actual episode number
+                    # target_episode refers to the Nth episode within this training session
+                    if target_episode > len(complete_episodes):
+                        episode_range = f"{complete_episodes['episode'].min()}-{complete_episodes['episode'].max()}"
+                        print(f"    Warning: target_episode {target_episode} exceeds training length ({len(complete_episodes)} episodes) "
+                              f"for training {timestamp}. Available episode range: {episode_range}")
+                        continue
+                    
+                    # Get the actual episode number for the target_episode index (1-based)
+                    target_episode_actual = complete_episodes.iloc[target_episode - 1]['episode']
+                    
+                    # Calculate the window around this target episode (using actual episode numbers)
+                    start_episode = target_episode_actual - half_window
+                    end_episode = target_episode_actual + half_window
+                    
+                    # Filter episodes within the range
+                    specific_episodes = complete_episodes[
+                        (complete_episodes['episode'] >= start_episode) & 
+                        (complete_episodes['episode'] <= end_episode)
+                    ]
+                    
+                    if len(specific_episodes) > 0:
+                        specific_data.append(specific_episodes)
+                        print(f"    Found {len(specific_episodes)} episodes around episode {target_episode} "
+                              f"(actual episode {target_episode_actual}, range: {start_episode}-{end_episode}) "
+                              f"for training {timestamp}")
+                    else:
+                        episode_range = f"{complete_episodes['episode'].min()}-{complete_episodes['episode'].max()}"
+                        print(f"    Warning: No episodes found around target episode {target_episode} "
+                              f"(actual episode {target_episode_actual}) for training {timestamp}. "
+                              f"Available episode range: {episode_range}")
+            
+            if not specific_data:
+                raise ValueError(f"No episodes found around target episode {target_episode}")
+            
+            specific_df = pd.concat(specific_data, ignore_index=True)
+            print(f"Using {num_episodes} episodes around episode {target_episode}: {len(specific_df)} total episodes")
+            return specific_df
             
         elif episode_selection == 'average':
             # Average across episodes for each training, then use training averages as data points
@@ -365,7 +544,7 @@ class CooperativeAnalyzer:
             return avg_df
         
         else:
-            raise ValueError(f"Invalid episode_selection: {episode_selection}. Choose from 'all', 'final', 'average'")
+            raise ValueError(f"Invalid episode_selection: {episode_selection}. Choose from 'all', 'final', 'average', 'specific'")
     
     def _create_combined_metrics(self, df: pd.DataFrame):
         """Create combined metrics from individual agent metrics."""
@@ -392,16 +571,16 @@ class CooperativeAnalyzer:
             print(f"    Warning: Could not create pure_reward_total - no pure_reward columns found")
             df['pure_reward_total'] = 0
         
-        # Create total_cuts from sum of both agents' cuts
-        if 'cut_ai_rl_1' in df.columns and 'cut_ai_rl_2' in df.columns:
-            df['total_cuts'] = df['cut_ai_rl_1'] + df['cut_ai_rl_2']
-            print(f"    Created total_cuts from cut_ai_rl_1 + cut_ai_rl_2")
-        elif 'cut_ai_rl_1' in df.columns:
-            df['total_cuts'] = df['cut_ai_rl_1']
-            print(f"    Created total_cuts from cut_ai_rl_1 only")
+        # Create total_counters from sum of both agents' counter uses
+        if 'counter_ai_rl_1' in df.columns and 'counter_ai_rl_2' in df.columns:
+            df['total_counters'] = df['counter_ai_rl_1'] + df['counter_ai_rl_2']
+            print(f"    Created total_counters from counter_ai_rl_1 + counter_ai_rl_2")
+        elif 'counter_ai_rl_1' in df.columns:
+            df['total_counters'] = df['counter_ai_rl_1']
+            print(f"    Created total_counters from counter_ai_rl_1 only")
         else:
-            print(f"    Warning: Could not create total_cuts - no cut columns found")
-            df['total_cuts'] = 0
+            print(f"    Warning: Could not create total_counters - no counter columns found")
+            df['total_counters'] = 0
     
     def _filter_complete_episodes(self, df: pd.DataFrame) -> pd.DataFrame:
         """Filter out episodes that don't have the expected number of environments.
@@ -738,19 +917,29 @@ def setup_argument_parser() -> argparse.ArgumentParser:
     
     parser.add_argument(
         '--episode_range',
-        choices=['all', 'final', 'average'],
+        choices=['all', 'final', 'average', 'specific'],
         default='final',
         help='Episode selection method:\n'
              '  all: Use all episodes as individual points\n'
              '  final: Use final N episodes from each training\n'
-             '  average: Average episodes per training, use training averages as points'
+             '  average: Average episodes per training, use training averages as points\n'
+             '  specific: Use N episodes around a specific target episode'
     )
     
     parser.add_argument(
-        '--num_final_episodes',
+        '--num_episodes',
         type=int,
         default=100,
-        help='Number of final episodes to use when episode_range=final (default: 100)'
+        help='Number of episodes to use (default: 100). For final: last N episodes. For specific: N episodes total (N/2 before and N/2 after target)'
+    )
+    
+    parser.add_argument(
+        '--target_episode',
+        type=int,
+        default=None,
+        help='Target episode index within each training (required when episode_range=specific). '
+             'This refers to the Nth episode within each training session. For example, target_episode=10 '
+             'means the 10th episode of each training, regardless of the actual episode numbers in the data.'
     )
     
     parser.add_argument(
@@ -809,6 +998,14 @@ def setup_argument_parser() -> argparse.ArgumentParser:
         help='Eta parameter for reference-based reward shaping (default: 0.0)'
     )
     
+    parser.add_argument(
+        '--specialization',
+        type=str,
+        choices=['specialized', 'non_specialized', 'both'],
+        default='both',
+        help='Which specialization mode to analyze (default: both - analyzes both specialized and non_specialized if available)'
+    )
+    
     return parser
 
 
@@ -821,6 +1018,9 @@ def main():
         # Check if eta was explicitly provided
         eta_provided = '--eta' in sys.argv
         
+        # Determine specialization mode
+        specialization_mode = None if args.specialization == 'both' else args.specialization
+        
         # Initialize analyzer
         analyzer = CooperativeAnalyzer(
             study_name=args.study_name,
@@ -828,7 +1028,8 @@ def main():
             map_name_2=args.map_name_2,
             init_type=args.init_type,
             eta=args.eta,
-            eta_provided=eta_provided
+            eta_provided=eta_provided,
+            specialization_mode=specialization_mode
         )
         
         # Load experimental data
@@ -837,89 +1038,178 @@ def main():
         print("=" * 60)
         print(f"Init type: {args.init_type}")
         print(f"Eta: {args.eta}")
+        print(f"Specialization: {args.specialization}")
         print(f"Map 1: {args.map_name_1}")
         print(f"Map 2: {args.map_name_2}")
         if args.study_name:
             print(f"Study: {args.study_name}")
         
-        df = analyzer.load_experimental_data()
+        df_or_dict = analyzer.load_experimental_data()
         
-        # Prepare data based on episode selection
-        processed_df = analyzer.prepare_episode_data(
-            df, 
-            episode_selection=args.episode_range,
-            num_final_episodes=args.num_final_episodes
-        )
-        
-        # Create output directory
-        output_dir = Path(args.output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Generate filename with all relevant parameters
-        filename_parts = ["cooperative_analysis"]
-        
-        # Add init type
-        filename_parts.append(args.init_type)
-        
-        # Add eta if explicitly provided (even if 0)
-        if analyzer.eta_provided:
-            filename_parts.append(f"eta_{args.eta}")
-        
-        # Add specialization if detected
-        if analyzer.detected_specialization:
-            filename_parts.append(analyzer.detected_specialization)
-        
-        # Add map names (short versions)
-        map_1_short = analyzer.map_1_short
-        map_2_short = analyzer.map_2_short
-        filename_parts.append(f"{map_1_short}_vs_{map_2_short}")
-        
-        # Add study name if specified
-        if args.study_name:
-            filename_parts.append(args.study_name)
-        
-        # Add episode selection type
-        filename_parts.append(args.episode_range)
-        
-        # Add 'extended' marker if using extended mode
-        if args.extended:
-            filename_parts.append('extended')
-        
-        # Add number of final episodes if using 'final' selection
-        if args.episode_range == 'final':
-            filename_parts.append(f"{args.num_final_episodes}eps")
-        
-        # Add custom suffix if provided
-        if args.filename_suffix:
-            filename_parts.append(args.filename_suffix)
-        
-        filename = "_".join(filename_parts) + ".png"
-        output_path = output_dir / filename
-        
-        # Create raincloud plots
-        plotter = RaincloudPlotter(
-            analyzer.color_palette, 
-            analyzer.performance_metrics,
-            analyzer.extended_metrics
-        )
-        fig = plotter.create_composite_figure(processed_df, str(output_path), extended=args.extended)
-        
-        # Display results
-        print(f"\nAnalysis completed successfully!")
-        print(f"Figure saved to: {output_path}")
-        print(f"Data summary:")
-        print(f"  Init type: {args.init_type}")
-        print(f"  Total episodes: {len(processed_df)}")
-        print(f"  Conditions: {sorted(processed_df['condition'].unique())}")
-        print(f"  Episode selection: {args.episode_range}")
-        if args.study_name:
-            print(f"  Study name: {args.study_name}")
-        
-        if args.episode_range == 'final':
-            print(f"  Final episodes used: {args.num_final_episodes}")
-        
-        # Note: Skipping plt.show() since we're running in headless mode
-        # plt.show()
+        # Check if we got a dict (multiple specializations) or single DataFrame
+        if isinstance(df_or_dict, dict):
+            # Process each specialization separately and create separate graphs
+            print("\n" + "=" * 60)
+            print("CREATING SEPARATE GRAPHS FOR EACH SPECIALIZATION")
+            print("=" * 60)
+            
+            for spec_mode in sorted(df_or_dict.keys()):
+                print(f"\nProcessing {spec_mode} data...")
+                df = df_or_dict[spec_mode]
+                
+                # Prepare data based on episode selection
+                processed_df = analyzer.prepare_episode_data(
+                    df, 
+                    episode_selection=args.episode_range,
+                    num_episodes=args.num_episodes,
+                    target_episode=args.target_episode
+                )
+                
+                # Create output directory
+                output_dir = Path(args.output_dir)
+                output_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Generate filename with specialization mode
+                filename_parts = ["cooperative_analysis"]
+                filename_parts.append(args.init_type)
+                
+                if analyzer.eta_provided:
+                    filename_parts.append(f"eta_{args.eta}" if args.eta != 0 else "eta_0")
+                
+                # Add the specific specialization mode
+                filename_parts.append(spec_mode)
+                
+                # Add map names (short versions)
+                filename_parts.append(f"{analyzer.map_1_short}_vs_{analyzer.map_2_short}")
+                
+                if args.study_name:
+                    filename_parts.append(args.study_name)
+                
+                filename_parts.append(args.episode_range)
+                
+                if args.extended:
+                    filename_parts.append('extended')
+                
+                if args.episode_range == 'final':
+                    filename_parts.append(f"{args.num_episodes}eps")
+                
+                if args.episode_range == 'specific':
+                    filename_parts.append(f"ep{args.target_episode}_{args.num_episodes}eps")
+                
+                if args.filename_suffix:
+                    filename_parts.append(args.filename_suffix)
+                
+                filename = "_".join(filename_parts) + ".png"
+                output_path = output_dir / filename
+                
+                # Create raincloud plots for this specialization
+                plotter = RaincloudPlotter(
+                    analyzer.color_palette, 
+                    analyzer.performance_metrics,
+                    analyzer.extended_metrics
+                )
+                fig = plotter.create_composite_figure(processed_df, str(output_path), extended=args.extended)
+                
+                # Display results
+                print(f"\nGraph for {spec_mode} completed!")
+                print(f"  Figure saved to: {output_path}")
+                print(f"  Total episodes: {len(processed_df)}")
+                print(f"  Conditions: {sorted(processed_df['condition'].unique())}")
+                
+                plt.close(fig)  # Close figure to free memory
+            
+            print("\n" + "=" * 60)
+            print("ALL GRAPHS COMPLETED SUCCESSFULLY!")
+            print("=" * 60)
+            
+        else:
+            # Single specialization mode - process normally
+            df = df_or_dict
+            
+            # Prepare data based on episode selection
+            processed_df = analyzer.prepare_episode_data(
+                df, 
+                episode_selection=args.episode_range,
+                num_episodes=args.num_episodes,
+                target_episode=args.target_episode
+            )
+            
+            # Create output directory
+            output_dir = Path(args.output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Generate filename with all relevant parameters
+            filename_parts = ["cooperative_analysis"]
+            
+            # Add init type
+            filename_parts.append(args.init_type)
+            
+            # Add eta if explicitly provided (even if 0)
+            if analyzer.eta_provided:
+                filename_parts.append(f"eta_{args.eta}" if args.eta != 0 else "eta_0")
+            
+            # Add specialization information
+            if args.specialization != 'both':
+                # When analyzing specific mode, add it to filename
+                filename_parts.append(args.specialization)
+            
+            # Add map names (short versions)
+            map_1_short = analyzer.map_1_short
+            map_2_short = analyzer.map_2_short
+            filename_parts.append(f"{map_1_short}_vs_{map_2_short}")
+            
+            # Add study name if specified
+            if args.study_name:
+                filename_parts.append(args.study_name)
+            
+            # Add episode selection type
+            filename_parts.append(args.episode_range)
+            
+            # Add 'extended' marker if using extended mode
+            if args.extended:
+                filename_parts.append('extended')
+            
+            # Add number of episodes if using 'final' or 'specific' selection
+            if args.episode_range == 'final':
+                filename_parts.append(f"{args.num_episodes}eps")
+            
+            if args.episode_range == 'specific':
+                filename_parts.append(f"ep{args.target_episode}_{args.num_episodes}eps")
+            
+            # Add custom suffix if provided
+            if args.filename_suffix:
+                filename_parts.append(args.filename_suffix)
+            
+            filename = "_".join(filename_parts) + ".png"
+            output_path = output_dir / filename
+            
+            # Create raincloud plots
+            plotter = RaincloudPlotter(
+                analyzer.color_palette, 
+                analyzer.performance_metrics,
+                analyzer.extended_metrics
+            )
+            fig = plotter.create_composite_figure(processed_df, str(output_path), extended=args.extended)
+            
+            # Display results
+            print(f"\nAnalysis completed successfully!")
+            print(f"Figure saved to: {output_path}")
+            print(f"Data summary:")
+            print(f"  Init type: {args.init_type}")
+            print(f"  Total episodes: {len(processed_df)}")
+            print(f"  Conditions: {sorted(processed_df['condition'].unique())}")
+            print(f"  Episode selection: {args.episode_range}")
+            if args.study_name:
+                print(f"  Study name: {args.study_name}")
+            
+            if args.episode_range == 'final':
+                print(f"  Final episodes used: {args.num_episodes}")
+            
+            if args.episode_range == 'specific':
+                print(f"  Episodes around episode {args.target_episode}: {args.num_episodes} total")
+            
+            # Note: Skipping plt.show() since we're running in headless mode
+            # plt.show()
         
     except Exception as e:
         print(f"Error during analysis: {e}")

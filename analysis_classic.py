@@ -272,7 +272,7 @@ def main():
         eta_provided = '--eta' in sys.argv
         
         # Auto-detect specialization penalty from folder structure
-        specialization_enabled = None  # Will be auto-detected from folders
+        specialization_enabled = None  # Will analyze both if available
         
         # Run main analysis pipeline
         analysis_results = main_analysis_pipeline(
@@ -288,8 +288,29 @@ def main():
             specialization_enabled=specialization_enabled
         )
 
-        # Generate classic-specific plots
-        generate_classic_plots(analysis_results)
+        # Check if we got a dict of results (multiple specialization modes) or single result
+        if isinstance(analysis_results, dict) and 'specialized' in analysis_results or 'non_specialized' in analysis_results:
+            # Multiple specialization modes - process each separately
+            print("\n" + "=" * 60)
+            print("GENERATING PLOTS FOR EACH SPECIALIZATION MODE")
+            print("=" * 60)
+            
+            for spec_mode in sorted(analysis_results.keys()):
+                print(f"\n{'='*60}")
+                print(f"CREATING PLOTS FOR {spec_mode.upper()}")
+                print(f"{'='*60}")
+                
+                # Generate classic-specific plots for this specialization mode
+                generate_classic_plots(analysis_results[spec_mode])
+                
+                print(f"\n{spec_mode.upper()} plots completed!")
+            
+            print("\n" + "=" * 60)
+            print("ALL SPECIALIZATION MODES COMPLETED SUCCESSFULLY!")
+            print("=" * 60)
+        else:
+            # Single specialization mode
+            generate_classic_plots(analysis_results)
 
         print("Analysis completed successfully!")
 
