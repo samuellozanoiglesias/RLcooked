@@ -50,6 +50,10 @@ def generate_classic_plots(analysis_results):
     
     print("Generating classic experiment plots...")
     
+    # Log specialization mode if detected
+    if paths.get('specialization'):
+        print(f"Specialization mode: {paths['specialization']}")
+    
     # Generate individual training plots first
     generate_individual_training_plots(analysis_results)
     
@@ -267,6 +271,9 @@ def main():
         # Check if eta was explicitly provided
         eta_provided = '--eta' in sys.argv
         
+        # Auto-detect specialization penalty from folder structure
+        specialization_enabled = None  # Will be auto-detected from folders
+        
         # Run main analysis pipeline
         analysis_results = main_analysis_pipeline(
             experiment_type='classic',
@@ -277,7 +284,8 @@ def main():
             game_type=args.game_type,
             init_type=args.init_type,
             eta=args.eta,
-            eta_provided=eta_provided
+            eta_provided=eta_provided,
+            specialization_enabled=specialization_enabled
         )
 
         # Generate classic-specific plots

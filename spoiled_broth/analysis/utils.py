@@ -1217,7 +1217,8 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
                           cluster: str = 'cuenca', smoothing_factor: int = 15, 
                           num_agents: Optional[int] = None, study_name: Optional[str] = None,
                           game_type: str = 'classic', init_type: str = 'random_init',
-                          eta: float = 0.0, eta_provided: bool = False) -> Dict:
+                          eta: float = 0.0, eta_provided: bool = False,
+                          specialization_enabled: Optional[bool] = None) -> Dict:
     """
     Main analysis pipeline that can be used by all experiment types.
     
@@ -1232,6 +1233,7 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
         init_type: Initialization type (random_init or empty_init) - used to construct path
         eta: Eta parameter for reference-based reward shaping (default: 0.0)
         eta_provided: Whether eta was explicitly provided (to determine folder structure)
+        specialization_enabled: Whether specialization penalty is enabled (None = auto-detect from folders)
         
     Returns:
         Dictionary containing processed data and paths
@@ -1246,49 +1248,116 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
     # Custom path setup that includes init_type and eta in the correct order
     local_path = config.cluster_paths[cluster]
     
+    # Auto-detect specialization from folder structure if not provided
+    spec_folders_to_try = []
+    if specialization_enabled is None:
+        # Try both folders, prioritize specialized
+        spec_folders_to_try = ["specialized", "non_specialized", ""]  # Empty string for backwards compatibility
+    elif specialization_enabled:
+        spec_folders_to_try = ["specialized"]
+    else:
+        spec_folders_to_try = ["non_specialized"]
+    
     # Only create eta subfolder if eta was explicitly provided (even if it's 0)
     if eta_provided:
         eta_folder = f"eta_{eta}"
         
-        # Build the experiment path based on experiment type with eta folder
-        if 'pretrain' in experiment_type.lower():
-            # For pretraining: /data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}/
-            if study_name:
-                raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}"
+        # Build the experiment path based on experiment type with eta folder and specialization
+        for spec_folder in spec_folders_to_try:
+            if 'pretrain' in experiment_type.lower():
+                # For pretraining: /data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/
+                if study_name:
+                    if spec_folder:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{study_name}"
+                    else:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}"
+                else:
+                    if spec_folder:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}"
+                    else:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}"
+            elif 'classic' in experiment_type.lower() or 'competition' in experiment_type.lower():
+                # For classic/competition: /data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/
+                if study_name:
+                    if spec_folder:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{study_name}"
+                    else:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}"
+                else:
+                    if spec_folder:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}"
+                    else:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}"
             else:
-                raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}"
-        elif 'classic' in experiment_type.lower() or 'competition' in experiment_type.lower():
-            # For classic/competition: /data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}/
-            if study_name:
-                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}"
-            else:
-                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}"
-        else:
-            # For other experiment types: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/
-            if study_name:
-                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}"
-            else:
-                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}"
+                # For other experiment types: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/
+                if study_name:
+                    if spec_folder:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{study_name}"
+                    else:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}"
+                else:
+                    if spec_folder:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}"
+                    else:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}"
+            
+            # Check if this path exists (for auto-detection)
+            if os.path.exists(raw_dir):
+                break
     else:
-        # No eta folder - use original structure when eta is not provided
-        if 'pretrain' in experiment_type.lower():
-            # For pretraining: /data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/
-            if study_name:
-                raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{study_name}"
+        # No eta folder - use original structure when eta is not provided (with specialization folder)
+        for spec_folder in spec_folders_to_try:
+            if 'pretrain' in experiment_type.lower():
+                # For pretraining: /data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{spec_folder}/
+                if study_name:
+                    if spec_folder:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{spec_folder}/{study_name}"
+                    else:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{study_name}"
+                else:
+                    if spec_folder:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{spec_folder}"
+                    else:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}"
+            
+            # Check if this path exists (for auto-detection)
+            if os.path.exists(raw_dir):
+                break
+            
+            elif 'classic' in experiment_type.lower() or 'competition' in experiment_type.lower():
+                # For classic/competition: /data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{spec_folder}/
+                if study_name:
+                    if spec_folder:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{spec_folder}/{study_name}"
+                    else:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{study_name}"
+                else:
+                    if spec_folder:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{spec_folder}"
+                    else:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}"
             else:
-                raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}"
-        elif 'classic' in experiment_type.lower() or 'competition' in experiment_type.lower():
-            # For classic/competition: /data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/
-            if study_name:
-                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{study_name}"
-            else:
-                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}"
-        else:
-            # For other experiment types: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/
-            if study_name:
-                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{study_name}"
-            else:
-                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}"
+                # For other experiment types: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{spec_folder}/
+                if study_name:
+                    if spec_folder:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{spec_folder}/{study_name}"
+                    else:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{study_name}"
+                else:
+                    if spec_folder:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{spec_folder}"
+                    else:
+                        raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}"
+            
+            # Check if this path exists (for auto-detection)
+            if os.path.exists(raw_dir):
+                # Detect which specialization folder was found
+                detected_spec = spec_folder if spec_folder else None
+                break
+    
+    # If no specialization was detected, set to None
+    if 'detected_spec' not in locals():
+        detected_spec = None
     
     paths = {
         'raw_dir': raw_dir,
@@ -1297,7 +1366,8 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
         'smoothed_figures_dir': f"{raw_dir}/training_figures/smoothed_{config.smoothing_factor}/",
         'study_name': study_name,
         'init_type': init_type,
-        'eta': eta
+        'eta': eta,
+        'specialization': detected_spec  # 'specialized', 'non_specialized', or None
     }
     
     # Create directories

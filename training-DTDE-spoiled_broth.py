@@ -260,20 +260,23 @@ init_folder = "random_init" if RANDOM_INITIAL_STATE == "true" else "empty_init"
 # Add eta subfolder if reference reward is enabled
 eta_folder = f"eta_{ETA}" if ETA > 0 else "eta_0"
 
+# Add specialization penalty subfolder
+spec_folder = "specialized" if SPECIALIZATION_PENALTY_ENABLED == "true" else "non_specialized"
+
 # Path definitions
 if NUM_AGENTS == 1:
     if eta_folder:
-        save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/{init_folder}/map_{MAP_NR}/{eta_folder}'
+        save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/{init_folder}/map_{MAP_NR}/{eta_folder}/{spec_folder}'
     else:
-        save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/{init_folder}/map_{MAP_NR}'
+        save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/{init_folder}/map_{MAP_NR}/{spec_folder}'
     reward_weights[f"ai_rl_{agent_to_train}"] = (globals()[f"alpha_{agent_to_train}"], globals()[f"beta_{agent_to_train}"])
     walking_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"walking_speed_{agent_to_train}"]
     cutting_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"cutting_speed_{agent_to_train}"]
 else:
     if eta_folder:
-        save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/{init_folder}/map_{MAP_NR}/{eta_folder}'
+        save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/{init_folder}/map_{MAP_NR}/{eta_folder}/{spec_folder}'
     else:
-        save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/{init_folder}/map_{MAP_NR}'
+        save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/{init_folder}/map_{MAP_NR}/{spec_folder}'
     for i in range(1, NUM_AGENTS + 1):
         reward_weights[f"ai_rl_{i}"] = (globals()[f"alpha_{i}"], globals()[f"beta_{i}"])
         walking_speeds[f"ai_rl_{i}"] = globals()[f"walking_speed_{i}"]

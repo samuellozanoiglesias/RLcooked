@@ -2,6 +2,22 @@ import os
 import matplotlib.pyplot as plt
 from spoiled_broth.analysis.utils import MetricDefinitions
 
+def _add_specialization_to_filename(filename, paths):
+    """Add specialization prefix to filename if detected.
+    
+    Args:
+        filename: Base filename (e.g., 'pure_rewards_combined_classic.png')
+        paths: Paths dict containing specialization info
+        
+    Returns:
+        Filename with specialization prefix if applicable (e.g., 'specialized_pure_rewards_combined_classic.png')
+    """
+    spec = paths.get('specialization')
+    if spec:
+        # Add specialization as prefix
+        return f"{spec}_{filename}"
+    return filename
+
 def generate_combined_reward_plots(df, paths, smoothing_factor=15):
     """Generate combined reward plots showing both agents together, grouped by speeds and game_type."""
     N = smoothing_factor
@@ -58,6 +74,7 @@ def generate_combined_reward_plots(df, paths, smoothing_factor=15):
                 
                 speed_suffix = f"_speed_{str(speed_key).replace('.', 'p')}" if speed_key else ""
                 filename = f"pure_rewards_combined_{game_type}_lr{str(lr).replace('.', 'p')}{speed_suffix}_smoothed_{N}.png"
+                filename = _add_specialization_to_filename(filename, paths)
                 plt.savefig(os.path.join(paths['smoothed_figures_dir'], filename))
                 plt.close()
                 
@@ -80,6 +97,7 @@ def generate_combined_reward_plots(df, paths, smoothing_factor=15):
                 plt.tight_layout()
                 
                 filename = f"modified_rewards_combined_{game_type}_lr{str(lr).replace('.', 'p')}{speed_suffix}_smoothed_{N}.png"
+                filename = _add_specialization_to_filename(filename, paths)
                 plt.savefig(os.path.join(paths['smoothed_figures_dir'], filename))
                 plt.close()
     
@@ -150,7 +168,8 @@ def generate_combined_delivery_cut_plots(df, paths, smoothing_factor=15):
                 plt.tight_layout()
                 
                 speed_suffix = f"_speed_{str(speed_key).replace('.', 'p')}" if speed_key else ""
-                filename = f"delivery_cut_combined_{game_type}_lr{str(lr).replace('.', 'p')}{speed_suffix}_smoothed_{N}.png"
+                filename = f"deliveries_combined_{game_type}_lr{str(lr).replace('.', 'p')}{speed_suffix}_smoothed_{N}.png"
+                filename = _add_specialization_to_filename(filename, paths)
                 plt.savefig(os.path.join(paths['smoothed_figures_dir'], filename))
                 plt.close()
     
@@ -263,6 +282,7 @@ def generate_meaningful_actions_combined(df, paths, base_rewarded_metrics, base_
                     
                     sanitized_attitude = attitude.replace('.', 'p')
                     filename_combined = f"meaningful_actions_combined_{game_type}_lr{str(lr).replace('.', 'p')}_attitude_{sanitized_attitude}{speed_suffix}_smoothed_{N}.png"
+                    filename_combined = _add_specialization_to_filename(filename_combined, paths)
                     filepath_combined = os.path.join(paths['smoothed_figures_dir'], filename_combined)
                     plt.savefig(filepath_combined, dpi=300, bbox_inches='tight')
                     plt.close()
@@ -357,7 +377,9 @@ def generate_combined_plots(df, paths, rewarded_metrics_1, rewarded_metrics_2,
                     
                     sanitized_attitude = attitude.replace('.', 'p')
                     filename_combined = f"rewarded_metrics_combined_avg_{game_type}_lr{str(lr).replace('.', 'p')}_attitude_{sanitized_attitude}{speed_suffix}_smoothed_{N}.png"
+                    filename_combined = _add_specialization_to_filename(filename_combined, paths)
                     filepath_combined = os.path.join(paths['smoothed_figures_dir'], filename_combined)
+                    plt.savefig(filepath_combined)in(paths['smoothed_figures_dir'], filename_combined)
                     plt.savefig(filepath_combined)
                     plt.close()
                     

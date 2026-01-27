@@ -72,6 +72,7 @@ class CooperativeAnalyzer:
         self.init_type = init_type
         self.eta = eta
         self.eta_provided = eta_provided
+        self.detected_specialization = None  # Will be set during data loading
         
         # Extract short names for condition labels
         # E.g., 'baseline_division_of_labor_large' -> 'baseline'
@@ -164,15 +165,47 @@ class CooperativeAnalyzer:
                 # Only include eta folder if eta was explicitly provided (even if it's 0)
                 
                 if self.eta_provided:
-                    # Include eta folder in path structure
+                    # Build path with eta folder
                     eta_folder = f"eta_{self.eta}"
                     
-                    if self.study_name:
-                        # Use study_name folder structure: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}/
-                        raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{self.study_name}"
+                    # Try to auto-detect specialization folder
+                    spec_folders_to_try = ["specialized", "non_specialized", ""]  # Empty for backwards compatibility
+                    
+                    for spec_folder in spec_folders_to_try:
+                        if self.study_name:
+                            # Use study_name folder structure: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{study_name}/
+                            if spec_folder:
+                                test_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{self.study_name}"
+                            else:
+                                test_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{self.study_name}"
+                        else:
+                            # Default structure: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/
+                            if spec_folder:
+                                test_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{spec_folder}"
+                            else:
+                                test_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}"
+                        
+                        # Check if this directory exists
+                        if os.path.exists(test_dir):
+                            raw_dir = test_dir
+                            detected_spec_folder = spec_folder  # Track which folder was found
+                            break
                     else:
-                        # Default structure: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/
-                        raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}"
+                        # Default to non-specialized if none found
+                        detected_spec_folder = None
+                        if self.study_name:
+                            raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{self.study_name}"
+                        else:
+                            raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}"
+                
+                # Store detected specialization for this condition
+                if 'detected_spec_folder' not in locals():
+                    detected_spec_folder = None
+                
+                # Store the first detected specialization (should be consistent across conditions)
+                if self.detected_specialization is None and detected_spec_folder:
+                    self.detected_specialization = detected_spec_folder
+                    print(f"  Detected specialization mode: {self.detected_specialization}")
                 else:
                     # No eta folder - use original structure when eta is not provided
                     if self.study_name:
@@ -831,6 +864,10 @@ def main():
         # Add eta if explicitly provided (even if 0)
         if analyzer.eta_provided:
             filename_parts.append(f"eta_{args.eta}")
+        
+        # Add specialization if detected
+        if analyzer.detected_specialization:
+            filename_parts.append(analyzer.detected_specialization)
         
         # Add map names (short versions)
         map_1_short = analyzer.map_1_short
