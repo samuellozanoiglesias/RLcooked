@@ -3,6 +3,7 @@ import os
 from pettingzoo import ParallelEnv
 from gymnasium import spaces
 import numpy as np
+import pandas as pd  # For loading training_stats.csv
 from spoiled_broth.config import *
 from spoiled_broth.maps.accessibility_maps import get_accessibility_map
 import pickle as _pickle
@@ -28,32 +29,36 @@ def get_cutting_time(agent, game):
 
 ACTIONS_OBSERVATION_MAPPING_CLASSIC = {
     # 0: do_nothing - no observation mapping needed
-    1: 0,  # pick_up_tomato_from_dispenser
-    2: 1,  # pick_up_plate_from_dispenser
-    3: 2,  # use_cutting_board
-    4: 3,  # use_delivery
-    5: 5, 6: 6,  # put_down_item_on_free_counter (closest and midpoint)
-    7: 8, 8: 9,  # pick_up_tomato_from_counter (closest and midpoint)
-    9: 11, 10: 12,  # pick_up_plate_from_counter (closest and midpoint)
-    11: 14, 12: 15,  # pick_up_tomato_cut_from_counter (closest and midpoint)
-    13: 17, 14: 18,  # pick_up_tomato_salad_from_counter (closest and midpoint)
+    # Tile types: [accessibility, time] for each type (indices 0-7)
+    1: 1,  # pick_up_tomato_from_dispenser → tile_types[0] time_value
+    2: 3,  # pick_up_plate_from_dispenser → tile_types[1] time_value
+    3: 5,  # use_cutting_board → tile_types[2] time_value
+    4: 7,  # use_delivery → tile_types[3] time_value
+    # Items on counters: [presence, accessibility_closest, time_closest, accessibility_midpoint, time_midpoint]
+    5: 10, 6: 12,   # put_down_item_on_free_counter → items[0] (None) closest/midpoint time
+    7: 15, 8: 17,   # pick_up_tomato_from_counter → items[1] (tomato) closest/midpoint time
+    9: 20, 10: 22,  # pick_up_plate_from_counter → items[2] (plate) closest/midpoint time
+    11: 25, 12: 27,  # pick_up_tomato_cut_from_counter → items[3] (tomato_cut) closest/midpoint time
+    13: 30, 14: 32,  # pick_up_tomato_salad_from_counter → items[4] (tomato_salad) closest/midpoint time
 }
 
 ACTIONS_OBSERVATION_MAPPING_COMPETITION = {
     # 0: do_nothing - no observation mapping needed
-    1: 0,  # pick_up_tomato_from_dispenser
-    2: 1,  # pick_up_pumpkin_from_dispenser
-    3: 2,  # pick_up_plate_from_dispenser
-    4: 3,  # use_cutting_board
-    5: 4,  # use_delivery
-    6: 6, 7: 7,  # put_down_item_on_free_counter (closest and midpoint)
-    8: 9, 9: 10,  # pick_up_tomato_from_counter (closest and midpoint)
-    10: 12, 11: 13,  # pick_up_pumpkin_from_counter (closest and midpoint)
-    12: 15, 13: 16,  # pick_up_plate_from_counter (closest and midpoint)
-    14: 18, 15: 19,  # pick_up_tomato_cut_from_counter (closest and midpoint)
-    16: 21, 17: 22,  # pick_up_pumpkin_cut_from_counter (closest and midpoint)
-    18: 24, 19: 25,  # pick_up_tomato_salad_from_counter (closest and midpoint)
-    20: 26, 21: 27,  # pick_up_pumpkin_salad_from_counter (closest and midpoint)
+    # Tile types: [accessibility, time] for each type (5 types, indices 0-9)
+    1: 1,  # pick_up_tomato_from_dispenser → tile_types[0] time_value
+    2: 3,  # pick_up_pumpkin_from_dispenser → tile_types[1] time_value
+    3: 5,  # pick_up_plate_from_dispenser → tile_types[2] time_value
+    4: 7,  # use_cutting_board → tile_types[3] time_value
+    5: 9,  # use_delivery → tile_types[4] time_value
+    # Items on counters: [presence, accessibility_closest, time_closest, accessibility_midpoint, time_midpoint]
+    6: 12, 7: 14,   # put_down_item_on_free_counter → items[0] (None) closest/midpoint time
+    8: 17, 9: 19,   # pick_up_tomato_from_counter → items[1] (tomato) closest/midpoint time
+    10: 22, 11: 24,  # pick_up_pumpkin_from_counter → items[2] (pumpkin) closest/midpoint time
+    12: 27, 13: 29,  # pick_up_plate_from_counter → items[3] (plate) closest/midpoint time
+    14: 32, 15: 34,  # pick_up_tomato_cut_from_counter → items[4] (tomato_cut) closest/midpoint time
+    16: 37, 17: 39,  # pick_up_pumpkin_cut_from_counter → items[5] (pumpkin_cut) closest/midpoint time
+    18: 42, 19: 44,  # pick_up_tomato_salad_from_counter → items[6] (tomato_salad) closest/midpoint time
+    20: 47, 21: 49,  # pick_up_pumpkin_salad_from_counter → items[7] (pumpkin_salad) closest/midpoint time
 }
 
 class DistanceMatrixWrapper:
@@ -127,7 +132,9 @@ class GameEnv(ParallelEnv):
         rewards_cfg=None,
         dynamic_rewards_cfg=None,
         collision_enabled=False,  # New parameter for collision detection
-        random_initial_state=False  # New parameter to randomize initial game state
+        random_initial_state=False,  # New parameter to randomize initial game state
+        reference_reward_cfg=None,  # Reference-based opportunity cost shaping
+        solo_baselines=None  # Individual solo baselines for reference reward (dict: agent_id -> baseline)
     ):
         super().__init__()
         self.map_nr = map_nr
@@ -152,6 +159,8 @@ class GameEnv(ParallelEnv):
             "destructive_action": 1.0,
             "not_available": 0.5,
             "inaccessible_tile": 1.0,
+            "specialization_penalty_enabled": False,
+            "specialization_penalty_scale": 5.0,
         }
         default_rewards_cfg = {
             "raw_food": 0.2,
@@ -167,6 +176,15 @@ class GameEnv(ParallelEnv):
         self.dynamic_rewards_cfg = dynamic_rewards_cfg
         self.wait_for_action_completion = wait_for_completion
         self.random_initial_state = random_initial_state  # Store flag for random initial states
+        
+        # Reference-based opportunity cost shaping
+        self.reference_reward_cfg = reference_reward_cfg if reference_reward_cfg is not None else {"enabled": False}
+        self.solo_baselines = solo_baselines if solo_baselines is not None else {}
+        self.solo_baseline_team = sum(self.solo_baselines.values()) if self.solo_baselines else None
+        self.reference_reward_enabled = self.reference_reward_cfg.get("enabled", False) and self.solo_baselines
+        if self.reference_reward_enabled:
+            self.eta = self.reference_reward_cfg.get("eta", 0.5)
+            print(f"[GameEnv] Reference reward enabled: eta={self.eta}, baselines={self.solo_baselines}, team={self.solo_baseline_team}")
 
         self.clickable_indices = None  # Initialize clickable indices storage
         
@@ -542,6 +560,36 @@ class GameEnv(ParallelEnv):
                     # Apply both the base destructive penalty and the destroyed item penalty
                     agent_penalties[agent_id] += self.penalties_cfg["destructive_action"] + destroyed_item_penalty
                 
+                # Specialization penalty: penalize agents for performing actions they're not specialized for
+                if self.penalties_cfg.get("specialization_penalty_enabled", False):
+                    # Get agent abilities (normalized to [0, 1] where 1 is maximum)
+                    walk_speed = getattr(agent, 'walk_speed', 1.0)
+                    cut_speed = getattr(agent, 'cut_speed', 1.0)
+                    
+                    # Penalty factor: (1 - ability) * scale * action_time
+                    # When ability = 1.0: no penalty
+                    # When ability < 1.0: penalty increases proportionally
+                    penalty_scale = self.penalties_cfg.get("specialization_penalty_scale", 5.0)
+                    
+                    # Apply penalty for cutting actions when cut_ability < 1
+                    is_cutting_action = (
+                        action_type in ["useful_cutting_board", "useful_cutting_board_own", "useful_cutting_board_other"]
+                    )
+                    if is_cutting_action and cut_speed < 1.0:
+                        cutting_penalty = (1.0 - cut_speed) * penalty_scale * busy_time
+                        agent_penalties[agent_id] += cutting_penalty
+                    
+                    # Apply penalty for delivery/walking actions when walk_speed < 1
+                    # Consider delivery and movement-heavy actions
+                    is_delivery_action = (
+                        action_type in ["useful_delivery", "useful_delivery_own", "useful_delivery_other"]
+                    )
+                    # For delivery actions, penalize based on walking ability
+                    # The penalty should scale with the movement time component
+                    if is_delivery_action and walk_speed < 1.0:
+                        delivery_penalty = (1.0 - walk_speed) * penalty_scale * busy_time
+                        agent_penalties[agent_id] += delivery_penalty
+                
                 agent_penalties[agent_id] += self.penalties_cfg["busy"] * busy_time
                 validated_actions[agent_id] = {"type": "click", "target": tile_index}
                 self.action_info[agent_id] = {
@@ -593,7 +641,7 @@ class GameEnv(ParallelEnv):
                 if hasattr(agent, 'path_index'):
                     agent.path_index = 0
 
-        # Compute rewards
+        # Compute rewards (includes reference-based opportunity cost if enabled)
         self.cumulated_pure_rewards, self.cumulated_modified_rewards = get_rewards(self, agent_events, agent_penalties, self.rewards_cfg)
 
         # Check for episode termination

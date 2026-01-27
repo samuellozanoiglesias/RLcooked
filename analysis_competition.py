@@ -96,16 +96,26 @@ def main():
     print(f"Cluster: {args.cluster}")
     print(f"Smoothing factor: {args.smoothing_factor}")
     print(f"Study name: {args.study_name}")
+    print(f"Game type: {args.game_type}")
+    print(f"Init type: {args.init_type}")
+    print(f"Eta: {args.eta}")
     
     try:
+        # Check if eta was explicitly provided
+        eta_provided = '--eta' in sys.argv
+        
         # Run main analysis pipeline
         analysis_results = main_analysis_pipeline(
             experiment_type='competition',
             map_name=args.map_name,
             cluster=args.cluster,
             smoothing_factor=args.smoothing_factor,
-            study_name=args.study_name
-            )
+            study_name=args.study_name,
+            game_type=args.game_type,
+            init_type=args.init_type,
+            eta=args.eta,
+            eta_provided=eta_provided
+        )
         
         # Generate competition-specific plots
         generate_competition_plots(analysis_results)

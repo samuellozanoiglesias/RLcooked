@@ -8,20 +8,31 @@ across four performance metrics. The visualization style includes:
 - Raw data dot plots on the right  
 - Diamond markers with error bars for central tendency
 
+The script now supports different initialization types (random_init, empty_init) that
+are located in subdirectories under the main experiment path.
+
 Usage:
     python figure_cooperative_analysis.py [options]
 
 Examples:
-    # Default (baseline vs encouraged)
+    # Default (baseline vs encouraged, random_init)
     nohup python figure_cooperative_analysis.py --episode_range all --output_dir ./figures > figure_cooperative_analysis_all.log 2>&1 &
     nohup python figure_cooperative_analysis.py --episode_range final --num_final_episodes 100 > figure_cooperative_analysis_final.log 2>&1 &
-    nohup python figure_cooperative_analysis.py --episode_range final --study_name speeds --num_final_episodes 100 > figure_cooperative_analysis_speeds.log 2>&1 &
     
-    # Custom maps (e.g., baseline vs forced)
-    nohup python figure_cooperative_analysis.py --episode_range final --map_name_1 baseline_division_of_labor_large --map_name_2 collision_division_of_labor_large --num_final_episodes 100 > figure_cooperative_analysis_baseline_forced.log 2>&1 &
+    # Analyze empty_init data
+    nohup python figure_cooperative_analysis.py --episode_range final --init_type empty_init --num_final_episodes 100 > figure_cooperative_analysis_empty_init.log 2>&1 &
+    
+    # Analyze speeds study with specific initialization
+    nohup python figure_cooperative_analysis.py --episode_range final --study_name speeds --init_type random_init --num_final_episodes 100 > figure_cooperative_analysis_speeds.log 2>&1 &
+    
+    # Analyze with eta parameter (reference-based reward shaping)
+    nohup python figure_cooperative_analysis.py --episode_range final --init_type random_init --eta 0.5 --num_final_episodes 100 > figure_cooperative_analysis_eta_0.5.log 2>&1 &
+    
+    # Custom maps (e.g., baseline vs forced) with empty_init
+    nohup python figure_cooperative_analysis.py --episode_range final --map_name_1 baseline_division_of_labor_large --map_name_2 collision_division_of_labor_large --init_type empty_init --num_final_episodes 100 > figure_cooperative_analysis_baseline_forced.log 2>&1 &
     
     # Extended mode with additional metrics
-    nohup python figure_cooperative_analysis.py --episode_range final --extended --num_final_episodes 100 > figure_cooperative_analysis_extended.log 2>&1 &    
+    nohup python figure_cooperative_analysis.py --episode_range final --extended --init_type random_init --num_final_episodes 100 > figure_cooperative_analysis_extended.log 2>&1 &    
 """
 
 import sys
@@ -49,12 +60,18 @@ class CooperativeAnalyzer:
     
     def __init__(self, study_name: Optional[str] = None, 
                  map_name_1: str = 'baseline_division_of_labor_large',
-                 map_name_2: str = 'encouraged_division_of_labor_large'):
+                 map_name_2: str = 'encouraged_division_of_labor_large',
+                 init_type: str = 'random_init',
+                 eta: float = 0.0,
+                 eta_provided: bool = False):
         self.config = AnalysisConfig()
         self.data_processor = DataProcessor(self.config)
         self.study_name = study_name
         self.map_name_1 = map_name_1
         self.map_name_2 = map_name_2
+        self.init_type = init_type
+        self.eta = eta
+        self.eta_provided = eta_provided
         
         # Extract short names for condition labels
         # E.g., 'baseline_division_of_labor_large' -> 'baseline'
@@ -143,13 +160,40 @@ class CooperativeAnalyzer:
             print(f"  Map: {map_name}, Game type: {game_type}, Speed config: {speed_config}")
             
             try:
-                # Set up paths for this condition
-                paths = self.data_processor.setup_directories(
-                    experiment_type=game_type,
-                    map_name=map_name,
-                    cluster='cuenca',
-                    study_name=self.study_name
-                )
+                # Set up paths for this condition with init_type and eta in the correct order
+                # Only include eta folder if eta was explicitly provided (even if it's 0)
+                
+                if self.eta_provided:
+                    # Include eta folder in path structure
+                    eta_folder = f"eta_{self.eta}"
+                    
+                    if self.study_name:
+                        # Use study_name folder structure: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}/
+                        raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{self.study_name}"
+                    else:
+                        # Default structure: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/
+                        raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}"
+                else:
+                    # No eta folder - use original structure when eta is not provided
+                    if self.study_name:
+                        # Use study_name folder structure: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{study_name}/
+                        raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{self.study_name}"
+                    else:
+                        # Default structure: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/
+                        raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}"
+                
+                paths = {
+                    'raw_dir': raw_dir,
+                    'output_path': f"{raw_dir}/training_results.csv",
+                    'figures_dir': f"{raw_dir}/training_figures/",
+                    'smoothed_figures_dir': f"{raw_dir}/training_figures/smoothed_{self.config.smoothing_factor}/",
+                    'study_name': self.study_name
+                }
+                
+                # Create the directories if they don't exist
+                import os
+                for dir_path in [paths['raw_dir'], paths['figures_dir'], paths['smoothed_figures_dir']]:
+                    os.makedirs(dir_path, exist_ok=True)
                 
                 # Load the data (using 2 agents since this is multi-agent cooperative data)
                 df = self.data_processor.load_experiment_data(paths, num_agents=2)
@@ -717,6 +761,21 @@ def setup_argument_parser() -> argparse.ArgumentParser:
         help='Create extended plot with additional metrics (salad, plate, raw_food, counter) for both agents'
     )
     
+    parser.add_argument(
+        '--init_type',
+        type=str,
+        choices=['random_init', 'empty_init'],
+        default='random_init',
+        help='Initialization type subdirectory to analyze (default: random_init)'
+    )
+    
+    parser.add_argument(
+        '--eta',
+        type=float,
+        default=0.0,
+        help='Eta parameter for reference-based reward shaping (default: 0.0)'
+    )
+    
     return parser
 
 
@@ -726,17 +785,25 @@ def main():
     args = parser.parse_args()
     
     try:
+        # Check if eta was explicitly provided
+        eta_provided = '--eta' in sys.argv
+        
         # Initialize analyzer
         analyzer = CooperativeAnalyzer(
             study_name=args.study_name,
             map_name_1=args.map_name_1,
-            map_name_2=args.map_name_2
+            map_name_2=args.map_name_2,
+            init_type=args.init_type,
+            eta=args.eta,
+            eta_provided=eta_provided
         )
         
         # Load experimental data
         print("=" * 60)
         print("COOPERATIVE ANALYSIS - RAINCLOUD PLOTS")
         print("=" * 60)
+        print(f"Init type: {args.init_type}")
+        print(f"Eta: {args.eta}")
         print(f"Map 1: {args.map_name_1}")
         print(f"Map 2: {args.map_name_2}")
         if args.study_name:
@@ -757,6 +824,13 @@ def main():
         
         # Generate filename with all relevant parameters
         filename_parts = ["cooperative_analysis"]
+        
+        # Add init type
+        filename_parts.append(args.init_type)
+        
+        # Add eta if explicitly provided (even if 0)
+        if analyzer.eta_provided:
+            filename_parts.append(f"eta_{args.eta}")
         
         # Add map names (short versions)
         map_1_short = analyzer.map_1_short
@@ -797,6 +871,7 @@ def main():
         print(f"\nAnalysis completed successfully!")
         print(f"Figure saved to: {output_path}")
         print(f"Data summary:")
+        print(f"  Init type: {args.init_type}")
         print(f"  Total episodes: {len(processed_df)}")
         print(f"  Conditions: {sorted(processed_df['condition'].unique())}")
         print(f"  Episode selection: {args.episode_range}")

@@ -1,11 +1,14 @@
-# USE:   <cluster> <input_path> <map_nr> <lr> <game_version> [<num_agents>] [<num_epochs>] [<seed>] [<checkpoints>] > log_training.log 2>&1 &
-# Example: nohup python training-DTDE-spoiled_broth.py cuenca ./cuenca/input_0_0.txt baseline_division_of_labor_v2 0.0003 classic 1 1000 0 none > log_training.log 2>&1 &
+# USE:   <cluster> <input_path> <map_nr> <lr> <game_version> [<num_agents>] [<num_epochs>] [<seed>] [<checkpoints>] [<rewards_on_delivery_only>] [<random_initial_state>] [<ability_risk_enabled>] [<eta>] [<agent_to_train>] > log_training.log 2>&1 &
+# Example: nohup python training-DTDE-spoiled_broth.py cuenca ./cuenca/input_0_0.txt baseline_division_of_labor_v2 0.0003 classic 2 1000 0 none true false true 0.5 > log_training.log 2>&1 &
+#   eta=0: Standard rewards (no opportunity cost penalty)
+#   eta>0: Reference-based reward shaping enabled with given sensitivity
 
 import os
 import sys
 from spoiled_broth.rl.make_train_rllib import make_train_rllib
 import ray
 import torch
+import pandas as pd
 
 # PyTorch, NumPy, MKL, etc. not creating more threads
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -34,13 +37,16 @@ SEED = int(sys.argv[8]) if len(sys.argv) > 8 else 0
 CHECKPOINT_PATHS = str(sys.argv[9]).lower() if len(sys.argv) > 9 else "none"
 REWARDS_ON_DELIVERY_ONLY = str(sys.argv[10]).lower() if len(sys.argv) > 10 else "true"
 RANDOM_INITIAL_STATE = str(sys.argv[11]).lower() if len(sys.argv) > 11 else "false"  # Flag to randomize initial game state (items on counters and in hands)
+ABILITY_RISK_ENABLED = str(sys.argv[12]).lower() if len(sys.argv) > 12 else "false"  # Flag to enable ability-based risk modeling
+ETA = float(sys.argv[13]) if len(sys.argv) > 13 else 0.0  # Opportunity cost sensitivity: 0=no penalty, >0=reference-based shaping enabled
+SPECIALIZATION_PENALTY_ENABLED = str(sys.argv[14]).lower() if len(sys.argv) > 14 else "false"  # Whether to enable specialization penalties (part of PENALTIES_CFG)
 
 # Optional when number of agents = 1:
 # Decide which agent to train (1 or 2)
 if NUM_AGENTS == 1:
     agent_to_train = 1  # Default to agent 1
-    if len(sys.argv) > 12:
-        agent_to_train = int(sys.argv[12])
+    if len(sys.argv) > 15:
+        agent_to_train = int(sys.argv[15])
         if agent_to_train not in [1, 2]:
             raise ValueError("When NUM_AGENTS=1, agent_to_train must be 1 or 2")
 
@@ -94,6 +100,8 @@ PENALTIES_CFG = {
     "destructive_action": 10.0, # Penalty for destructive actions
     "inaccessible_tile": 5.0, # Penalty for trying to access an inaccessible tile
     "not_available": 2.0, # Penalty for trying to perform an action that is not available
+    "specialization_penalty_enabled": SPECIALIZATION_PENALTY_ENABLED == "true",  # Enable ability-based specialization penalties
+    "specialization_penalty_scale": 5.0,  # Base penalty scale for performing non-specialized actions
 }
 
 if REWARDS_ON_DELIVERY_ONLY == "true":
@@ -135,7 +143,81 @@ DYNAMIC_PPO_PARAMS_CFG = {
     "affected_params": ["ent_coef"],  # Which PPO parameters to apply decay to
 }
 
+# Ability-based training dynamics configuration
+# Models "risk of cooperation" through learning stability and exploration
+# Hyperparameters scale continuously with collective ability (sum of all agents' abilities)
+# Low collective ability = stable, conservative learning (cooperation safer)
+# High collective ability = risky, exploratory learning (independence viable)
+ABILITY_RISK_CFG = {
+    "enabled": ABILITY_RISK_ENABLED == "true",
+    
+    # Reference ability values for scaling (collective ability = sum of all agents' walking_speed + cutting_speed)
+    "reference_low_ability": 2.0,   # Reference point for low ability teams
+    "reference_high_ability": 4.0,  # Reference point for high ability teams
+    
+    # Learning rate scaling (low ability = more stable gradients)
+    "low_ability_lr_multiplier": 1.0,    # Conservative learning for weak teams (lower)
+    "high_ability_lr_multiplier": 1.0,   # Aggressive learning for strong teams (higher)
+    
+    # Entropy coefficient (exploration vs exploitation)
+    # Low ability agents: low entropy = stick to working strategies (cooperation)
+    # High ability agents: high entropy = explore independence
+    "low_ability_ent_multiplier": 4.0,   # Low exploration, find cooperation quickly (lower)
+    "high_ability_ent_multiplier": 0.2,  # High exploration, find solo strategies (higher)
+    
+    # Value function coefficient (how much to trust value estimates)
+    # Low ability: high VF weight = trust learned cooperation value
+    # High ability: low VF weight = explore beyond current value estimates
+    "low_ability_vf_multiplier": 1.0,    # Trust cooperation values (higher)
+    "high_ability_vf_multiplier": 1.0,   # Question cooperation necessity (lower)
+    
+    # GAE Lambda (temporal credit assignment)
+    # Low ability: high lambda = long-term thinking (cooperation pays off later)
+    # High ability: low lambda = short-term rewards (solo actions pay immediately)
+    "low_ability_gae_multiplier": 1.0,   # Value long-term cooperation (higher)
+    "high_ability_gae_multiplier": 1.0,  # Value immediate solo rewards (lower)
+    
+    # Gradient clipping (training stability)
+    # Low ability: aggressive clipping = avoid destabilizing updates
+    # High ability: loose clipping = allow big policy shifts
+    "low_ability_grad_clip": 1.0,    # Stable learning for weak teams (lower)
+    "high_ability_grad_clip": 1.0,  # Flexible learning for strong teams (higher)
+}
+
+# Reference-Based Opportunity Cost Shaping
+# Models cooperation as a risk-sensitive investment relative to individual pre-trained performance
+# Enabled automatically when pretrained agents are provided AND eta > 0
+# Solo baselines are loaded from training_stats.csv of pretrained checkpoints (no re-evaluation)
+# High-ability teams need better cooperation rewards to justify coordination cost
+# Low-ability teams are encouraged to cooperate when it improves over weak solo performance
+# 
+# Implementation notes:
+# 1. Solo baselines (R_solo_1, R_solo_2) are loaded from last episode of pretraining (training_stats.csv)
+# 2. During training, the reward transformation is applied in the environment or reward wrapper:
+#    R_ref = R_env - eta * max(0, R_solo_team - R_env)
+#    where R_solo_team = R_solo_1 + R_solo_2
+# 3. This penalizes cooperation only when it underperforms the sum of individual capabilities
+REFERENCE_REWARD_CFG = {
+    "enabled": (CHECKPOINT_PATHS != "none" and ETA > 0),
+    
+    # Opportunity cost sensitivity parameter η ∈ [0,∞)
+    # Controls how much agents are penalized for underperforming solo baseline
+    # η=0: No penalty (standard reward)
+    # η>0: Reference-based shaping enabled
+    "eta": ETA,
+    
+    # Solo baselines loaded from training_stats.csv (not re-evaluated)
+    "load_from_training_stats": True,
+}
+
 WAIT_FOR_ACTION_COMPLETION = True  # Flag to ensure actions complete before next step
+
+# Validate reference reward configuration
+if ETA > 0:
+    if CHECKPOINT_PATHS == "none":
+        raise ValueError(f"Reference-based reward shaping (eta={ETA}) requires pretrained agents. Please provide checkpoint paths or set eta=0.")
+    if NUM_AGENTS != 2:
+        raise ValueError("Reference-based reward shaping is currently only supported for 2-agent teams.")
 
 reward_weights, walking_speeds, cutting_speeds = {}, {}, {}
 
@@ -175,20 +257,120 @@ save_dir_base = GAME_VERSION  # Use full game version (including _collision suff
 # Determine initialization folder based on random_initial_state flag
 init_folder = "random_init" if RANDOM_INITIAL_STATE == "true" else "empty_init"
 
+# Add eta subfolder if reference reward is enabled
+eta_folder = f"eta_{ETA}" if ETA > 0 else "eta_0"
+
 # Path definitions
 if NUM_AGENTS == 1:
-    save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/{init_folder}/map_{MAP_NR}'
+    if eta_folder:
+        save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/{init_folder}/map_{MAP_NR}/{eta_folder}'
+    else:
+        save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/{init_folder}/map_{MAP_NR}'
     reward_weights[f"ai_rl_{agent_to_train}"] = (globals()[f"alpha_{agent_to_train}"], globals()[f"beta_{agent_to_train}"])
     walking_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"walking_speed_{agent_to_train}"]
     cutting_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"cutting_speed_{agent_to_train}"]
-else: 
-    save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/{init_folder}/map_{MAP_NR}'
+else:
+    if eta_folder:
+        save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/{init_folder}/map_{MAP_NR}/{eta_folder}'
+    else:
+        save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/{init_folder}/map_{MAP_NR}'
     for i in range(1, NUM_AGENTS + 1):
         reward_weights[f"ai_rl_{i}"] = (globals()[f"alpha_{i}"], globals()[f"beta_{i}"])
         walking_speeds[f"ai_rl_{i}"] = globals()[f"walking_speed_{i}"]
         cutting_speeds[f"ai_rl_{i}"] = globals()[f"cutting_speed_{i}"]
 
 os.makedirs(save_dir, exist_ok=True)
+
+# Helper functions for ability-based parameter scaling
+def calculate_collective_ability(walking_speeds, cutting_speeds):
+    """
+    Calculate collective ability as sum of all agents' abilities.
+    Each agent's ability = walking_speed + cutting_speed
+    """
+    total_ability = 0.0
+    for agent_id in walking_speeds.keys():
+        agent_ability = walking_speeds[agent_id] + cutting_speeds[agent_id]
+        total_ability += agent_ability
+    return total_ability
+
+def linear_interpolate(value, low_ref, high_ref, low_mult, high_mult):
+    """
+    Linearly interpolate multiplier based on value between low and high references.
+    If value < low_ref, return low_mult.
+    If value > high_ref, return high_mult.
+    Otherwise, interpolate linearly between low_mult and high_mult.
+    """
+    if value <= low_ref:
+        return low_mult
+    elif value >= high_ref:
+        return high_mult
+    else:
+        # Linear interpolation
+        ratio = (value - low_ref) / (high_ref - low_ref)
+        return low_mult + ratio * (high_mult - low_mult)
+
+def get_ability_based_params(walking_speeds, cutting_speeds, risk_cfg, base_lr, base_ent, base_vf, base_gae):
+    """
+    Calculate training parameters based on collective ability.
+    Scales parameters continuously (no thresholds) proportional to total team ability.
+    Returns dict with scaled parameters that model cooperation risk.
+    """
+    if not risk_cfg["enabled"]:
+        return {
+            "lr": base_lr,
+            "ent_coef": base_ent,
+            "vf_coef": base_vf,
+            "gae_lambda": base_gae,
+            "grad_clip": 0.5,
+        }
+    
+    # Calculate collective ability (sum of all agents' abilities)
+    collective_ability = calculate_collective_ability(walking_speeds, cutting_speeds)
+    
+    # Get reference points
+    low_ref = risk_cfg["reference_low_ability"]
+    high_ref = risk_cfg["reference_high_ability"]
+    
+    # Interpolate multipliers based on collective ability
+    lr_mult = linear_interpolate(
+        collective_ability, low_ref, high_ref,
+        risk_cfg["low_ability_lr_multiplier"],
+        risk_cfg["high_ability_lr_multiplier"]
+    )
+    
+    ent_mult = linear_interpolate(
+        collective_ability, low_ref, high_ref,
+        risk_cfg["low_ability_ent_multiplier"],
+        risk_cfg["high_ability_ent_multiplier"]
+    )
+    
+    vf_mult = linear_interpolate(
+        collective_ability, low_ref, high_ref,
+        risk_cfg["low_ability_vf_multiplier"],
+        risk_cfg["high_ability_vf_multiplier"]
+    )
+    
+    gae_mult = linear_interpolate(
+        collective_ability, low_ref, high_ref,
+        risk_cfg["low_ability_gae_multiplier"],
+        risk_cfg["high_ability_gae_multiplier"]
+    )
+    
+    grad_clip = linear_interpolate(
+        collective_ability, low_ref, high_ref,
+        risk_cfg["low_ability_grad_clip"],
+        risk_cfg["high_ability_grad_clip"]
+    )
+    
+    # Apply multipliers to base parameters
+    return {
+        "lr": base_lr * lr_mult,
+        "ent_coef": base_ent * ent_mult,
+        "vf_coef": base_vf * vf_mult,
+        "gae_lambda": base_gae * gae_mult,
+        "grad_clip": grad_clip,
+        "collective_ability": collective_ability,  # For logging
+    }
 
 # Determine grid size from map file (text format)
 map_txt_path = os.path.join(os.path.dirname(__file__), 'spoiled_broth', 'maps', f'{MAP_NR}.txt')
@@ -202,6 +384,100 @@ if rows != cols:
     print(f"WARNING: Map is not square, this could cause errors in the future (got {rows} rows and {cols} columns).")
 GRID_SIZE = (cols, rows)
 
+# Calculate ability-based parameters
+ability_params = get_ability_based_params(
+    walking_speeds, 
+    cutting_speeds, 
+    ABILITY_RISK_CFG,
+    base_lr=LR,
+    base_ent=0.01,
+    base_vf=1.0,
+    base_gae=0.95
+)
+
+# Print ability-based scaling info
+if ABILITY_RISK_CFG["enabled"]:
+    print(f"\n=== Ability-Based Risk Modeling ===")
+    print(f"Collective ability: {ability_params['collective_ability']:.3f}")
+    print(f"Scaled learning rate: {ability_params['lr']:.6f} (base: {LR:.6f})")
+    print(f"Scaled entropy coef: {ability_params['ent_coef']:.4f} (base: 0.01)")
+    print(f"Scaled value coef: {ability_params['vf_coef']:.3f} (base: 1.0)")
+    print(f"Scaled GAE lambda: {ability_params['gae_lambda']:.3f} (base: 0.95)")
+    print(f"Gradient clip: {ability_params['grad_clip']:.3f}")
+    print(f"===================================\n")
+
+# Load solo baseline for reference-based reward shaping from training_stats.csv
+solo_baselines = None
+if REFERENCE_REWARD_CFG["enabled"]:
+    print(f"\n=== Reference-Based Opportunity Cost Shaping ===")
+    print(f"Eta (opportunity cost sensitivity): {ETA}")
+    print(f"Loading solo baselines from pretrained checkpoints...")
+    
+    # Load solo baselines from training_stats.csv of each pretrained agent
+    solo_baselines = {}
+    
+    for i in range(1, NUM_AGENTS + 1):
+        agent_id = f"ai_rl_{i}"
+        checkpoint_info = pretrained_policies.get(agent_id)
+        
+        if checkpoint_info is None:
+            raise ValueError(f"No pretrained checkpoint for {agent_id}")
+        
+        # Extract checkpoint directory from path
+        checkpoint_path = checkpoint_info["path"]
+        checkpoint_dir = os.path.dirname(checkpoint_path)
+        
+        # Look for training_stats.csv in checkpoint directory or parent Training_* directory
+        training_dir = checkpoint_dir
+        while not os.path.exists(os.path.join(training_dir, "training_stats.csv")):
+            parent = os.path.dirname(training_dir)
+            if parent == training_dir:  # Reached root
+                raise FileNotFoundError(f"Could not find training_stats.csv for {agent_id} starting from {checkpoint_path}")
+            training_dir = parent
+        
+        stats_file = os.path.join(training_dir, "training_stats.csv")
+        print(f"  Loading {agent_id} from: {stats_file}")
+        
+        # Read training stats and get pure reward from last episode
+        df = pd.read_csv(stats_file)
+        if df.empty:
+            raise ValueError(f"Empty training_stats.csv for {agent_id}")
+        
+        # Remove duplicate header rows (where 'episode' column contains the string 'episode')
+        df = df[df['episode'] != 'episode']
+        
+        # Convert episode column to numeric (it may have been read as string due to duplicate headers)
+        df['episode'] = pd.to_numeric(df['episode'], errors='coerce')
+        df = df.dropna(subset=['episode'])  # Remove any rows where episode couldn't be converted
+        
+        # Get pure reward from last episode - use agent-specific column
+        # Average across all environments in the last episode
+        last_episode = df['episode'].max()
+        last_episode_rows = df[df['episode'] == last_episode]
+        
+        pure_reward_col = f'pure_reward_{agent_id}'
+        if pure_reward_col not in df.columns:
+            raise KeyError(f"Column '{pure_reward_col}' not found in {stats_file}. Available columns: {list(df.columns)}")
+        
+        # Convert pure reward column to numeric
+        last_episode_rows[pure_reward_col] = pd.to_numeric(last_episode_rows[pure_reward_col], errors='coerce')
+        
+        R_solo = last_episode_rows[pure_reward_col].mean()
+        solo_baselines[agent_id] = R_solo
+        
+        print(f"    {agent_id} solo baseline: {R_solo:.2f} (averaged over {len(last_episode_rows)} envs from episode {int(last_episode)})")
+    
+    solo_baseline_team = sum(solo_baselines.values())
+    print(f"  Team solo baseline: {solo_baseline_team:.2f}")
+    print(f"")
+    print(f"Reference reward formula (per agent):")
+    print(f"  R_ref[agent] = R_env[agent] - {ETA} * max(0, {solo_baseline_team:.2f} - R_env_team) * (R_solo[agent] / {solo_baseline_team:.2f})")
+    print(f"  Penalty distributed proportionally to each agent's solo baseline contribution")
+    print(f"High-ability teams will need R_env_team > {solo_baseline_team:.2f} to avoid penalty")
+    print(f"Low-ability teams benefit from any improvement over weak solo baseline")
+    print(f"")
+    print(f"===============================================\n")
+
 # RLlib specific configuration - Optimized for GPU training
 config = {
     "NUM_ENVS": NUM_ENVS,
@@ -214,7 +490,7 @@ config = {
     "AGENT_TO_TRAIN": agent_to_train if NUM_AGENTS == 1 else None,
     "SHOW_EVERY_N_EPOCHS": SHOW_EVERY_N_EPOCHS,
     "SAVE_EVERY_N_EPOCHS": SAVE_EVERY_N_EPOCHS,
-    "LR": LR,
+    "LR": ability_params["lr"],  # Ability-based learning rate
     "MAP_NR": MAP_NR,
     "REWARD_WEIGHTS": reward_weights,
     "GAME_VERSION": BASE_GAME_VERSION,  # Use base version without collision suffix
@@ -233,13 +509,17 @@ config = {
     "REWARDS_CFG": REWARDS_CFG,
     "DYNAMIC_REWARDS_CFG": DYNAMIC_REWARDS_CFG,
     "DYNAMIC_PPO_PARAMS_CFG": DYNAMIC_PPO_PARAMS_CFG,
-    # Hyperparameters
+    "ABILITY_RISK_CFG": ABILITY_RISK_CFG,  # Ability-based risk modeling config
+    "REFERENCE_REWARD_CFG": REFERENCE_REWARD_CFG,  # Reference-based opportunity cost shaping
+    "SOLO_BASELINES": solo_baselines,  # Individual solo baselines for reference reward (dict: agent_id -> baseline)
+    # Hyperparameters - Ability-dependent
     "NUM_UPDATES": NUM_SGD_ITER,  # Number of SGD iterations per batch
     "GAMMA": 0.9,     # Discount factor for future rewards (close to 1 = long-term, lower = short-term)
-    "GAE_LAMBDA": 0.95, # Lambda for Generalized Advantage Estimation (controls bias-variance tradeoff in advantage calculation)
-    "ENT_COEF": 0.01,   # Entropy coefficient (controls exploration: higher = more random actions)
+    "GAE_LAMBDA": ability_params["gae_lambda"],  # Ability-based GAE lambda
+    "ENT_COEF": ability_params["ent_coef"],      # Ability-based entropy coefficient
     "CLIP_EPS": 0.3,    # PPO clip parameter (limits how much the policy can change at each update; stabilizes training)
-    "VF_COEF": 1.0,     # Value function loss coefficient (relative weight of value loss vs. policy loss)
+    "VF_COEF": ability_params["vf_coef"],        # Ability-based value function coefficient
+    "GRAD_CLIP": ability_params["grad_clip"],    # Ability-based gradient clipping
     "FCNET_HIDDENS": MLP_LAYERS,  # Hidden layer sizes for MLP
     "FCNET_ACTIVATION": "tanh",  # Activation function for MLP ("tanh", "relu", etc.)
     # Resource allocation

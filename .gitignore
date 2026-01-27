@@ -173,8 +173,6 @@ cython_debug/
 old/brigit*
 input*
 output*
-brigit*
-cuenca*
 *.out
 *.log
 logs*

@@ -154,19 +154,24 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
                 considered_path = path
                 tile_index = _idx
         if min_dist is not None and min_dist >= 0:
+            # Accessible tile
             time_to_tile = (min_dist / agent_walking_speed + action_time) / normalization_factor
             considered_paths.append(considered_path)
             considered_tiles.append(tile_index)
+            obs_vector.append(1.0)  # Accessibility indicator: 1 = accessible
             obs_vector.append(time_to_tile)
         elif min_dist is not None and min_dist == -1:
             # Path blocked by collisions
             time_to_tile = 1
             considered_paths.append(considered_path)
             considered_tiles.append(-1)
+            obs_vector.append(0.0)  # Accessibility indicator: 0 = blocked
             obs_vector.append(time_to_tile)
         else:
+            # No accessible tile found
             considered_paths.append(None)
             considered_tiles.append(None)
+            obs_vector.append(0.0)  # Accessibility indicator: 0 = inaccessible
             obs_vector.append(1)
 
 
@@ -189,18 +194,23 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
                     considered_path = path
                     tile_index = _idx
             if min_dist is not None and min_dist >= 0:
+                # Accessible counter (closest)
                 time_to_tile = (min_dist / agent_walking_speed + action_time) / normalization_factor
                 considered_paths.append(considered_path)
                 considered_tiles.append(tile_index)
+                obs_vector.append(1.0)  # Accessibility indicator: 1 = accessible
                 obs_vector.append(time_to_tile)
             elif min_dist == -1:
                 # Path blocked by collisions
                 considered_paths.append(considered_path)
                 considered_tiles.append(-1)
-                obs_vector.append(time_to_tile)
+                obs_vector.append(0.0)  # Accessibility indicator: 0 = blocked
+                obs_vector.append(1)
             else:
+                # No accessible counter
                 considered_paths.append(None)
                 considered_tiles.append(None)
+                obs_vector.append(0.0)  # Accessibility indicator: 0 = inaccessible
                 obs_vector.append(1)
 
             # choose tile index with minimum Euclidean distance to midpoint
@@ -208,18 +218,25 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
             _idx, bx, by = best
             path_dist, path = get_distance_and_path(path_processor, agent_pos, (bx, by), agent_id, game, 0.0, agent_walking_speed)
             if path_dist is not None and path_dist >= 0:
+                # Accessible counter (midpoint)
                 time_to_midtile = (path_dist / agent_walking_speed + action_time) / normalization_factor
                 considered_tiles.append(_idx)
                 considered_paths.append(path)
+                obs_vector.append(1.0)  # Accessibility indicator: 1 = accessible
+                obs_vector.append(time_to_midtile)
             else:
+                # Midpoint counter not accessible
                 time_to_midtile = 1
                 considered_tiles.append(None)
                 considered_paths.append(None)
-            obs_vector.append(time_to_midtile)
+                obs_vector.append(0.0)  # Accessibility indicator: 0 = inaccessible
+                obs_vector.append(time_to_midtile)
         else:
             # no counters with that item: append fallbacks for agent time and midpoint time
             obs_vector.append(0) # There are no tiles with that item
+            obs_vector.append(0.0) # Accessibility indicator: 0 = no tiles exist
             obs_vector.append(1) # Fallback for agent time
+            obs_vector.append(0.0) # Accessibility indicator: 0 = no tiles exist
             obs_vector.append(1) # Fallback for midpoint time
             considered_paths.append(None)
             considered_paths.append(None)
@@ -336,19 +353,24 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
                 considered_path = path
                 tile_index = _idx
         if min_dist is not None and min_dist >= 0:
+            # Accessible tile
             time_to_tile = (min_dist / agent_walking_speed + action_time) / normalization_factor
             considered_paths.append(considered_path)
             considered_tiles.append(tile_index)
+            obs_vector.append(1.0)  # Accessibility indicator: 1 = accessible
             obs_vector.append(time_to_tile)
         elif min_dist is not None and min_dist == -1:
             # Path blocked by collisions
             time_to_tile = 1
             considered_paths.append(considered_path)
             considered_tiles.append(-1)
+            obs_vector.append(0.0)  # Accessibility indicator: 0 = blocked
             obs_vector.append(time_to_tile)
         else:
+            # No accessible tile found
             considered_paths.append(None)
             considered_tiles.append(None)
+            obs_vector.append(0.0)  # Accessibility indicator: 0 = inaccessible
             obs_vector.append(1)
 
     # --- Add distances to items on counters ---
@@ -370,19 +392,24 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
                     considered_path = path
                     tile_index = _idx
             if min_dist is not None and min_dist >= 0:
+                # Accessible counter (closest)
                 time_to_tile = (min_dist / agent_walking_speed + action_time) / normalization_factor
                 considered_paths.append(considered_path)
                 considered_tiles.append(tile_index)
+                obs_vector.append(1.0)  # Accessibility indicator: 1 = accessible
                 obs_vector.append(time_to_tile)
             elif min_dist is not None and min_dist == -1:
                 # Path blocked by collisions
                 time_to_tile = 1
                 considered_paths.append(considered_path)
                 considered_tiles.append(-1)
+                obs_vector.append(0.0)  # Accessibility indicator: 0 = blocked
                 obs_vector.append(time_to_tile)
             else:
+                # No accessible counter
                 considered_paths.append(None)
                 considered_tiles.append(None)
+                obs_vector.append(0.0)  # Accessibility indicator: 0 = inaccessible
                 obs_vector.append(1)
 
             # Choose the counter tile that is closest to the midpoint by Euclidean distance
@@ -390,19 +417,25 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
             _idx, bx, by = best
             path_dist, path = get_distance_and_path(path_processor, agent_pos, (bx, by), agent_id, game, 0.0, agent_walking_speed)
             if path_dist is not None and path_dist >= 0:
+                # Accessible counter (midpoint)
                 time_to_midtile = (path_dist / agent_walking_speed + action_time) / normalization_factor
                 considered_tiles.append(_idx)
                 considered_paths.append(path)
+                obs_vector.append(1.0)  # Accessibility indicator: 1 = accessible
                 obs_vector.append(time_to_midtile)
             else:
+                # Midpoint counter not accessible
                 time_to_midtile = 1
                 considered_tiles.append(None)
                 considered_paths.append(None)
+                obs_vector.append(0.0)  # Accessibility indicator: 0 = inaccessible
                 obs_vector.append(time_to_midtile)
         else:
             # no counters with that item: append fallbacks for agent distance and midpoint distance
             obs_vector.append(0) # There are no tiles with that item
+            obs_vector.append(0.0) # Accessibility indicator: 0 = no tiles exist
             obs_vector.append(1) # Fallback for agent time
+            obs_vector.append(0.0) # Accessibility indicator: 0 = no tiles exist
             obs_vector.append(1) # Fallback for midpoint time
             considered_paths.append(None)
             considered_paths.append(None)

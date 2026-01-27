@@ -1195,13 +1195,29 @@ def setup_argument_parser(experiment_type: str) -> argparse.ArgumentParser:
         help='Game type (classic or classic_collision)'
     )
     
+    parser.add_argument(
+        '--init_type',
+        type=str,
+        choices=['random_init', 'empty_init'],
+        default=None,
+        help='Initialization type subdirectory to analyze (default: process all available init types)'
+    )
+    
+    parser.add_argument(
+        '--eta',
+        type=float,
+        default=0.0,
+        help='Eta parameter for reference-based reward shaping (default: 0.0)'
+    )
+    
     return parser
 
 
 def main_analysis_pipeline(experiment_type: str, map_name: str,
                           cluster: str = 'cuenca', smoothing_factor: int = 15, 
                           num_agents: Optional[int] = None, study_name: Optional[str] = None,
-                          game_type: str = 'classic') -> Dict:
+                          game_type: str = 'classic', init_type: str = 'random_init',
+                          eta: float = 0.0, eta_provided: bool = False) -> Dict:
     """
     Main analysis pipeline that can be used by all experiment types.
     
@@ -1213,6 +1229,9 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
         num_agents: Number of agents (default: 2 for classic/competition, 1 for pretrained)
         study_name: Study name for specific study folders (optional)
         game_type: Game type (classic or classic_collision) - used to construct path
+        init_type: Initialization type (random_init or empty_init) - used to construct path
+        eta: Eta parameter for reference-based reward shaping (default: 0.0)
+        eta_provided: Whether eta was explicitly provided (to determine folder structure)
         
     Returns:
         Dictionary containing processed data and paths
@@ -1224,14 +1243,66 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
     processor = DataProcessor(config)
     plotter = PlotGenerator(config)
     
-    # Use game_type in the experiment path if it's a classic-type experiment
-    if 'classic' in experiment_type.lower() or 'competition' in experiment_type.lower():
-        experiment_path = game_type
-    else:
-        experiment_path = experiment_type
+    # Custom path setup that includes init_type and eta in the correct order
+    local_path = config.cluster_paths[cluster]
     
-    # Set up directories and load data
-    paths = processor.setup_directories(experiment_path, map_name, cluster, study_name)
+    # Only create eta subfolder if eta was explicitly provided (even if it's 0)
+    if eta_provided:
+        eta_folder = f"eta_{eta}"
+        
+        # Build the experiment path based on experiment type with eta folder
+        if 'pretrain' in experiment_type.lower():
+            # For pretraining: /data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}/
+            if study_name:
+                raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}"
+            else:
+                raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}"
+        elif 'classic' in experiment_type.lower() or 'competition' in experiment_type.lower():
+            # For classic/competition: /data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}/
+            if study_name:
+                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}"
+            else:
+                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}"
+        else:
+            # For other experiment types: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/
+            if study_name:
+                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}"
+            else:
+                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}"
+    else:
+        # No eta folder - use original structure when eta is not provided
+        if 'pretrain' in experiment_type.lower():
+            # For pretraining: /data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/
+            if study_name:
+                raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{study_name}"
+            else:
+                raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}"
+        elif 'classic' in experiment_type.lower() or 'competition' in experiment_type.lower():
+            # For classic/competition: /data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/
+            if study_name:
+                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{study_name}"
+            else:
+                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}"
+        else:
+            # For other experiment types: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/
+            if study_name:
+                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{study_name}"
+            else:
+                raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}"
+    
+    paths = {
+        'raw_dir': raw_dir,
+        'output_path': f"{raw_dir}/training_results.csv",
+        'figures_dir': f"{raw_dir}/training_figures/",
+        'smoothed_figures_dir': f"{raw_dir}/training_figures/smoothed_{config.smoothing_factor}/",
+        'study_name': study_name,
+        'init_type': init_type,
+        'eta': eta
+    }
+    
+    # Create directories
+    for dir_path in [paths['raw_dir'], paths['figures_dir'], paths['smoothed_figures_dir']]:
+        os.makedirs(dir_path, exist_ok=True)
     
     # Determine number of agents based on experiment type
     if num_agents is None:

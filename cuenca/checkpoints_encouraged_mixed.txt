@@ -1,0 +1,6 @@
+policy_ai_rl_1
+final
+/data/samuel_lozano/cooked/pretraining/classic/random_init/map_encouraged_division_of_labor_large/Training_2026-01-25_14-38-05/
+policy_ai_rl_2
+final
+/data/samuel_lozano/cooked/pretraining/classic/random_init/map_encouraged_division_of_labor_large/Training_2026-01-25_14-38-08/

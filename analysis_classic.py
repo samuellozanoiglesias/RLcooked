@@ -11,6 +11,8 @@ nohup python analysis_classic.py <map_name> [options] > analysis_classic.log 2>&
 Examples:
 nohup python analysis_classic.py baseline_division_of_labor_large --study_name speeds --game_type classic > analysis_classic.log 2>&1 &
 nohup python analysis_classic.py baseline_division_of_labor_large --study_name speeds --game_type classic_collision > analysis_classic_collision.log 2>&1 &
+nohup python analysis_classic.py baseline_division_of_labor_large --init_type empty_init --game_type classic > analysis_classic_empty_init.log 2>&1 &
+nohup python analysis_classic.py baseline_division_of_labor_large --eta 0.5 --game_type classic > analysis_classic_eta_0.5.log 2>&1 &
 """
 
 import sys
@@ -258,8 +260,13 @@ def main():
     print(f"Smoothing factor: {args.smoothing_factor}")
     print(f"Study name: {args.study_name}")
     print(f"Game type: {args.game_type}")
+    print(f"Init type: {args.init_type}")
+    print(f"Eta: {args.eta}")
 
     try:
+        # Check if eta was explicitly provided
+        eta_provided = '--eta' in sys.argv
+        
         # Run main analysis pipeline
         analysis_results = main_analysis_pipeline(
             experiment_type='classic',
@@ -267,7 +274,10 @@ def main():
             cluster=args.cluster,
             smoothing_factor=args.smoothing_factor,
             study_name=args.study_name,
-            game_type=args.game_type
+            game_type=args.game_type,
+            init_type=args.init_type,
+            eta=args.eta,
+            eta_provided=eta_provided
         )
 
         # Generate classic-specific plots

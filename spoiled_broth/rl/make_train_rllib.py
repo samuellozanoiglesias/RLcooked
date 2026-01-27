@@ -74,6 +74,8 @@ def make_train_rllib(config):
             "penalties_cfg": config.get("PENALTIES_CFG", None),
             "rewards_cfg": config.get("REWARDS_CFG", None),
             "dynamic_rewards_cfg": config.get("DYNAMIC_REWARDS_CFG", None),
+            "reference_reward_cfg": config.get("REFERENCE_REWARD_CFG", None),
+            "solo_baselines": config.get("SOLO_BASELINES", None),
         }
         policies[f"policy_{agent_id}"] = (
             None,  # Use default PPO policy
@@ -151,6 +153,8 @@ def make_train_rllib(config):
                 "rewards_cfg": config.get("REWARDS_CFG", None),
                 "dynamic_rewards_cfg": config.get("DYNAMIC_REWARDS_CFG", None),
                 "collision_enabled": config.get("COLLISION_ENABLED", False),
+                "reference_reward_cfg": config.get("REFERENCE_REWARD_CFG", None),
+                "solo_baselines": config.get("SOLO_BASELINES", None),
             },
             clip_actions=True,
         )
