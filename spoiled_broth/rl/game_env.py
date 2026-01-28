@@ -177,14 +177,21 @@ class GameEnv(ParallelEnv):
         self.wait_for_action_completion = wait_for_completion
         self.random_initial_state = random_initial_state  # Store flag for random initial states
         
-        # Reference-based opportunity cost shaping
+        # Team synergy-based shaping mechanism
         self.reference_reward_cfg = reference_reward_cfg if reference_reward_cfg is not None else {"enabled": False}
         self.solo_baselines = solo_baselines if solo_baselines is not None else {}
         self.solo_baseline_team = sum(self.solo_baselines.values()) if self.solo_baselines else None
         self.reference_reward_enabled = self.reference_reward_cfg.get("enabled", False) and self.solo_baselines
         if self.reference_reward_enabled:
             self.eta = self.reference_reward_cfg.get("eta", 0.5)
-            print(f"[GameEnv] Reference reward enabled: eta={self.eta}, baselines={self.solo_baselines}, team={self.solo_baseline_team}")
+            # Calculate relative competence for each agent: rho_i = baseline_i / max(baseline_j)
+            max_baseline = max(self.solo_baselines.values()) if self.solo_baselines else 1.0
+            self.agent_competence = {
+                agent_id: baseline / max_baseline 
+                for agent_id, baseline in self.solo_baselines.items()
+            }
+            print(f"[GameEnv] Team synergy enabled: eta={self.eta}, baselines={self.solo_baselines}, team={self.solo_baseline_team}")
+            print(f"[GameEnv] Agent competence ratios: {self.agent_competence}")
 
         self.clickable_indices = None  # Initialize clickable indices storage
         

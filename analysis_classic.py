@@ -13,6 +13,8 @@ nohup python analysis_classic.py baseline_division_of_labor_large --study_name s
 nohup python analysis_classic.py baseline_division_of_labor_large --study_name speeds --game_type classic_collision > analysis_classic_collision.log 2>&1 &
 nohup python analysis_classic.py baseline_division_of_labor_large --init_type empty_init --game_type classic > analysis_classic_empty_init.log 2>&1 &
 nohup python analysis_classic.py baseline_division_of_labor_large --eta 0.5 --game_type classic > analysis_classic_eta_0.5.log 2>&1 &
+nohup python analysis_classic.py baseline_division_of_labor_large --specialization specialized --game_type classic > analysis_classic_specialized.log 2>&1 &
+nohup python analysis_classic.py baseline_division_of_labor_large --specialization non_specialized --game_type classic > analysis_classic_non_specialized.log 2>&1 &
 """
 
 import sys
@@ -256,6 +258,8 @@ def generate_individual_training_plots(analysis_results):
 def main():
     """Main execution function."""
     parser = setup_argument_parser('classic')
+    parser.add_argument('--specialization', type=str, choices=['specialized', 'non_specialized'], 
+                       help='Analyze only specific specialization type (specialized/non_specialized). If not specified, analyzes both if available.')
     args = parser.parse_args()
 
     print(f"Starting classic experiment analysis...")
@@ -266,13 +270,15 @@ def main():
     print(f"Game type: {args.game_type}")
     print(f"Init type: {args.init_type}")
     print(f"Eta: {args.eta}")
+    if hasattr(args, 'specialization') and args.specialization:
+        print(f"Specialization: {args.specialization}")
 
     try:
         # Check if eta was explicitly provided
         eta_provided = '--eta' in sys.argv
         
-        # Auto-detect specialization penalty from folder structure
-        specialization_enabled = None  # Will analyze both if available
+        # Set specialization based on command line argument
+        specialization_enabled = getattr(args, 'specialization', None)
         
         # Run main analysis pipeline
         analysis_results = main_analysis_pipeline(

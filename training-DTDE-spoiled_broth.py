@@ -1,7 +1,7 @@
 # USE:   <cluster> <input_path> <map_nr> <lr> <game_version> [<num_agents>] [<num_epochs>] [<seed>] [<checkpoints>] [<rewards_on_delivery_only>] [<random_initial_state>] [<ability_risk_enabled>] [<eta>] [<agent_to_train>] > log_training.log 2>&1 &
 # Example: nohup python training-DTDE-spoiled_broth.py cuenca ./cuenca/input_0_0.txt baseline_division_of_labor_v2 0.0003 classic 2 1000 0 none true false true 0.5 > log_training.log 2>&1 &
-#   eta=0: Standard rewards (no opportunity cost penalty)
-#   eta>0: Reference-based reward shaping enabled with given sensitivity
+#   eta=0: Standard rewards (no team synergy shaping)
+#   eta>0: Team synergy-based reward shaping enabled with given sensitivity
 
 import os
 import sys
@@ -38,7 +38,7 @@ CHECKPOINT_PATHS = str(sys.argv[9]).lower() if len(sys.argv) > 9 else "none"
 REWARDS_ON_DELIVERY_ONLY = str(sys.argv[10]).lower() if len(sys.argv) > 10 else "true"
 RANDOM_INITIAL_STATE = str(sys.argv[11]).lower() if len(sys.argv) > 11 else "false"  # Flag to randomize initial game state (items on counters and in hands)
 ABILITY_RISK_ENABLED = str(sys.argv[12]).lower() if len(sys.argv) > 12 else "false"  # Flag to enable ability-based risk modeling
-ETA = float(sys.argv[13]) if len(sys.argv) > 13 else 0.0  # Opportunity cost sensitivity: 0=no penalty, >0=reference-based shaping enabled
+ETA = float(sys.argv[13]) if len(sys.argv) > 13 else 0.0  # Team synergy sensitivity: 0=no shaping, >0=team synergy-based shaping enabled
 SPECIALIZATION_PENALTY_ENABLED = str(sys.argv[14]).lower() if len(sys.argv) > 14 else "false"  # Whether to enable specialization penalties (part of PENALTIES_CFG)
 
 # Optional when number of agents = 1:
@@ -184,19 +184,19 @@ ABILITY_RISK_CFG = {
     "high_ability_grad_clip": 1.0,  # Flexible learning for strong teams (higher)
 }
 
-# Reference-Based Opportunity Cost Shaping
-# Models cooperation as a risk-sensitive investment relative to individual pre-trained performance
+# Team Synergy-Based Reward Shaping
+# Models cooperation through bounded synergy signals relative to individual pre-trained performance
 # Enabled automatically when pretrained agents are provided AND eta > 0
 # Solo baselines are loaded from training_stats.csv of pretrained checkpoints (no re-evaluation)
-# High-ability teams need better cooperation rewards to justify coordination cost
-# Low-ability teams are encouraged to cooperate when it improves over weak solo performance
+# Uses hyperbolic tangent to provide bounded, stable reward signals
+# High-ability agents get smaller cooperation incentives, larger risk aversion penalties
+# Low-ability agents get larger cooperation incentives, smaller risk aversion penalties
 # 
 # Implementation notes:
 # 1. Solo baselines (R_solo_1, R_solo_2) are loaded from last episode of pretraining (training_stats.csv)
-# 2. During training, the reward transformation is applied in the environment or reward wrapper:
-#    R_ref = R_env - eta * max(0, R_solo_team - R_env)
-#    where R_solo_team = R_solo_1 + R_solo_2
-# 3. This penalizes cooperation only when it underperforms the sum of individual capabilities
+# 2. Team Synergy: S(τ) = tanh(R^cum_team(τ) - τ * R̄^solo_team) where τ is episode progress
+# 3. Asymmetric distribution: Ψ_i(τ) = S(τ) * ρ_i (if S<0) or S(τ) * (1-ρ_i) (if S≥0)
+# 4. Final reward: R^ref_i = R^env_i - P^spec_i + η * Ψ_i(τ)
 REFERENCE_REWARD_CFG = {
     "enabled": (CHECKPOINT_PATHS != "none" and ETA > 0),
     

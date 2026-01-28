@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=baseline
+#SBATCH --job-name=baseline_collision
 #SBATCH -t 30-00:00:00
 #SBATCH --partition=gpu
 #SBATCH --qos=qos_gpu_long
@@ -25,16 +25,16 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/cooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NR=encouraged_division_of_labor_large
+MAP_NR=baseline_division_of_labor_large
 LR=3e-4
-GAME_VERSION=classic
-NUM_AGENTS=1
-NUM_EPOCHS=50  # Number of training epochs
-SEEDS=(0 42 96)  # Different random seeds for runs
+GAME_VERSIONS=(classic_collision)  # List of game versions to run
+NUM_AGENTS=2
+NUM_EPOCHS=200  # Number of training epochs
+SEEDS=(0)  # Different random seeds for runs
 REWARDS_ON_DELIVERY_ONLY=False  # Whether to use rewards on delivery only
 RANDOM_INITIAL_STATE=True  # Whether to randomize initial state
 ABILITY_RISK_ENABLED=False
-AGENTS_TO_TRAIN=("1" "2")
+AGENTS_TO_TRAIN=("")
 
 # Define arrays for angles and seeds
 ANGLE_PAIRS=("0 0")
@@ -49,29 +49,30 @@ SPEED_PAIRS=(
 # Define checkpoint paths for each speed pair
 # Key format: "cut1,walk1 cut2,walk2" -> Value: checkpoint path or "None"
 declare -A CHECKPOINT_MAP
-CHECKPOINT_MAP["1.0,1.0 1.0,1.0"]="none"
-CHECKPOINT_MAP["1.0,0.4 0.2,1.0"]="none"
+CHECKPOINT_MAP["1.0,1.0 1.0,1.0"]="checkpoints/checkpoints_baseline_collision_stars.txt"
+CHECKPOINT_MAP["1.0,0.4 0.2,1.0"]="checkpoints/checkpoints_baseline_collision_mixed.txt"
 
-# Define ETA values (opportunity cost sensitivity)
-ETA_VALUES=(0.0)
+# Define ETA values (team synergy sensitivity)
+ETA_VALUES=(0.0 0.5 1.0 2.0 5.0)
 
 # Define specialization penalty options
-SPECIALIZATION_OPTIONS=(False)
+SPECIALIZATION_OPTIONS=(False True)
 
 # Maximum number of parallel jobs
 MAX_PARALLEL=10 # Set this to control how many jobs run in parallel
 
-# Count number of jobs = seeds × angle pairs × speed pairs × eta values × specialization options × agents_to_train (if NUM_AGENTS=1)
+# Count number of jobs = seeds × angle pairs × speed pairs × eta values × specialization options × game versions × agents_to_train (if NUM_AGENTS=1)
 NUM_SEEDS=${#SEEDS[@]}
 NUM_ANGLES=${#ANGLE_PAIRS[@]}
 NUM_SPEEDS=${#SPEED_PAIRS[@]}
 NUM_ETAS=${#ETA_VALUES[@]}
 NUM_SPEC_OPTIONS=${#SPECIALIZATION_OPTIONS[@]}
+NUM_GAME_VERSIONS=${#GAME_VERSIONS[@]}
 NUM_AGENTS_TO_TRAIN=${#AGENTS_TO_TRAIN[@]}
 if [ $NUM_AGENTS -eq 1 ]; then
-    NUM_JOBS=$(( NUM_SEEDS * NUM_ANGLES * NUM_SPEEDS * NUM_ETAS * NUM_SPEC_OPTIONS * NUM_AGENTS_TO_TRAIN ))
+    NUM_JOBS=$(( NUM_SEEDS * NUM_ANGLES * NUM_SPEEDS * NUM_ETAS * NUM_SPEC_OPTIONS * NUM_GAME_VERSIONS * NUM_AGENTS_TO_TRAIN ))
 else
-    NUM_JOBS=$(( NUM_SEEDS * NUM_ANGLES * NUM_SPEEDS * NUM_ETAS * NUM_SPEC_OPTIONS ))
+    NUM_JOBS=$(( NUM_SEEDS * NUM_ANGLES * NUM_SPEEDS * NUM_ETAS * NUM_SPEC_OPTIONS * NUM_GAME_VERSIONS ))
 fi
 
 TOTAL_CPUS=$SLURM_NTASKS
@@ -96,6 +97,7 @@ echo "NUM_ANGLES = $NUM_ANGLES"
 echo "NUM_SPEEDS = $NUM_SPEEDS"
 echo "NUM_ETAS = $NUM_ETAS"
 echo "NUM_SPEC_OPTIONS = $NUM_SPEC_OPTIONS"
+echo "NUM_GAME_VERSIONS = $NUM_GAME_VERSIONS"
 if [ $NUM_AGENTS -eq 1 ]; then
     echo "NUM_AGENTS_TO_TRAIN = $NUM_AGENTS_TO_TRAIN"
 fi
@@ -117,6 +119,27 @@ declare -a job_list=()
 if [ $NUM_AGENTS -eq 1 ]; then
     # Include AGENTS_TO_TRAIN as outer loop when NUM_AGENTS is 1
     for AGENTS in "${AGENTS_TO_TRAIN[@]}"; do
+        for GAME_VERSION in "${GAME_VERSIONS[@]}"; do
+            for ANGLES in "${ANGLE_PAIRS[@]}"; do
+                read ANGLE1 ANGLE2 <<< "$ANGLES"
+                for SPEEDS in "${SPEED_PAIRS[@]}"; do
+                    read AGENT1_SPEEDS AGENT2_SPEEDS <<< "$SPEEDS"
+                    IFS=',' read CUTTING_SPEED_1 WALKING_SPEED_1 <<< "$AGENT1_SPEEDS"
+                    IFS=',' read CUTTING_SPEED_2 WALKING_SPEED_2 <<< "$AGENT2_SPEEDS"
+                    for ETA in "${ETA_VALUES[@]}"; do
+                        for SPEC_PENALTY in "${SPECIALIZATION_OPTIONS[@]}"; do
+                            for SEED in "${SEEDS[@]}"; do
+                                job_list+=("$ANGLE1 $ANGLE2 $CUTTING_SPEED_1 $WALKING_SPEED_1 $CUTTING_SPEED_2 $WALKING_SPEED_2 $ETA $SPEC_PENALTY $SEED $AGENTS $GAME_VERSION")
+                            done
+                        done
+                    done
+                done
+            done
+        done
+    done
+else
+    # Original loop without AGENTS_TO_TRAIN
+    for GAME_VERSION in "${GAME_VERSIONS[@]}"; do
         for ANGLES in "${ANGLE_PAIRS[@]}"; do
             read ANGLE1 ANGLE2 <<< "$ANGLES"
             for SPEEDS in "${SPEED_PAIRS[@]}"; do
@@ -126,25 +149,8 @@ if [ $NUM_AGENTS -eq 1 ]; then
                 for ETA in "${ETA_VALUES[@]}"; do
                     for SPEC_PENALTY in "${SPECIALIZATION_OPTIONS[@]}"; do
                         for SEED in "${SEEDS[@]}"; do
-                            job_list+=("$ANGLE1 $ANGLE2 $CUTTING_SPEED_1 $WALKING_SPEED_1 $CUTTING_SPEED_2 $WALKING_SPEED_2 $ETA $SPEC_PENALTY $SEED $AGENTS")
+                            job_list+=("$ANGLE1 $ANGLE2 $CUTTING_SPEED_1 $WALKING_SPEED_1 $CUTTING_SPEED_2 $WALKING_SPEED_2 $ETA $SPEC_PENALTY $SEED $GAME_VERSION")
                         done
-                    done
-                done
-            done
-        done
-    done
-else
-    # Original loop without AGENTS_TO_TRAIN
-    for ANGLES in "${ANGLE_PAIRS[@]}"; do
-        read ANGLE1 ANGLE2 <<< "$ANGLES"
-        for SPEEDS in "${SPEED_PAIRS[@]}"; do
-            read AGENT1_SPEEDS AGENT2_SPEEDS <<< "$SPEEDS"
-            IFS=',' read CUTTING_SPEED_1 WALKING_SPEED_1 <<< "$AGENT1_SPEEDS"
-            IFS=',' read CUTTING_SPEED_2 WALKING_SPEED_2 <<< "$AGENT2_SPEEDS"
-            for ETA in "${ETA_VALUES[@]}"; do
-                for SPEC_PENALTY in "${SPECIALIZATION_OPTIONS[@]}"; do
-                    for SEED in "${SEEDS[@]}"; do
-                        job_list+=("$ANGLE1 $ANGLE2 $CUTTING_SPEED_1 $WALKING_SPEED_1 $CUTTING_SPEED_2 $WALKING_SPEED_2 $ETA $SPEC_PENALTY $SEED")
                     done
                 done
             done
@@ -158,9 +164,9 @@ echo "Total jobs to run: ${#job_list[@]}"
 job_count=0
 for job in "${job_list[@]}"; do
     if [ $NUM_AGENTS -eq 1 ]; then
-        read ANGLE1 ANGLE2 CUTTING_SPEED_1 WALKING_SPEED_1 CUTTING_SPEED_2 WALKING_SPEED_2 ETA SPEC_PENALTY SEED AGENTS <<< "$job"
+        read ANGLE1 ANGLE2 CUTTING_SPEED_1 WALKING_SPEED_1 CUTTING_SPEED_2 WALKING_SPEED_2 ETA SPEC_PENALTY SEED AGENTS GAME_VERSION <<< "$job"
     else
-        read ANGLE1 ANGLE2 CUTTING_SPEED_1 WALKING_SPEED_1 CUTTING_SPEED_2 WALKING_SPEED_2 ETA SPEC_PENALTY SEED <<< "$job"
+        read ANGLE1 ANGLE2 CUTTING_SPEED_1 WALKING_SPEED_1 CUTTING_SPEED_2 WALKING_SPEED_2 ETA SPEC_PENALTY SEED GAME_VERSION <<< "$job"
         AGENTS=""  # Empty when not used
     fi
     
@@ -191,10 +197,10 @@ for job in "${job_list[@]}"; do
     echo -e "${ALPHA1} ${BETA1}\n${WALKING_SPEED_1} ${CUTTING_SPEED_1}\n${ALPHA2} ${BETA2}\n${WALKING_SPEED_2} ${CUTTING_SPEED_2}" > "$INPUT_FILE"
 
     if [ $NUM_AGENTS -eq 1 ]; then
-        echo "Starting job $job_count/${#job_list[@]}: MAP_NR=$MAP_NR ANGLE1=$ANGLE1 ANGLE2=$ANGLE2 C_SPEEDS=[$CUTTING_SPEED_1,$CUTTING_SPEED_2] W_SPEEDS=[$WALKING_SPEED_1,$WALKING_SPEED_2] LR=$LR SEED=$SEED ETA=$ETA SPEC_PENALTY=$SPEC_PENALTY CHECKPOINT=$CHECKPOINT_PATHS AGENTS_TO_TRAIN=$AGENTS"
+        echo "Starting job $job_count/${#job_list[@]}: GAME_VERSION=$GAME_VERSION MAP_NR=$MAP_NR ANGLE1=$ANGLE1 ANGLE2=$ANGLE2 C_SPEEDS=[$CUTTING_SPEED_1,$CUTTING_SPEED_2] W_SPEEDS=[$WALKING_SPEED_1,$WALKING_SPEED_2] LR=$LR SEED=$SEED ETA=$ETA SPEC_PENALTY=$SPEC_PENALTY CHECKPOINT=$CHECKPOINT_PATHS AGENTS_TO_TRAIN=$AGENTS"
         python "$TRAIN_SCRIPT" $CLUSTER $INPUT_FILE $MAP_NR $LR $GAME_VERSION $NUM_AGENTS $NUM_EPOCHS $SEED $CHECKPOINT_PATHS $REWARDS_ON_DELIVERY_ONLY $RANDOM_INITIAL_STATE $ABILITY_RISK_ENABLED $ETA $SPEC_PENALTY $AGENTS > "$LOG_FILE" 2>&1 &
     else
-        echo "Starting job $job_count/${#job_list[@]}: MAP_NR=$MAP_NR ANGLE1=$ANGLE1 ANGLE2=$ANGLE2 C_SPEEDS=[$CUTTING_SPEED_1,$CUTTING_SPEED_2] W_SPEEDS=[$WALKING_SPEED_1,$WALKING_SPEED_2] LR=$LR SEED=$SEED ETA=$ETA SPEC_PENALTY=$SPEC_PENALTY CHECKPOINT=$CHECKPOINT_PATHS"
+        echo "Starting job $job_count/${#job_list[@]}: GAME_VERSION=$GAME_VERSION MAP_NR=$MAP_NR ANGLE1=$ANGLE1 ANGLE2=$ANGLE2 C_SPEEDS=[$CUTTING_SPEED_1,$CUTTING_SPEED_2] W_SPEEDS=[$WALKING_SPEED_1,$WALKING_SPEED_2] LR=$LR SEED=$SEED ETA=$ETA SPEC_PENALTY=$SPEC_PENALTY CHECKPOINT=$CHECKPOINT_PATHS"
         python "$TRAIN_SCRIPT" $CLUSTER $INPUT_FILE $MAP_NR $LR $GAME_VERSION $NUM_AGENTS $NUM_EPOCHS $SEED $CHECKPOINT_PATHS $REWARDS_ON_DELIVERY_ONLY $RANDOM_INITIAL_STATE $ABILITY_RISK_ENABLED $ETA $SPEC_PENALTY > "$LOG_FILE" 2>&1 &
     fi
     

@@ -1,14 +1,16 @@
 # ---- Reward analysis module ---- #
+import numpy as np
+
 def get_rewards(self, agent_events, agent_penalties, rewards_cfg):
     """
     Calculate pure and modified rewards based on the game mode.
     
-    For reference-based opportunity cost shaping, this uses:
+    For team synergy-based shaping, this uses:
     - self._elapsed_time: current time in episode (seconds)
     - self._max_seconds_per_episode: maximum episode duration (seconds)
     - self.solo_baseline_team: sum of individual solo baselines
     - self.cumulated_pure_rewards: cumulative rewards so far
-    - self.eta: opportunity cost sensitivity parameter
+    - self.agent_competence: relative competence ratios for asymmetric distribution
     """
     if self.game_mode == "classic":
         return get_rewards_classic(self, agent_events, agent_penalties, rewards_cfg)
@@ -49,29 +51,32 @@ def get_rewards_classic(self, agent_events, agent_penalties, rewards_cfg):
             if other_agents else 0.0
         )  # in case there is only one agent
 
-        # Modified rewards: include penalties and reference-based opportunity cost
+        # Modified rewards: include penalties and team synergy-based shaping
         modified_reward = alpha * (reward - agent_penalties[agent_id]) + beta * avg_other_reward
         
-        # Apply reference-based opportunity cost shaping if enabled
+        # Apply team synergy-based shaping if enabled
         if self.reference_reward_enabled:
-            # Calculate progress ratio based on elapsed time (how far through the episode we are)
-            progress_ratio = self._elapsed_time / self._max_seconds_per_episode if self._max_seconds_per_episode > 0 else 0
+            # Calculate episode progress τ ∈ [0,1]
+            tau = self._elapsed_time / self._max_seconds_per_episode if self._max_seconds_per_episode > 0 else 0
             
-            # Pro-rated baseline: what we expect to have earned by this point in time
-            prorated_baseline_team = progress_ratio * self.solo_baseline_team
-            
-            # Cumulative team performance so far
+            # Calculate cumulative team performance
             cumulative_team_reward = sum(self.cumulated_pure_rewards[a] for a in self.agents)
             
-            # Opportunity cost: how much we're underperforming relative to expectation
-            opportunity_cost = max(0, prorated_baseline_team - cumulative_team_reward)
+            # Team Synergy: S(τ) = tanh(R^cum_team(τ) - τ * R̄^solo_team)
+            time_scaled_baseline = tau * self.solo_baseline_team
+            team_synergy = np.tanh(cumulative_team_reward - time_scaled_baseline)
             
-            # Distribute penalty proportionally to each agent's solo baseline contribution
-            if self.solo_baseline_team > 0:
-                agent_solo_baseline = self.solo_baselines.get(agent_id, 0)
-                agent_proportion = agent_solo_baseline / self.solo_baseline_team
-                agent_penalty = self.eta * opportunity_cost * agent_proportion
-                modified_reward -= agent_penalty
+            # Asymmetric distribution based on agent competence
+            if agent_id in self.agent_competence:
+                rho_i = self.agent_competence[agent_id]  # Relative competence
+                
+                if team_synergy < 0:  # Risk Aversion: penalize proportionally to competence
+                    synergy_signal = team_synergy * rho_i
+                else:  # Cooperation Incentive: reward inversely to competence
+                    synergy_signal = team_synergy * (1 - rho_i)
+                
+                # Scale by eta: R^{ref}_i = R^{env}_i - P^{spec}_i + η · Ψ_i(τ)
+                modified_reward += self.eta * synergy_signal
         
         self.modified_rewards[agent_id] = modified_reward
         self.cumulated_modified_rewards[agent_id] += self.modified_rewards[agent_id]
@@ -122,29 +127,32 @@ def get_rewards_competition(self, agent_events, agent_penalties, rewards_cfg):
         else:
             avg_other_reward = 0.0  # in case there is only one agent
         
-        # Modified rewards: include penalties and reference-based opportunity cost
+        # Modified rewards: include penalties and team synergy-based shaping
         modified_reward = alpha * (pure_rewards[agent_id] - agent_penalties[agent_id]) + beta * avg_other_reward
         
-        # Apply reference-based opportunity cost shaping if enabled
+        # Apply team synergy-based shaping if enabled
         if self.reference_reward_enabled:
-            # Calculate progress ratio based on elapsed time (how far through the episode we are)
-            progress_ratio = self._elapsed_time / self._max_seconds_per_episode if self._max_seconds_per_episode > 0 else 0
+            # Calculate episode progress τ ∈ [0,1]
+            tau = self._elapsed_time / self._max_seconds_per_episode if self._max_seconds_per_episode > 0 else 0
             
-            # Pro-rated baseline: what we expect to have earned by this point in time
-            prorated_baseline_team = progress_ratio * self.solo_baseline_team
-            
-            # Cumulative team performance so far
+            # Calculate cumulative team performance
             cumulative_team_reward = sum(self.cumulated_pure_rewards[a] for a in self.agents)
             
-            # Opportunity cost: how much we're underperforming relative to expectation
-            opportunity_cost = max(0, prorated_baseline_team - cumulative_team_reward)
+            # Team Synergy: S(τ) = tanh(R^cum_team(τ) - τ * R̄^solo_team)
+            time_scaled_baseline = tau * self.solo_baseline_team
+            team_synergy = np.tanh(cumulative_team_reward - time_scaled_baseline)
             
-            # Distribute penalty proportionally to each agent's solo baseline contribution
-            if self.solo_baseline_team > 0:
-                agent_solo_baseline = self.solo_baselines.get(agent_id, 0)
-                agent_proportion = agent_solo_baseline / self.solo_baseline_team
-                agent_penalty = self.eta * opportunity_cost * agent_proportion
-                modified_reward -= agent_penalty
+            # Asymmetric distribution based on agent competence
+            if agent_id in self.agent_competence:
+                rho_i = self.agent_competence[agent_id]  # Relative competence
+                
+                if team_synergy < 0:  # Risk Aversion: penalize proportionally to competence
+                    synergy_signal = team_synergy * rho_i
+                else:  # Cooperation Incentive: reward inversely to competence
+                    synergy_signal = team_synergy * (1 - rho_i)
+                
+                # Scale by eta: R^{ref}_i = R^{env}_i - P^{spec}_i + η · Ψ_i(τ)
+                modified_reward += self.eta * synergy_signal
         
         self.modified_rewards[agent_id] = modified_reward
         self.cumulated_modified_rewards[agent_id] += self.modified_rewards[agent_id]

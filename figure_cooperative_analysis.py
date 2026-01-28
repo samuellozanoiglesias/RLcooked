@@ -73,7 +73,8 @@ class CooperativeAnalyzer:
                  init_type: str = 'random_init',
                  eta: float = 0.0,
                  eta_provided: bool = False,
-                 specialization_mode: Optional[str] = None):
+                 specialization_mode: Optional[str] = None,
+                 cluster: str = 'cuenca'):
         self.config = AnalysisConfig()
         self.data_processor = DataProcessor(self.config)
         self.study_name = study_name
@@ -83,7 +84,13 @@ class CooperativeAnalyzer:
         self.eta = eta
         self.eta_provided = eta_provided
         self.specialization_mode = specialization_mode  # None=both, 'specialized', or 'non_specialized'
+        self.cluster = cluster
         self.detected_specializations = []  # Track which specializations were found
+        
+        # Set up cluster path prefix
+        if cluster not in self.config.cluster_paths:
+            raise ValueError(f"Invalid cluster '{cluster}'. Choose from {list(self.config.cluster_paths.keys())}")
+        self.local_path = self.config.cluster_paths[cluster]
         
         # Extract short names for condition labels
         # E.g., 'baseline_division_of_labor_large' -> 'baseline'
@@ -228,24 +235,24 @@ class CooperativeAnalyzer:
                         if self.study_name:
                             # Use study_name folder structure
                             if spec_folder:
-                                raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{self.study_name}"
+                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{self.study_name}"
                             else:
-                                raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{self.study_name}"
+                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{self.study_name}"
                         else:
                             # Default structure
                             if spec_folder:
-                                raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{spec_folder}"
+                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{spec_folder}"
                             else:
-                                raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}"
+                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}"
                     
                     else:
                         # No eta folder - use original structure when eta is not provided
                         if self.study_name:
                             # Use study_name folder structure
-                            raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{self.study_name}"
+                            raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{self.study_name}"
                         else:
                             # Default structure
-                            raw_dir = f"/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}"
+                            raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}"
                 
                 except Exception as e:
                     print(f"  Error loading condition {condition_name}: {e}")
@@ -945,8 +952,8 @@ def setup_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '--output_dir',
         type=str,
-        default='/data/samuel_lozano/cooked/cooperative_analysis_figures',
-        help='Directory to save output figures (default: /data/samuel_lozano/cooked/cooperative_analysis_figures)'
+        default=None,
+        help='Directory to save output figures (default: {cluster_path}/data/samuel_lozano/cooked/cooperative_analysis_figures)'
     )
     
     parser.add_argument(
@@ -1006,6 +1013,13 @@ def setup_argument_parser() -> argparse.ArgumentParser:
         help='Which specialization mode to analyze (default: both - analyzes both specialized and non_specialized if available)'
     )
     
+    parser.add_argument(
+        '--cluster',
+        type=str,
+        default=None,
+        help='Cluster name (optional, for reference only)'
+    )
+    
     return parser
 
 
@@ -1021,6 +1035,16 @@ def main():
         # Determine specialization mode
         specialization_mode = None if args.specialization == 'both' else args.specialization
         
+        # Set up output directory based on cluster if not explicitly provided
+        cluster = args.cluster if args.cluster else 'cuenca'
+        config = AnalysisConfig()
+        local_path = config.cluster_paths[cluster]
+        
+        if args.output_dir is None:
+            output_dir_base = f"{local_path}/data/samuel_lozano/cooked/cooperative_analysis_figures"
+        else:
+            output_dir_base = args.output_dir
+        
         # Initialize analyzer
         analyzer = CooperativeAnalyzer(
             study_name=args.study_name,
@@ -1029,13 +1053,15 @@ def main():
             init_type=args.init_type,
             eta=args.eta,
             eta_provided=eta_provided,
-            specialization_mode=specialization_mode
+            specialization_mode=specialization_mode,
+            cluster=cluster
         )
         
         # Load experimental data
         print("=" * 60)
         print("COOPERATIVE ANALYSIS - RAINCLOUD PLOTS")
         print("=" * 60)
+        print(f"Cluster: {args.cluster if args.cluster else 'cuenca'}")
         print(f"Init type: {args.init_type}")
         print(f"Eta: {args.eta}")
         print(f"Specialization: {args.specialization}")
@@ -1066,7 +1092,7 @@ def main():
                 )
                 
                 # Create output directory
-                output_dir = Path(args.output_dir)
+                output_dir = Path(output_dir_base)
                 output_dir.mkdir(parents=True, exist_ok=True)
                 
                 # Generate filename with specialization mode
@@ -1135,7 +1161,7 @@ def main():
             )
             
             # Create output directory
-            output_dir = Path(args.output_dir)
+            output_dir = Path(output_dir_base)
             output_dir.mkdir(parents=True, exist_ok=True)
             
             # Generate filename with all relevant parameters
