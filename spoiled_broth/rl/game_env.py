@@ -159,8 +159,7 @@ class GameEnv(ParallelEnv):
             "destructive_action": 1.0,
             "not_available": 0.5,
             "inaccessible_tile": 1.0,
-            "specialization_penalty_enabled": False,
-            "specialization_penalty_scale": 5.0,
+            "specialization_penalty_scale": 0.0,  # Specialization penalty scale (lambda): 0=no penalty, >0=penalty scale
         }
         default_rewards_cfg = {
             "raw_food": 0.2,
@@ -177,22 +176,6 @@ class GameEnv(ParallelEnv):
         self.wait_for_action_completion = wait_for_completion
         self.random_initial_state = random_initial_state  # Store flag for random initial states
         
-        # Team synergy-based shaping mechanism
-        self.reference_reward_cfg = reference_reward_cfg if reference_reward_cfg is not None else {"enabled": False}
-        self.solo_baselines = solo_baselines if solo_baselines is not None else {}
-        self.solo_baseline_team = sum(self.solo_baselines.values()) if self.solo_baselines else None
-        self.reference_reward_enabled = self.reference_reward_cfg.get("enabled", False) and self.solo_baselines
-        if self.reference_reward_enabled:
-            self.eta = self.reference_reward_cfg.get("eta", 0.5)
-            # Calculate relative competence for each agent: rho_i = baseline_i / max(baseline_j)
-            max_baseline = max(self.solo_baselines.values()) if self.solo_baselines else 1.0
-            self.agent_competence = {
-                agent_id: baseline / max_baseline 
-                for agent_id, baseline in self.solo_baselines.items()
-            }
-            print(f"[GameEnv] Team synergy enabled: eta={self.eta}, baselines={self.solo_baselines}, team={self.solo_baseline_team}")
-            print(f"[GameEnv] Agent competence ratios: {self.agent_competence}")
-
         self.clickable_indices = None  # Initialize clickable indices storage
         
         self.distance_map = None
@@ -272,6 +255,27 @@ class GameEnv(ParallelEnv):
         self.agent_map = {agent_id: self.game.gameObjects[agent_id] for agent_id in self.agents}
         self.busy_until = {agent_id: None for agent_id in self.agents}
         self.action_info = {agent_id: None for agent_id in self.agents}
+
+        # Team synergy-based shaping mechanism
+        self.reference_reward_cfg = reference_reward_cfg if reference_reward_cfg is not None else {"enabled": False}
+        self.solo_baselines = solo_baselines if solo_baselines is not None else {}
+        self.solo_baseline_team = sum(self.solo_baselines.values()) if self.solo_baselines else None
+        self.reference_reward_enabled = self.reference_reward_cfg.get("enabled", False) and self.solo_baselines
+        if self.reference_reward_enabled:
+            self.synergy_scaling_factor = self.reference_reward_cfg.get("synergy_scaling_factor", 0.5)
+            print(f"[GameEnv] Team synergy enabled: synergy_scaling_factor={self.synergy_scaling_factor}, baselines={self.solo_baselines}, team={self.solo_baseline_team}")
+            # Calculate competence using agent abilities (kappa values)
+            self.agent_abilities = {}
+            for agent_id in self.agents:
+                # Get cutting and walking abilities (kappa values)
+                cut_speed = self.cutting_speeds.get(agent_id, 1.0) if self.cutting_speeds else 1.0
+                walk_speed = self.walking_speeds.get(agent_id, 1.0) if self.walking_speeds else 1.0
+                self.agent_abilities[agent_id] = {
+                    'cutting': cut_speed,
+                    'walking': walk_speed,
+                    'average': (cut_speed + walk_speed) / 2.0
+                }
+            print(f"[GameEnv] Agent abilities: {self.agent_abilities}")
 
         # --- New observation space---
         obs_vector, _, _ = game_to_obs_vector(self.game, self.agents[0], game_mode=self.game_mode, path_processor=self.path_processor)
@@ -568,7 +572,8 @@ class GameEnv(ParallelEnv):
                     agent_penalties[agent_id] += self.penalties_cfg["destructive_action"] + destroyed_item_penalty
                 
                 # Specialization penalty: penalize agents for performing actions they're not specialized for
-                if self.penalties_cfg.get("specialization_penalty_enabled", False):
+                penalty_scale = self.penalties_cfg.get("specialization_penalty_scale", 0.0)
+                if penalty_scale > 0:
                     # Get agent abilities (normalized to [0, 1] where 1 is maximum)
                     walk_speed = getattr(agent, 'walk_speed', 1.0)
                     cut_speed = getattr(agent, 'cut_speed', 1.0)
@@ -576,7 +581,6 @@ class GameEnv(ParallelEnv):
                     # Penalty factor: (1 - ability) * scale * action_time
                     # When ability = 1.0: no penalty
                     # When ability < 1.0: penalty increases proportionally
-                    penalty_scale = self.penalties_cfg.get("specialization_penalty_scale", 5.0)
                     
                     # Apply penalty for cutting actions when cut_ability < 1
                     is_cutting_action = (

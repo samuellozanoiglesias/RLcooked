@@ -529,7 +529,7 @@ def main():
     print(f"Smoothing factor: {args.smoothing_factor}")
     print(f"Study name: {args.study_name}")
     print(f"Game type: {args.game_type}")
-    print(f"Eta: {args.eta}")
+    print(f"Eta: {args.synergy_scaling_factor}")
     print(f"Individual trainings: {individual_trainings}")
     
     # Determine which inits to process
@@ -542,8 +542,8 @@ def main():
         print(f"Processing all init types: {init_types}")
     
     try:
-        # Check if eta was explicitly provided
-        eta_provided = '--eta' in sys.argv
+        # Check if synergy_scaling_factor was explicitly provided
+        synergy_provided = '--synergy_scaling_factor' in sys.argv
         
         for init_type in init_types:
             print(f"\n{'='*80}")
@@ -560,8 +560,8 @@ def main():
                 study_name=args.study_name,
                 game_type=args.game_type,
                 init_type=init_type,
-                eta=args.eta,
-                eta_provided=eta_provided
+                synergy_scaling_factor=args.synergy_scaling_factor,
+                synergy_provided=synergy_provided
             )
             
             # Add individual_trainings flag to results

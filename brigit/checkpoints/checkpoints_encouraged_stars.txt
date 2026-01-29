@@ -1,6 +1,6 @@
 policy_ai_rl_1
 final
-/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/pretraining/classic/random_init/map_encouraged_division_of_labor_large/eta_0/Training_2026-01-27_02-55-17/
+/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/pretraining/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/Training_2026-01-27_02-55-17/
 policy_ai_rl_2
 final
-/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/pretraining/classic/random_init/map_encouraged_division_of_labor_large/eta_0/Training_2026-01-27_02-55-34/
+/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/pretraining/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/Training_2026-01-27_02-55-34/

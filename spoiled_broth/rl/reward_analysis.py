@@ -10,7 +10,7 @@ def get_rewards(self, agent_events, agent_penalties, rewards_cfg):
     - self._max_seconds_per_episode: maximum episode duration (seconds)
     - self.solo_baseline_team: sum of individual solo baselines
     - self.cumulated_pure_rewards: cumulative rewards so far
-    - self.agent_competence: relative competence ratios for asymmetric distribution
+    - self.agent_abilities: agent cutting and walking abilities (kappa values) for dynamic competence calculation
     """
     if self.game_mode == "classic":
         return get_rewards_classic(self, agent_events, agent_penalties, rewards_cfg)
@@ -66,17 +66,17 @@ def get_rewards_classic(self, agent_events, agent_penalties, rewards_cfg):
             time_scaled_baseline = tau * self.solo_baseline_team
             team_synergy = np.tanh(cumulative_team_reward - time_scaled_baseline)
             
-            # Asymmetric distribution based on agent competence
-            if agent_id in self.agent_competence:
-                rho_i = self.agent_competence[agent_id]  # Relative competence
+            # Asymmetric distribution based on agent competence using abilities (kappa values)
+            if hasattr(self, 'agent_abilities') and agent_id in self.agent_abilities:
+                competence = self.agent_abilities[agent_id]['average']
                 
-                if team_synergy < 0:  # Risk Aversion: penalize proportionally to competence
-                    synergy_signal = team_synergy * rho_i
-                else:  # Cooperation Incentive: reward inversely to competence
-                    synergy_signal = team_synergy * (1 - rho_i)
+                if team_synergy < 0:  # Risk Aversion: S(τ) * competence
+                    synergy_signal = team_synergy * competence
+                else:  # Cooperation Incentive: S(τ) * (1 - competence)
+                    synergy_signal = team_synergy * (1 - competence)
                 
-                # Scale by eta: R^{ref}_i = R^{env}_i - P^{spec}_i + η · Ψ_i(τ)
-                modified_reward += self.eta * synergy_signal
+                # Scale by synergy_scaling_factor: R^{ref}_i = R^{env}_i - P^{spec}_i + synergy_scaling_factor · Ψ_i(τ)
+                modified_reward += self.synergy_scaling_factor * synergy_signal
         
         self.modified_rewards[agent_id] = modified_reward
         self.cumulated_modified_rewards[agent_id] += self.modified_rewards[agent_id]
@@ -142,17 +142,17 @@ def get_rewards_competition(self, agent_events, agent_penalties, rewards_cfg):
             time_scaled_baseline = tau * self.solo_baseline_team
             team_synergy = np.tanh(cumulative_team_reward - time_scaled_baseline)
             
-            # Asymmetric distribution based on agent competence
-            if agent_id in self.agent_competence:
-                rho_i = self.agent_competence[agent_id]  # Relative competence
+            # Asymmetric distribution based on agent competence using abilities (kappa values)
+            if hasattr(self, 'agent_abilities') and agent_id in self.agent_abilities:
+                competence = self.agent_abilities[agent_id]['average']
                 
-                if team_synergy < 0:  # Risk Aversion: penalize proportionally to competence
-                    synergy_signal = team_synergy * rho_i
-                else:  # Cooperation Incentive: reward inversely to competence
-                    synergy_signal = team_synergy * (1 - rho_i)
+                if team_synergy < 0:  # Risk Aversion: S(τ) * competence
+                    synergy_signal = team_synergy * competence
+                else:  # Cooperation Incentive: S(τ) * (1 - competence)
+                    synergy_signal = team_synergy * (1 - competence)
                 
-                # Scale by eta: R^{ref}_i = R^{env}_i - P^{spec}_i + η · Ψ_i(τ)
-                modified_reward += self.eta * synergy_signal
+                # Scale by synergy_scaling_factor: R^{ref}_i = R^{env}_i - P^{spec}_i + synergy_scaling_factor · Ψ_i(τ)
+                modified_reward += self.synergy_scaling_factor * synergy_signal
         
         self.modified_rewards[agent_id] = modified_reward
         self.cumulated_modified_rewards[agent_id] += self.modified_rewards[agent_id]

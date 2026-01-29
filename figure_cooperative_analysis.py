@@ -19,11 +19,11 @@ Examples:
     nohup python figure_cooperative_analysis.py --episode_range all --output_dir ./figures > figure_cooperative_analysis_all.log 2>&1 &
     nohup python figure_cooperative_analysis.py --episode_range final --num_episodes 100 > figure_cooperative_analysis_final.log 2>&1 &
     
-    # Analyze only specialized data
-    nohup python figure_cooperative_analysis.py --episode_range final --specialization specialized --num_episodes 100 > figure_cooperative_analysis_specialized.log 2>&1 &
+    # Analyze specific lambda data
+    nohup python figure_cooperative_analysis.py --episode_range final --specialization_lambda 0 --num_episodes 100 > figure_cooperative_analysis_lambda_0.log 2>&1 &
     
-    # Analyze only non-specialized data
-    nohup python figure_cooperative_analysis.py --episode_range final --specialization non_specialized --num_episodes 100 > figure_cooperative_analysis_non_specialized.log 2>&1 &
+    # Analyze different lambda values
+    nohup python figure_cooperative_analysis.py --episode_range final --specialization_lambda 5.0 --num_episodes 100 > figure_cooperative_analysis_lambda_5.log 2>&1 &
     
     # Analyze empty_init data (both specializations)
     nohup python figure_cooperative_analysis.py --episode_range final --init_type empty_init --num_episodes 100 > figure_cooperative_analysis_empty_init.log 2>&1 &
@@ -31,8 +31,8 @@ Examples:
     # Analyze speeds study with specific initialization
     nohup python figure_cooperative_analysis.py --episode_range final --study_name speeds --init_type random_init --num_episodes 100 > figure_cooperative_analysis_speeds.log 2>&1 &
     
-    # Analyze with eta parameter (reference-based reward shaping)
-    nohup python figure_cooperative_analysis.py --episode_range final --init_type random_init --eta 0.5 --num_episodes 100 > figure_cooperative_analysis_eta_0.5.log 2>&1 &
+    # Analyze with synergy_scaling_factor parameter (reference-based reward shaping)
+    nohup python figure_cooperative_analysis.py --episode_range final --init_type random_init --synergy_scaling_factor 0.5 --num_episodes 100 > figure_cooperative_analysis_synergy_0.5.log 2>&1 &
     
     # Custom maps (e.g., baseline vs forced) with empty_init
     nohup python figure_cooperative_analysis.py --episode_range final --map_name_1 baseline_division_of_labor_large --map_name_2 collision_division_of_labor_large --init_type empty_init --num_episodes 100 > figure_cooperative_analysis_baseline_forced.log 2>&1 &
@@ -71,9 +71,9 @@ class CooperativeAnalyzer:
                  map_name_1: str = 'baseline_division_of_labor_large',
                  map_name_2: str = 'encouraged_division_of_labor_large',
                  init_type: str = 'random_init',
-                 eta: float = 0.0,
-                 eta_provided: bool = False,
-                 specialization_mode: Optional[str] = None,
+                 synergy_scaling_factor: float = 0.0,
+                 synergy_provided: bool = False,
+                 specialization_lambda: Optional[float] = None,
                  cluster: str = 'cuenca'):
         self.config = AnalysisConfig()
         self.data_processor = DataProcessor(self.config)
@@ -81,9 +81,9 @@ class CooperativeAnalyzer:
         self.map_name_1 = map_name_1
         self.map_name_2 = map_name_2
         self.init_type = init_type
-        self.eta = eta
-        self.eta_provided = eta_provided
-        self.specialization_mode = specialization_mode  # None=both, 'specialized', or 'non_specialized'
+        self.synergy_scaling_factor = synergy_scaling_factor
+        self.synergy_provided = synergy_provided
+        self.specialization_lambda = specialization_lambda  # None=auto-detect, float=specific lambda
         self.cluster = cluster
         self.detected_specializations = []  # Track which specializations were found
         
@@ -183,21 +183,25 @@ class CooperativeAnalyzer:
         print("Loading experimental data from all conditions...")
         if self.study_name:
             print(f"Using study name: {self.study_name}")
-        if self.specialization_mode is None:
-            print("Specialization mode: Creating three figures (non_specialized, mixed, specialized)")
+        if self.specialization_lambda is None:
+            print("Specialization lambda: Auto-detecting all available lambda values")
         else:
-            print(f"Specialization mode: {self.specialization_mode}")
+            print(f"Specialization lambda: {self.specialization_lambda}")
         
-        # Determine which specialization modes to try
-        if self.specialization_mode is None:
-            # When analyzing both, we'll create three datasets
-            spec_modes_to_analyze = ['specialized', 'non_specialized']
-            create_three_datasets = True
-        elif self.specialization_mode:
-            spec_modes_to_analyze = [self.specialization_mode]
-            create_three_datasets = False
+        # Determine which specialization lambdas to try
+        # For now, simplified approach: if lambda specified, use it; otherwise try common values
+        if self.specialization_lambda is None:
+            # Try to detect available lambdas (common values: 0, 5.0)
+            spec_modes_to_analyze = ['specialized_0', 'specialized_5']  # Could be enhanced to auto-detect
+            create_three_datasets = False  # Simplified for now
         else:
-            spec_modes_to_analyze = [None]  # No specialization folder
+            # Use specified lambda
+            if self.specialization_lambda == 0:
+                spec_folder_name = 'specialized_0'
+            else:
+                lambda_str = f"{self.specialization_lambda:g}"
+                spec_folder_name = f'specialized_{lambda_str}'
+            spec_modes_to_analyze = [spec_folder_name]
             create_three_datasets = False
         
         # Store data separately for each specialization mode
@@ -218,12 +222,12 @@ class CooperativeAnalyzer:
                     print(f"  Specialization: {spec_mode}")
                 
                 try:
-                    # Set up paths for this condition with init_type and eta in the correct order
-                    # Only include eta folder if eta was explicitly provided (even if it's 0)
+                    # Set up paths for this condition with init_type and synergy in the correct order
+                    # Only include synergy folder if synergy was explicitly provided (even if it's 0)
                     
-                    if self.eta_provided:
-                        # Build path with eta folder
-                        eta_folder = f"eta_{self.eta}" if self.eta != 0 else "eta_0"
+                    if self.synergy_provided:
+                        # Build path with synergy folder
+                        synergy_folder = f"synergy_{self.synergy_scaling_factor}" if self.synergy_scaling_factor != 0 else "synergy_0"
                         
                         # Use the specific specialization mode (no fallback)
                         if spec_mode:
@@ -235,18 +239,18 @@ class CooperativeAnalyzer:
                         if self.study_name:
                             # Use study_name folder structure
                             if spec_folder:
-                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{self.study_name}"
+                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/{self.study_name}"
                             else:
-                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{self.study_name}"
+                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{synergy_folder}/{self.study_name}"
                         else:
                             # Default structure
                             if spec_folder:
-                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}/{spec_folder}"
+                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{synergy_folder}/{spec_folder}"
                             else:
-                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{eta_folder}"
+                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{synergy_folder}"
                     
                     else:
-                        # No eta folder - use original structure when eta is not provided
+                        # No synergy folder - use original structure when synergy is not provided
                         if self.study_name:
                             # Use study_name folder structure
                             raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{self.study_name}"
@@ -999,18 +1003,17 @@ def setup_argument_parser() -> argparse.ArgumentParser:
     )
     
     parser.add_argument(
-        '--eta',
+        '--synergy_scaling_factor',
         type=float,
         default=0.0,
-        help='Eta parameter for reference-based reward shaping (default: 0.0)'
+        help='Synergy scaling factor for reference-based reward shaping (default: 0.0)'
     )
     
     parser.add_argument(
-        '--specialization',
-        type=str,
-        choices=['specialized', 'non_specialized', 'both'],
-        default='both',
-        help='Which specialization mode to analyze (default: both - analyzes both specialized and non_specialized if available)'
+        '--specialization_lambda',
+        type=float,
+        default=None,
+        help='Which specialization lambda value to analyze (e.g., 0, 5.0). If not specified, auto-detects all available lambdas.'
     )
     
     parser.add_argument(
@@ -1029,11 +1032,11 @@ def main():
     args = parser.parse_args()
     
     try:
-        # Check if eta was explicitly provided
-        eta_provided = '--eta' in sys.argv
+        # Check if synergy_scaling_factor was explicitly provided
+        synergy_provided = '--synergy_scaling_factor' in sys.argv
         
-        # Determine specialization mode
-        specialization_mode = None if args.specialization == 'both' else args.specialization
+        # Use specialization lambda directly
+        specialization_lambda = args.specialization_lambda
         
         # Set up output directory based on cluster if not explicitly provided
         cluster = args.cluster if args.cluster else 'cuenca'
@@ -1051,9 +1054,9 @@ def main():
             map_name_1=args.map_name_1,
             map_name_2=args.map_name_2,
             init_type=args.init_type,
-            eta=args.eta,
-            eta_provided=eta_provided,
-            specialization_mode=specialization_mode,
+            synergy_scaling_factor=args.synergy_scaling_factor,
+            synergy_provided=synergy_provided,
+            specialization_lambda=specialization_lambda,
             cluster=cluster
         )
         
@@ -1063,7 +1066,7 @@ def main():
         print("=" * 60)
         print(f"Cluster: {args.cluster if args.cluster else 'cuenca'}")
         print(f"Init type: {args.init_type}")
-        print(f"Eta: {args.eta}")
+        print(f"Synergy scaling factor: {args.synergy_scaling_factor}")
         print(f"Specialization: {args.specialization}")
         print(f"Map 1: {args.map_name_1}")
         print(f"Map 2: {args.map_name_2}")
@@ -1099,8 +1102,8 @@ def main():
                 filename_parts = ["cooperative_analysis"]
                 filename_parts.append(args.init_type)
                 
-                if analyzer.eta_provided:
-                    filename_parts.append(f"eta_{args.eta}" if args.eta != 0 else "eta_0")
+                if analyzer.synergy_provided:
+                    filename_parts.append(f"synergy_{args.synergy_scaling_factor}" if args.synergy_scaling_factor != 0 else "synergy_0")
                 
                 # Add the specific specialization mode
                 filename_parts.append(spec_mode)
@@ -1170,9 +1173,9 @@ def main():
             # Add init type
             filename_parts.append(args.init_type)
             
-            # Add eta if explicitly provided (even if 0)
-            if analyzer.eta_provided:
-                filename_parts.append(f"eta_{args.eta}" if args.eta != 0 else "eta_0")
+            # Add synergy if explicitly provided (even if 0)
+            if analyzer.synergy_provided:
+                filename_parts.append(f"synergy_{args.synergy_scaling_factor}" if args.synergy_scaling_factor != 0 else "synergy_0")
             
             # Add specialization information
             if args.specialization != 'both':

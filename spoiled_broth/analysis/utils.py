@@ -1204,10 +1204,10 @@ def setup_argument_parser(experiment_type: str) -> argparse.ArgumentParser:
     )
     
     parser.add_argument(
-        '--eta',
+        '--synergy_scaling_factor',
         type=float,
         default=0.0,
-        help='Eta parameter for reference-based reward shaping (default: 0.0)'
+        help='Synergy scaling factor for reference-based reward shaping (default: 0.0)'
     )
     
     return parser
@@ -1217,8 +1217,8 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
                           cluster: str = 'cuenca', smoothing_factor: int = 15, 
                           num_agents: Optional[int] = None, study_name: Optional[str] = None,
                           game_type: str = 'classic', init_type: str = 'random_init',
-                          eta: float = 0.0, eta_provided: bool = False,
-                          specialization_enabled: Optional[bool] = None) -> Union[Dict, Dict[str, Dict]]:
+                          synergy_scaling_factor: float = 0.0, synergy_provided: bool = False,
+                          specialization_lambda: Optional[float] = None) -> Union[Dict, Dict[str, Dict]]:
     """
     Main analysis pipeline that can be used by all experiment types.
     
@@ -1231,13 +1231,13 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
         study_name: Study name for specific study folders (optional)
         game_type: Game type (classic or classic_collision) - used to construct path
         init_type: Initialization type (random_init or empty_init) - used to construct path
-        eta: Eta parameter for reference-based reward shaping (default: 0.0)
-        eta_provided: Whether eta was explicitly provided (to determine folder structure)
-        specialization_enabled: Whether specialization penalty is enabled (None = analyze both if available)
+        synergy_scaling_factor: Team synergy scaling factor (default: 0.0)
+        synergy_provided: Whether synergy was explicitly provided (to determine folder structure)
+        specialization_lambda: Specialization penalty scale (None = auto-detect all available lambdas)
         
     Returns:
-        If analyzing single specialization: Dict containing processed data and paths
-        If analyzing both specializations: Dict[str, Dict] with keys 'specialized' and 'non_specialized'
+        If analyzing single lambda: Dict containing processed data and paths
+        If analyzing multiple lambdas: Dict[str, Dict] with keys 'specialized_{lambda}'
     """
     # Initialize components
     config = AnalysisConfig()
@@ -1246,28 +1246,38 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
     processor = DataProcessor(config)
     plotter = PlotGenerator(config)
     
-    # Custom path setup that includes init_type and eta in the correct order
+    # Custom path setup that includes init_type and synergy in the correct order
     local_path = config.cluster_paths[cluster]
     
-    # Determine if we should analyze both specialization modes
-    analyze_both = specialization_enabled is None
-    
-    # Determine which specialization modes to analyze
-    if analyze_both:
-        # Analyze both modes separately
-        spec_folders_to_analyze = ["specialized", "non_specialized"]
-    elif specialization_enabled:
-        spec_folders_to_analyze = ["specialized"]
+    # Determine which specialization lambdas to analyze
+    if specialization_lambda is None:
+        # Auto-detect available lambda folders
+        spec_folders_to_analyze = _detect_available_specialization_folders(
+            local_path, experiment_type, game_type, init_type, 
+            map_name, synergy_provided, synergy_scaling_factor, study_name
+        )
+        analyze_multiple = len(spec_folders_to_analyze) > 1
     else:
-        spec_folders_to_analyze = ["non_specialized"]
+        # Use specified lambda
+        if specialization_lambda == 0:
+            spec_folders_to_analyze = ["specialized_0"]
+        else:
+            lambda_str = f"{specialization_lambda:g}"
+            spec_folders_to_analyze = [f"specialized_{lambda_str}"]
+        analyze_multiple = False
+    
+    if not spec_folders_to_analyze:
+        raise ValueError("No specialization folders found. Please check that training data exists.")
+    
+    print(f"Detected specialization folders: {spec_folders_to_analyze}")
     
     # Determine number of agents based on experiment type (needed for data loading)
     if num_agents is None:
         # Pretrained experiments have 1 agent, others have 2
         num_agents = 1 if 'pretrain' in experiment_type.lower() else 2
     
-    # If analyzing both, process each specialization mode separately
-    if analyze_both:
+    # If analyzing multiple lambdas, process each specialization mode separately
+    if analyze_multiple:
         results_by_specialization = {}
         
         for spec_folder in spec_folders_to_analyze:
@@ -1278,7 +1288,7 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
             # Build path for this specialization mode
             raw_dir = _build_experiment_path(
                 local_path, experiment_type, game_type, init_type, 
-                map_name, eta_provided, eta, spec_folder, study_name
+                map_name, synergy_provided, synergy_scaling_factor, spec_folder, study_name
             )
             
             # Check if path exists
@@ -1337,7 +1347,7 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
     # Build path
     raw_dir = _build_experiment_path(
         local_path, experiment_type, game_type, init_type, 
-        map_name, eta_provided, eta, spec_folder, study_name
+        map_name, synergy_provided, synergy_scaling_factor, spec_folder, study_name
     )
     
     paths = {
@@ -1347,7 +1357,7 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
         'smoothed_figures_dir': f"{raw_dir}/training_figures/smoothed_{config.smoothing_factor}/",
         'study_name': study_name,
         'init_type': init_type,
-        'eta': eta,
+        'synergy': synergy_scaling_factor,
         'specialization': spec_folder
     }
     
@@ -1374,53 +1384,53 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
 
 
 def _build_experiment_path(local_path: str, experiment_type: str, game_type: str, 
-                          init_type: str, map_name: str, eta_provided: bool, 
-                          eta: float, spec_folder: str, study_name: Optional[str]) -> str:
+                          init_type: str, map_name: str, synergy_provided: bool, 
+                          synergy_scaling_factor: float, spec_folder: str, study_name: Optional[str]) -> str:
     """Build experiment path based on parameters."""
     
-    # Only create eta subfolder if eta was explicitly provided (even if it's 0)
-    if eta_provided:
-        eta_folder = f"eta_{eta}" if eta != 0 else "eta_0"
+    # Only create synergy subfolder if synergy was explicitly provided (even if it's 0)
+    if synergy_provided:
+        synergy_folder = f"synergy_{synergy_scaling_factor}" if synergy_scaling_factor != 0 else "synergy_0"
         
-        # Build the experiment path based on experiment type with eta folder and specialization
+        # Build the experiment path based on experiment type with synergy folder and specialization
         if 'pretrain' in experiment_type.lower():
-            # For pretraining: /data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/
+            # For pretraining: /data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/
             if study_name:
                 if spec_folder:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/{study_name}"
                 else:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{study_name}"
             else:
                 if spec_folder:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}"
                 else:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{eta_folder}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{synergy_folder}"
         elif 'classic' in experiment_type.lower() or 'competition' in experiment_type.lower():
-            # For classic/competition: /data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/
+            # For classic/competition: /data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/
             if study_name:
                 if spec_folder:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/{study_name}"
                 else:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{study_name}"
             else:
                 if spec_folder:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}"
                 else:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{eta_folder}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{synergy_folder}"
         else:
-            # For other experiment types: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/
+            # For other experiment types: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/
             if study_name:
                 if spec_folder:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/{study_name}"
                 else:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{synergy_folder}/{study_name}"
             else:
                 if spec_folder:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}/{spec_folder}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}"
                 else:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{eta_folder}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{synergy_folder}"
     else:
-        # No eta folder - use original structure when eta is not provided (with specialization folder)
+        # No synergy folder - use original structure when synergy is not provided (with specialization folder)
         if 'pretrain' in experiment_type.lower():
             # For pretraining: /data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{spec_folder}/
             if study_name:
@@ -1459,3 +1469,47 @@ def _build_experiment_path(local_path: str, experiment_type: str, game_type: str
                     raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}"
     
     return raw_dir
+
+
+def _detect_available_specialization_folders(local_path: str, experiment_type: str, 
+                                           game_type: str, init_type: str, map_name: str, 
+                                           synergy_provided: bool, synergy_scaling_factor: float, 
+                                           study_name: Optional[str]) -> List[str]:
+    """
+    Detect available specialization folders (specialized_0, specialized_5, etc.).
+    
+    Returns a list of folder names that actually exist in the filesystem.
+    """
+    import os
+    import glob
+    
+    # Build base path without specialization folder
+    base_path = _build_experiment_path(
+        local_path, experiment_type, game_type, init_type, 
+        map_name, synergy_provided, synergy_scaling_factor, None, study_name
+    )
+    
+    # Look for specialized_* folders
+    if os.path.exists(base_path):
+        specialized_pattern = os.path.join(base_path, "specialized_*")
+        specialized_paths = glob.glob(specialized_pattern)
+        
+        # Extract folder names and sort them
+        folder_names = []
+        for path in specialized_paths:
+            folder_name = os.path.basename(path)
+            if os.path.isdir(path):
+                folder_names.append(folder_name)
+        
+        # Sort by lambda value for consistent ordering
+        def lambda_sort_key(folder_name):
+            try:
+                lambda_str = folder_name.replace("specialized_", "")
+                return float(lambda_str)
+            except ValueError:
+                return float('inf')  # Put invalid names at the end
+        
+        folder_names.sort(key=lambda_sort_key)
+        return folder_names
+    
+    return []

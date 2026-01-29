@@ -17,18 +17,18 @@ checkpoint_paths=checkpoints/checkpoints_encouraged_collision_stars.txt
 rewards_only_on_delivery=false
 random_initial_state=true
 ability_risk_enabled=false
-eta=1.0
-specialization_penalty_enabled=false
+synergy_scaling_factor=1.0  # Team synergy sensitivity: 0=no shaping, >0=shaping enabled
+specialization_penalty_scale=0.0  # Lambda value: 0=no penalty, >0=penalty scale
 agent_to_train="" 
 
 # Iterar sobre cada seed
 for seed in "${seeds[@]}"; do
-    output_file=output_$map_nr-$num_agents-$game_version-$input-seed_$seed-$random_initial_state-$specialization_penalty_enabled.txt
+    output_file=output_$map_nr-$num_agents-$game_version-$input-seed_$seed-$random_initial_state-$synergy_scaling_factor-$specialization_penalty_scale.txt
     
     # Ejecutar el entrenamiento en segundo plano con nohup y argumentos
-    nohup python /home/samuel_lozano/cooked/training-DTDE-spoiled_broth.py $cluster $input_path $map_nr $lr $game_version $num_agents $num_epochs $seed $checkpoint_paths $rewards_only_on_delivery $random_initial_state $ability_risk_enabled $eta $specialization_penalty_enabled $agent_to_train > $output_file 2>&1 &
+    nohup python /home/samuel_lozano/cooked/training-DTDE-spoiled_broth.py $cluster $input_path $map_nr $lr $game_version $num_agents $num_epochs $seed $checkpoint_paths $rewards_only_on_delivery $random_initial_state $ability_risk_enabled $synergy_scaling_factor $specialization_penalty_scale $agent_to_train > $output_file 2>&1 &
     
-    echo "Lanzado entrenamiento con seed=$seed -> argumentos: $cluster $input_path $map_nr $lr $game_version $num_agents $num_epochs $seed $checkpoint_paths $rewards_only_on_delivery $random_initial_state $ability_risk_enabled $eta $specialization_penalty_enabled $agent_to_train"
+    echo "Lanzado entrenamiento con seed=$seed -> argumentos: $cluster $input_path $map_nr $lr $game_version $num_agents $num_epochs $seed $checkpoint_paths $rewards_only_on_delivery $random_initial_state $ability_risk_enabled $synergy_scaling_factor $specialization_penalty_scale $agent_to_train"
     
     # Esperar 45 segundos antes de lanzar la siguiente simulación
     if [ "$seed" != "${seeds[-1]}" ]; then

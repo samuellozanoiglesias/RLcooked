@@ -12,9 +12,9 @@ Examples:
 nohup python analysis_classic.py baseline_division_of_labor_large --study_name speeds --game_type classic > analysis_classic.log 2>&1 &
 nohup python analysis_classic.py baseline_division_of_labor_large --study_name speeds --game_type classic_collision > analysis_classic_collision.log 2>&1 &
 nohup python analysis_classic.py baseline_division_of_labor_large --init_type empty_init --game_type classic > analysis_classic_empty_init.log 2>&1 &
-nohup python analysis_classic.py baseline_division_of_labor_large --eta 0.5 --game_type classic > analysis_classic_eta_0.5.log 2>&1 &
-nohup python analysis_classic.py baseline_division_of_labor_large --specialization specialized --game_type classic > analysis_classic_specialized.log 2>&1 &
-nohup python analysis_classic.py baseline_division_of_labor_large --specialization non_specialized --game_type classic > analysis_classic_non_specialized.log 2>&1 &
+nohup python analysis_classic.py baseline_division_of_labor_large --synergy_scaling_factor 0.5 --game_type classic > analysis_classic_synergy_0.5.log 2>&1 &
+nohup python analysis_classic.py baseline_division_of_labor_large --specialization_lambda 0 --game_type classic > analysis_classic_lambda_0.log 2>&1 &
+nohup python analysis_classic.py baseline_division_of_labor_large --specialization_lambda 5.0 --game_type classic > analysis_classic_lambda_5.log 2>&1 &
 """
 
 import sys
@@ -258,8 +258,8 @@ def generate_individual_training_plots(analysis_results):
 def main():
     """Main execution function."""
     parser = setup_argument_parser('classic')
-    parser.add_argument('--specialization', type=str, choices=['specialized', 'non_specialized'], 
-                       help='Analyze only specific specialization type (specialized/non_specialized). If not specified, analyzes both if available.')
+    parser.add_argument('--specialization_lambda', type=float, 
+                       help='Analyze only specific specialization lambda value (e.g., 0, 5.0). If not specified, analyzes all available lambdas.')
     args = parser.parse_args()
 
     print(f"Starting classic experiment analysis...")
@@ -269,16 +269,16 @@ def main():
     print(f"Study name: {args.study_name}")
     print(f"Game type: {args.game_type}")
     print(f"Init type: {args.init_type}")
-    print(f"Eta: {args.eta}")
-    if hasattr(args, 'specialization') and args.specialization:
-        print(f"Specialization: {args.specialization}")
+    print(f"Eta: {args.synergy_scaling_factor}")
+    if hasattr(args, 'specialization_lambda') and args.specialization_lambda is not None:
+        print(f"Specialization lambda: {args.specialization_lambda}")
 
     try:
-        # Check if eta was explicitly provided
-        eta_provided = '--eta' in sys.argv
+        # Check if synergy_scaling_factor was explicitly provided
+        synergy_provided = '--synergy_scaling_factor' in sys.argv
         
         # Set specialization based on command line argument
-        specialization_enabled = getattr(args, 'specialization', None)
+        specialization_lambda = getattr(args, 'specialization_lambda', None)
         
         # Run main analysis pipeline
         analysis_results = main_analysis_pipeline(
@@ -289,13 +289,13 @@ def main():
             study_name=args.study_name,
             game_type=args.game_type,
             init_type=args.init_type,
-            eta=args.eta,
-            eta_provided=eta_provided,
-            specialization_enabled=specialization_enabled
+            synergy_scaling_factor=args.synergy_scaling_factor,
+            synergy_provided=synergy_provided,
+            specialization_lambda=specialization_lambda
         )
 
         # Check if we got a dict of results (multiple specialization modes) or single result
-        if isinstance(analysis_results, dict) and 'specialized' in analysis_results or 'non_specialized' in analysis_results:
+        if isinstance(analysis_results, dict) and any(key.startswith('specialized_') for key in analysis_results.keys()):
             # Multiple specialization modes - process each separately
             print("\n" + "=" * 60)
             print("GENERATING PLOTS FOR EACH SPECIALIZATION MODE")

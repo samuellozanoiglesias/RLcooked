@@ -1,7 +1,9 @@
-# USE:   <cluster> <input_path> <map_nr> <lr> <game_version> [<num_agents>] [<num_epochs>] [<seed>] [<checkpoints>] [<rewards_on_delivery_only>] [<random_initial_state>] [<ability_risk_enabled>] [<eta>] [<agent_to_train>] > log_training.log 2>&1 &
-# Example: nohup python training-DTDE-spoiled_broth.py cuenca ./cuenca/input_0_0.txt baseline_division_of_labor_v2 0.0003 classic 2 1000 0 none true false true 0.5 > log_training.log 2>&1 &
-#   eta=0: Standard rewards (no team synergy shaping)
-#   eta>0: Team synergy-based reward shaping enabled with given sensitivity
+# USE:   <cluster> <input_path> <map_nr> <lr> <game_version> [<num_agents>] [<num_epochs>] [<seed>] [<checkpoints>] [<rewards_on_delivery_only>] [<random_initial_state>] [<ability_risk_enabled>] [<synergy_scaling_factor>] [<specialization_penalty_scale>] [<agent_to_train>] > log_training.log 2>&1 &
+# Example: nohup python training-DTDE-spoiled_broth.py cuenca ./cuenca/input_0_0.txt baseline_division_of_labor_v2 0.0003 classic 2 1000 0 none true false true 0.5 5.0 > log_training.log 2>&1 &
+#   synergy_scaling_factor=0: Standard rewards (no team synergy shaping)
+#   synergy_scaling_factor>0: Team synergy-based reward shaping enabled with given sensitivity
+#   specialization_penalty_scale=0: No specialization penalty
+#   specialization_penalty_scale>0: Specialization penalty with given scale
 
 import os
 import sys
@@ -38,15 +40,15 @@ CHECKPOINT_PATHS = str(sys.argv[9]).lower() if len(sys.argv) > 9 else "none"
 REWARDS_ON_DELIVERY_ONLY = str(sys.argv[10]).lower() if len(sys.argv) > 10 else "true"
 RANDOM_INITIAL_STATE = str(sys.argv[11]).lower() if len(sys.argv) > 11 else "false"  # Flag to randomize initial game state (items on counters and in hands)
 ABILITY_RISK_ENABLED = str(sys.argv[12]).lower() if len(sys.argv) > 12 else "false"  # Flag to enable ability-based risk modeling
-ETA = float(sys.argv[13]) if len(sys.argv) > 13 else 0.0  # Team synergy sensitivity: 0=no shaping, >0=team synergy-based shaping enabled
-SPECIALIZATION_PENALTY_ENABLED = str(sys.argv[14]).lower() if len(sys.argv) > 14 else "false"  # Whether to enable specialization penalties (part of PENALTIES_CFG)
+SYNERGY_SCALING_FACTOR = float(sys.argv[13]) if len(sys.argv) > 13 else 0.0  # Team synergy sensitivity: 0=no shaping, >0=team synergy-based shaping enabled
+SPECIALIZATION_PENALTY_SCALE = float(sys.argv[14]) if len(sys.argv) > 14 else 0.0  # Specialization penalty scale (lambda): 0=no penalty, >0=penalty scale
 
 # Optional when number of agents = 1:
 # Decide which agent to train (1 or 2)
 if NUM_AGENTS == 1:
     agent_to_train = 1  # Default to agent 1
-    if len(sys.argv) > 15:
-        agent_to_train = int(sys.argv[15])
+    if len(sys.argv) > 16:  # Updated from 15 to 16 due to new specialization_penalty_scale parameter
+        agent_to_train = int(sys.argv[16])
         if agent_to_train not in [1, 2]:
             raise ValueError("When NUM_AGENTS=1, agent_to_train must be 1 or 2")
 
@@ -100,8 +102,7 @@ PENALTIES_CFG = {
     "destructive_action": 10.0, # Penalty for destructive actions
     "inaccessible_tile": 5.0, # Penalty for trying to access an inaccessible tile
     "not_available": 2.0, # Penalty for trying to perform an action that is not available
-    "specialization_penalty_enabled": SPECIALIZATION_PENALTY_ENABLED == "true",  # Enable ability-based specialization penalties
-    "specialization_penalty_scale": 5.0,  # Base penalty scale for performing non-specialized actions
+    "specialization_penalty_scale": SPECIALIZATION_PENALTY_SCALE,  # Specialization penalty scale (lambda): 0=no penalty, >0=penalty scale
 }
 
 if REWARDS_ON_DELIVERY_ONLY == "true":
@@ -198,13 +199,13 @@ ABILITY_RISK_CFG = {
 # 3. Asymmetric distribution: Ψ_i(τ) = S(τ) * ρ_i (if S<0) or S(τ) * (1-ρ_i) (if S≥0)
 # 4. Final reward: R^ref_i = R^env_i - P^spec_i + η * Ψ_i(τ)
 REFERENCE_REWARD_CFG = {
-    "enabled": (CHECKPOINT_PATHS != "none" and ETA > 0),
+    "enabled": (CHECKPOINT_PATHS != "none" and SYNERGY_SCALING_FACTOR > 0),
     
     # Opportunity cost sensitivity parameter η ∈ [0,∞)
     # Controls how much agents are penalized for underperforming solo baseline
     # η=0: No penalty (standard reward)
     # η>0: Reference-based shaping enabled
-    "eta": ETA,
+    "eta": SYNERGY_SCALING_FACTOR,
     
     # Solo baselines loaded from training_stats.csv (not re-evaluated)
     "load_from_training_stats": True,
@@ -213,9 +214,9 @@ REFERENCE_REWARD_CFG = {
 WAIT_FOR_ACTION_COMPLETION = True  # Flag to ensure actions complete before next step
 
 # Validate reference reward configuration
-if ETA > 0:
+if SYNERGY_SCALING_FACTOR > 0:
     if CHECKPOINT_PATHS == "none":
-        raise ValueError(f"Reference-based reward shaping (eta={ETA}) requires pretrained agents. Please provide checkpoint paths or set eta=0.")
+        raise ValueError(f"Reference-based reward shaping (synergy_scaling_factor={SYNERGY_SCALING_FACTOR}) requires pretrained agents. Please provide checkpoint paths or set synergy_scaling_factor=0.")
     if NUM_AGENTS != 2:
         raise ValueError("Reference-based reward shaping is currently only supported for 2-agent teams.")
 
@@ -257,24 +258,29 @@ save_dir_base = GAME_VERSION  # Use full game version (including _collision suff
 # Determine initialization folder based on random_initial_state flag
 init_folder = "random_init" if RANDOM_INITIAL_STATE == "true" else "empty_init"
 
-# Add eta subfolder if reference reward is enabled
-eta_folder = f"eta_{ETA}" if ETA > 0 else "eta_0"
+# Add synergy subfolder if reference reward is enabled
+synergy_folder = f"synergy_{SYNERGY_SCALING_FACTOR:.2f}" if SYNERGY_SCALING_FACTOR > 0 else "synergy_0"
 
-# Add specialization penalty subfolder
-spec_folder = "specialized" if SPECIALIZATION_PENALTY_ENABLED == "true" else "non_specialized"
+# Add specialization penalty subfolder based on lambda value
+if SPECIALIZATION_PENALTY_SCALE == 0:
+    spec_folder = "specialized_0"
+else:
+    # Format lambda value, preserving 2 decimal places
+    lambda_str = f"{SPECIALIZATION_PENALTY_SCALE:.2f}"
+    spec_folder = f"specialized_{lambda_str}"
 
 # Path definitions
 if NUM_AGENTS == 1:
-    if eta_folder:
-        save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/{init_folder}/map_{MAP_NR}/{eta_folder}/{spec_folder}'
+    if synergy_folder:
+        save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/{init_folder}/map_{MAP_NR}/{synergy_folder}/{spec_folder}'
     else:
         save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/{init_folder}/map_{MAP_NR}/{spec_folder}'
     reward_weights[f"ai_rl_{agent_to_train}"] = (globals()[f"alpha_{agent_to_train}"], globals()[f"beta_{agent_to_train}"])
     walking_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"walking_speed_{agent_to_train}"]
     cutting_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"cutting_speed_{agent_to_train}"]
 else:
-    if eta_folder:
-        save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/{init_folder}/map_{MAP_NR}/{eta_folder}/{spec_folder}'
+    if synergy_folder:
+        save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/{init_folder}/map_{MAP_NR}/{synergy_folder}/{spec_folder}'
     else:
         save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/{init_folder}/map_{MAP_NR}/{spec_folder}'
     for i in range(1, NUM_AGENTS + 1):
@@ -413,7 +419,7 @@ if ABILITY_RISK_CFG["enabled"]:
 solo_baselines = None
 if REFERENCE_REWARD_CFG["enabled"]:
     print(f"\n=== Reference-Based Opportunity Cost Shaping ===")
-    print(f"Eta (opportunity cost sensitivity): {ETA}")
+    print(f"Synergy scaling factor (opportunity cost sensitivity): {SYNERGY_SCALING_FACTOR}")
     print(f"Loading solo baselines from pretrained checkpoints...")
     
     # Load solo baselines from training_stats.csv of each pretrained agent
@@ -456,30 +462,19 @@ if REFERENCE_REWARD_CFG["enabled"]:
         # Get pure reward from last episode - use agent-specific column
         # Average across all environments in the last episode
         last_episode = df['episode'].max()
-        last_episode_rows = df[df['episode'] == last_episode]
+        last_episode_rows = df[df['episode'] == last_episode].copy()
         
         pure_reward_col = f'pure_reward_{agent_id}'
         if pure_reward_col not in df.columns:
             raise KeyError(f"Column '{pure_reward_col}' not found in {stats_file}. Available columns: {list(df.columns)}")
         
         # Convert pure reward column to numeric
-        last_episode_rows[pure_reward_col] = pd.to_numeric(last_episode_rows[pure_reward_col], errors='coerce')
+        last_episode_rows.loc[:, pure_reward_col] = pd.to_numeric(last_episode_rows[pure_reward_col], errors='coerce')
         
         R_solo = last_episode_rows[pure_reward_col].mean()
         solo_baselines[agent_id] = R_solo
-        
-        print(f"    {agent_id} solo baseline: {R_solo:.2f} (averaged over {len(last_episode_rows)} envs from episode {int(last_episode)})")
-    
+            
     solo_baseline_team = sum(solo_baselines.values())
-    print(f"  Team solo baseline: {solo_baseline_team:.2f}")
-    print(f"")
-    print(f"Reference reward formula (per agent):")
-    print(f"  R_ref[agent] = R_env[agent] - {ETA} * max(0, {solo_baseline_team:.2f} - R_env_team) * (R_solo[agent] / {solo_baseline_team:.2f})")
-    print(f"  Penalty distributed proportionally to each agent's solo baseline contribution")
-    print(f"High-ability teams will need R_env_team > {solo_baseline_team:.2f} to avoid penalty")
-    print(f"Low-ability teams benefit from any improvement over weak solo baseline")
-    print(f"")
-    print(f"===============================================\n")
 
 # RLlib specific configuration - Optimized for GPU training
 config = {

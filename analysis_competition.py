@@ -98,11 +98,11 @@ def main():
     print(f"Study name: {args.study_name}")
     print(f"Game type: {args.game_type}")
     print(f"Init type: {args.init_type}")
-    print(f"Eta: {args.eta}")
+    print(f"Eta: {args.synergy_scaling_factor}")
     
     try:
-        # Check if eta was explicitly provided
-        eta_provided = '--eta' in sys.argv
+        # Check if synergy_scaling_factor was explicitly provided
+        synergy_provided = '--synergy_scaling_factor' in sys.argv
         
         # Run main analysis pipeline
         analysis_results = main_analysis_pipeline(
@@ -113,8 +113,8 @@ def main():
             study_name=args.study_name,
             game_type=args.game_type,
             init_type=args.init_type,
-            eta=args.eta,
-            eta_provided=eta_provided
+            synergy_scaling_factor=args.synergy_scaling_factor,
+            synergy_provided=synergy_provided
         )
         
         # Generate competition-specific plots
