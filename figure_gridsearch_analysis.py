@@ -20,7 +20,7 @@ Examples:
     nohup python figure_gridsearch_analysis.py --episode_range final --num_final_episodes 100 > gridsearch_analysis.log 2>&1 &
     
     # Focus on specific maps
-    nohup python figure_gridsearch_analysis.py --maps baseline encouraged --episode_range final > gridsearch_subset.log 2>&1 &
+    nohup python figure_gridsearch_analysis.py --maps baseline,encouraged --episode_range final > gridsearch_subset.log 2>&1 &
     
     # Collision comparison only
     nohup python figure_gridsearch_analysis.py --collision_only --episode_range final > gridsearch_collision.log 2>&1 &
@@ -33,6 +33,24 @@ Examples:
     
     # Speed analysis for random initialization only
     nohup python figure_gridsearch_analysis.py --inits random_init --speed_analysis_only --episode_range final > gridsearch_random_speed.log 2>&1 &
+    
+    # Analyze specific synergy value (replaces eta)
+    nohup python figure_gridsearch_analysis.py --synergy 0.5 --episode_range final > gridsearch_synergy_0.50.log 2>&1 &
+    
+    # Analyze only specialized agents (with default lambda)
+    nohup python figure_gridsearch_analysis.py --specialization specialized --episode_range final > gridsearch_specialized.log 2>&1 &
+    
+    # Analyze non-specialized agents (lambda=0)
+    nohup python figure_gridsearch_analysis.py --specialization non_specialized --episode_range final > gridsearch_non_specialized.log 2>&1 &
+    
+    # Analyze specific lambda value
+    nohup python figure_gridsearch_analysis.py --specialization 2.5 --episode_range final > gridsearch_specialized_2.50.log 2>&1 &
+    
+    # Combine synergy and specialization filters
+    nohup python figure_gridsearch_analysis.py --synergy 0.5 --specialization non_specialized --maps baseline,encouraged --episode_range final > gridsearch_synergy_0.50_specialized_0.log 2>&1 &
+    
+    # Analyze all maps
+    nohup python figure_gridsearch_analysis.py --maps baseline,encouraged,semiencouraged,corridor --episode_range final > gridsearch_all_maps.log 2>&1 &
 """
 
 import sys
@@ -59,14 +77,53 @@ from spoiled_broth.analysis.utils import DataProcessor, AnalysisConfig
 class GridSearchAnalyzer:
     """Handles data loading and processing for grid search analysis."""
     
-    def __init__(self, study_name: Optional[str] = None, cluster: str = 'cuenca'):
+    def __init__(self, study_name: Optional[str] = None, cluster: str = 'cuenca', 
+                 eta: Optional[float] = None, specialization: Optional[str] = None):
         self.config = AnalysisConfig()
         self.data_processor = DataProcessor(self.config)
-        self.study_name = study_name
+        self.eta = eta
+        self.specialization = specialization
+        
+        # Set study_name based on eta if not explicitly provided
+        if study_name is None and eta is not None:
+            # Use new synergy naming convention: synergy_{eta} with 2 decimals, except synergy_0 for 0
+            if eta == 0:
+                self.study_name = "synergy_0"
+            else:
+                self.study_name = f"synergy_{eta:.2f}"
+        else:
+            self.study_name = study_name
+            
+        # If specialization is provided, include it in the study name using new naming convention
+        if self.specialization:
+            # Use new specialization naming: specialized_{lambda} with 2 decimals
+            if self.specialization == 'non_specialized':
+                # non_specialized maps to specialized_0
+                spec_folder = "specialized_0"
+            elif self.specialization == 'specialized':
+                # Need a default lambda value - assuming 5.0 as seen in training script
+                spec_folder = "specialized_5.00"
+            else:
+                # If it's already a numeric value, format it
+                try:
+                    lambda_val = float(self.specialization)
+                    if lambda_val == 0:
+                        spec_folder = "specialized_0"
+                    else:
+                        spec_folder = f"specialized_{lambda_val:.2f}"
+                except ValueError:
+                    # Fallback for non-numeric specialization values
+                    spec_folder = self.specialization
+            
+            if self.study_name:
+                self.study_name = f"{self.study_name}/{spec_folder}"
+            else:
+                self.study_name = spec_folder
+        
         self.cluster = cluster
         
         # Define grid search parameters
-        self.maps = ['baseline', 'encouraged', 'semiencouraged', 'corridor']
+        self.maps = ['baseline', 'encouraged']  # Default maps for normal gridsearch
         self.collision_settings = ['classic', 'classic_collision']  # No collision / With collision
         self.init_types = ['empty_init', 'random_init']  # Initialization types
         
@@ -139,6 +196,10 @@ class GridSearchAnalyzer:
             full_map_name = self.map_full_names[map_name]
             
             print(f"\nProcessing map: {map_name} ({full_map_name}), collision: {collision_setting}, init: {init_type}")
+            if self.eta:
+                print(f"  Using synergy scaling factor: {self.eta}")
+            if self.specialization:
+                print(f"  Using specialization: {self.specialization}")
             
             try:
                 # Set up paths for this map/collision/init combination
@@ -674,10 +735,9 @@ def setup_argument_parser() -> argparse.ArgumentParser:
     
     parser.add_argument(
         '--maps',
-        nargs='+',
-        choices=['baseline', 'encouraged', 'semiencouraged', 'corridor'],
+        type=str,
         default=None,
-        help='Specific maps to analyze (default: all)'
+        help='Comma-separated list of maps to analyze (baseline,encouraged,semiencouraged,corridor). Default: baseline,encouraged'
     )
     
     parser.add_argument(
@@ -707,6 +767,20 @@ def setup_argument_parser() -> argparse.ArgumentParser:
         help='Cluster name for data directories (default: cuenca)'
     )
     
+    parser.add_argument(
+        '--synergy',
+        type=float,
+        default=None,
+        help='Specific synergy value to analyze (e.g., 0.5, 1.0)'
+    )
+    
+    parser.add_argument(
+        '--specialization',
+        type=str,
+        default=None,
+        help='Analyze specific specialization type. Can be "specialized", "non_specialized", or numeric lambda value (e.g., "5.0")'
+    )
+    
     return parser
 
 
@@ -715,9 +789,24 @@ def main():
     parser = setup_argument_parser()
     args = parser.parse_args()
     
+    # Process comma-separated maps argument
+    selected_maps = None
+    if args.maps:
+        # Parse comma-separated map names
+        map_names = [name.strip() for name in args.maps.split(',')]
+        # Validate map choices
+        valid_maps = ['baseline', 'encouraged', 'semiencouraged', 'corridor']
+        invalid_maps = [name for name in map_names if name not in valid_maps]
+        if invalid_maps:
+            print(f"Error: Invalid map names: {invalid_maps}")
+            print(f"Valid choices: {valid_maps}")
+            sys.exit(1)
+        selected_maps = map_names
+    
     try:
         # Initialize analyzer
-        analyzer = GridSearchAnalyzer(study_name=args.study_name, cluster=args.cluster)
+        analyzer = GridSearchAnalyzer(study_name=args.study_name, cluster=args.cluster,
+                                    eta=args.synergy, specialization=args.specialization)
         
         # Set cluster-aware output directory if not specified
         if args.output_dir is None:
@@ -728,13 +817,17 @@ def main():
         print("GRID SEARCH ANALYSIS")
         print("=" * 60)
         print(f"Cluster: {args.cluster}")
-        print(f"Maps to analyze: {args.maps if args.maps else 'all'}")
+        print(f"Maps to analyze: {selected_maps if selected_maps else 'default (baseline, encouraged)'}")
         if args.study_name:
             print(f"Study: {args.study_name}")
+        if args.synergy is not None:
+            print(f"Synergy scaling factor: {args.synergy}")
+        if args.specialization:
+            print(f"Specialization: {args.specialization}")
         
         # Load grid search data
         df = analyzer.load_grid_search_data(
-            selected_maps=args.maps,
+            selected_maps=selected_maps,
             selected_collisions=None,
             selected_inits=args.inits
         )
@@ -780,6 +873,11 @@ def main():
         print(f"  Speed pairs: {len(processed_df['speed_pair'].unique())}")
         print(f"  Episode selection: {args.episode_range}")
         
+        if args.synergy is not None:
+            print(f"  Synergy scaling factor filter: {args.synergy}")
+        if args.specialization:
+            print(f"  Specialization filter: {args.specialization}")
+            
         if args.episode_range == 'final':
             print(f"  Final episodes used: {args.num_final_episodes}")
         

@@ -12,9 +12,9 @@ Examples:
 nohup python analysis_classic.py baseline_division_of_labor_large --study_name speeds --game_type classic > analysis_classic.log 2>&1 &
 nohup python analysis_classic.py baseline_division_of_labor_large --study_name speeds --game_type classic_collision > analysis_classic_collision.log 2>&1 &
 nohup python analysis_classic.py baseline_division_of_labor_large --init_type empty_init --game_type classic > analysis_classic_empty_init.log 2>&1 &
-nohup python analysis_classic.py baseline_division_of_labor_large --synergy_scaling_factor 0.5 --game_type classic > analysis_classic_synergy_0.5.log 2>&1 &
-nohup python analysis_classic.py baseline_division_of_labor_large --specialization_lambda 0 --game_type classic > analysis_classic_lambda_0.log 2>&1 &
-nohup python analysis_classic.py baseline_division_of_labor_large --specialization_lambda 5.0 --game_type classic > analysis_classic_lambda_5.log 2>&1 &
+nohup python analysis_classic.py baseline_division_of_labor_large --synergy 0.5 --game_type classic > analysis_classic_synergy_0.5.log 2>&1 &
+nohup python analysis_classic.py baseline_division_of_labor_large --specialization 0 --game_type classic > analysis_classic_lambda_0.log 2>&1 &
+nohup python analysis_classic.py baseline_division_of_labor_large --specialization 5.0 --game_type classic > analysis_classic_lambda_5.log 2>&1 &
 """
 
 import sys
@@ -258,7 +258,7 @@ def generate_individual_training_plots(analysis_results):
 def main():
     """Main execution function."""
     parser = setup_argument_parser('classic')
-    parser.add_argument('--specialization_lambda', type=float, 
+    parser.add_argument('--specialization', type=float, 
                        help='Analyze only specific specialization lambda value (e.g., 0, 5.0). If not specified, analyzes all available lambdas.')
     args = parser.parse_args()
 
@@ -269,16 +269,16 @@ def main():
     print(f"Study name: {args.study_name}")
     print(f"Game type: {args.game_type}")
     print(f"Init type: {args.init_type}")
-    print(f"Eta: {args.synergy_scaling_factor}")
-    if hasattr(args, 'specialization_lambda') and args.specialization_lambda is not None:
-        print(f"Specialization lambda: {args.specialization_lambda}")
+    print(f"Synergy scaling factor: {args.synergy}")
+    if hasattr(args, 'specialization') and args.specialization is not None:
+        print(f"Specialization lambda: {args.specialization}")
 
     try:
-        # Check if synergy_scaling_factor was explicitly provided
-        synergy_provided = '--synergy_scaling_factor' in sys.argv
+        # Check if synergy was explicitly provided
+        synergy_provided = '--synergy' in sys.argv
         
         # Set specialization based on command line argument
-        specialization_lambda = getattr(args, 'specialization_lambda', None)
+        specialization = getattr(args, 'specialization', None)
         
         # Run main analysis pipeline
         analysis_results = main_analysis_pipeline(
@@ -289,9 +289,9 @@ def main():
             study_name=args.study_name,
             game_type=args.game_type,
             init_type=args.init_type,
-            synergy_scaling_factor=args.synergy_scaling_factor,
+            synergy_scaling_factor=args.synergy,
             synergy_provided=synergy_provided,
-            specialization_lambda=specialization_lambda
+            specialization_lambda=specialization
         )
 
         # Check if we got a dict of results (multiple specialization modes) or single result
