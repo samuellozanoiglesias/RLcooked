@@ -1249,57 +1249,106 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
     # Custom path setup that includes init_type and synergy in the correct order
     local_path = config.cluster_paths[cluster]
     
+    # Determine which synergy values to analyze (if not explicitly provided)
+    if not synergy_provided and synergy_scaling_factor is None:
+        # Auto-detect available synergy folders
+        synergy_values_to_analyze = _detect_available_synergy_folders(
+            local_path, experiment_type, game_type, init_type, 
+            map_name, study_name
+        )
+        analyze_multiple_synergies = len([s for s in synergy_values_to_analyze if s is not None]) > 1
+        print(f"Detected synergy values: {synergy_values_to_analyze}")
+    else:
+        # Use provided synergy value or default
+        synergy_values_to_analyze = [synergy_scaling_factor if synergy_scaling_factor is not None else 0.0]
+        analyze_multiple_synergies = False
+    
     # Determine which specialization lambdas to analyze
     if specialization_lambda is None:
-        # Auto-detect available lambda folders
-        spec_folders_to_analyze = _detect_available_specialization_folders(
-            local_path, experiment_type, game_type, init_type, 
-            map_name, synergy_provided, synergy_scaling_factor, study_name
-        )
-        analyze_multiple = len(spec_folders_to_analyze) > 1
+        # Will auto-detect for each synergy value
+        spec_folders_to_analyze = None  # Detect per synergy
     else:
-        # Use specified lambda
+        # Use specified lambda - format with 2 decimal places to match folder names
         if specialization_lambda == 0:
             spec_folders_to_analyze = ["specialized_0"]
         else:
-            lambda_str = f"{specialization_lambda:g}"
-            spec_folders_to_analyze = [f"specialized_{lambda_str}"]
-        analyze_multiple = False
+            spec_folders_to_analyze = [f"specialized_{specialization_lambda:.2f}"]
     
-    if not spec_folders_to_analyze:
-        raise ValueError("No specialization folders found. Please check that training data exists.")
+    # If analyzing multiple synergies and/or specializations, process each combination
+    all_results = {}
     
-    print(f"Detected specialization folders: {spec_folders_to_analyze}")
-    
-    # Determine number of agents based on experiment type (needed for data loading)
-    if num_agents is None:
-        # Pretrained experiments have 1 agent, others have 2
-        num_agents = 1 if 'pretrain' in experiment_type.lower() else 2
-    
-    # If analyzing multiple lambdas, process each specialization mode separately
-    if analyze_multiple:
-        results_by_specialization = {}
+    for synergy_val in synergy_values_to_analyze:
+        # Determine if we're using synergy subfolders for this value
+        current_synergy_provided = (synergy_val is not None) and (not synergy_provided or synergy_val != (synergy_scaling_factor if synergy_scaling_factor is not None else 0.0))
+        if analyze_multiple_synergies and synergy_val is not None:
+            current_synergy_provided = True
+        elif not analyze_multiple_synergies and synergy_provided:
+            current_synergy_provided = True
+        else:
+            current_synergy_provided = False
         
-        for spec_folder in spec_folders_to_analyze:
+        # For auto-detected synergies, always treat as provided
+        if analyze_multiple_synergies and synergy_val is not None:
+            current_synergy_provided = True
+        
+        # Auto-detect specialization folders for this synergy value if needed
+        if spec_folders_to_analyze is None:
+            current_spec_folders = _detect_available_specialization_folders(
+                local_path, experiment_type, game_type, init_type, 
+                map_name, current_synergy_provided, synergy_val, study_name
+            )
+            if not current_spec_folders:
+                print(f"No specialization folders found for synergy={synergy_val}")
+                continue
+            print(f"Detected specialization folders for synergy={synergy_val}: {current_spec_folders}")
+        else:
+            current_spec_folders = spec_folders_to_analyze
+        
+        analyze_multiple_specs = len(current_spec_folders) > 1
+    
+        # Determine number of agents based on experiment type (needed for data loading)
+        if num_agents is None:
+            # Pretrained experiments have 1 agent, others have 2
+            num_agents = 1 if 'pretrain' in experiment_type.lower() else 2
+        
+        # Process each specialization mode for this synergy value
+        for spec_folder in current_spec_folders:
+            # Create a unique key for this combination
+            if analyze_multiple_synergies and synergy_val is not None:
+                if synergy_val == 0:
+                    result_key = f"synergy_0_{spec_folder}"
+                else:
+                    result_key = f"synergy_{synergy_val:.2f}_{spec_folder}"
+            elif analyze_multiple_specs:
+                result_key = spec_folder
+            else:
+                result_key = 'single_result'
+            
             print(f"\n{'='*60}")
-            print(f"PROCESSING {spec_folder.upper()} DATA")
+            if synergy_val is not None:
+                if synergy_val == 0:
+                    print(f"PROCESSING SYNERGY=0, {spec_folder.upper()} DATA")
+                else:
+                    print(f"PROCESSING SYNERGY={synergy_val:.2f}, {spec_folder.upper()} DATA")
+            else:
+                print(f"PROCESSING {spec_folder.upper()} DATA")
             print(f"{'='*60}")
             
-            # Build path for this specialization mode
+            # Build path for this synergy/specialization combination
             raw_dir = _build_experiment_path(
                 local_path, experiment_type, game_type, init_type, 
-                map_name, synergy_provided, synergy_scaling_factor, spec_folder, study_name
+                map_name, current_synergy_provided, synergy_val, spec_folder, study_name
             )
             
             # Check if path exists
             if not os.path.exists(raw_dir):
-                print(f"  Warning: Path not found for {spec_folder}: {raw_dir}")
-                print(f"  Skipping {spec_folder} mode...")
+                print(f"  Warning: Path not found: {raw_dir}")
+                print(f"  Skipping...")
                 continue
             
             print(f"  Found data at: {raw_dir}")
             
-            # Set up paths for this specialization mode
+            # Set up paths for this combination
             paths = {
                 'raw_dir': raw_dir,
                 'output_path': f"{raw_dir}/training_results.csv",
@@ -1307,7 +1356,7 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
                 'smoothed_figures_dir': f"{raw_dir}/training_figures/smoothed_{config.smoothing_factor}/",
                 'study_name': study_name,
                 'init_type': init_type,
-                'eta': eta,
+                'synergy': synergy_val,
                 'specialization': spec_folder
             }
             
@@ -1323,7 +1372,7 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
             print(f"  Unique attitudes: {len(df['attitude_key'].unique())}")
             print(f"  Figures will be saved to: {paths['figures_dir']}")
             
-            results_by_specialization[spec_folder] = {
+            all_results[result_key] = {
                 'df': df,
                 'paths': paths,
                 'config': config,
@@ -1331,18 +1380,24 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
                 'plotter': plotter,
                 'num_agents': num_agents
             }
-        
-        if not results_by_specialization:
-            raise ValueError("No data could be loaded from any specialization mode")
-        
-        print(f"\n{'='*60}")
-        print(f"ANALYSIS MODES FOUND: {sorted(results_by_specialization.keys())}")
-        print(f"{'='*60}\n")
-        
-        return results_by_specialization
     
+    if not all_results:
+        raise ValueError("No data could be loaded from any synergy/specialization combination")
+    
+    # Return results based on how many combinations we found
+    if len(all_results) == 1 and 'single_result' in all_results:
+        # Single combination - return the dict directly
+        return all_results['single_result']
+    else:
+        # Multiple combinations - return the full dictionary
+        print(f"\n{'='*60}")
+        print(f"ANALYSIS COMBINATIONS FOUND: {sorted(all_results.keys())}")
+        print(f"{'='*60}\n")
+        return all_results
+
+    # Note: Code below this point is no longer reachable but kept for reference
     # Single specialization mode - use original logic
-    spec_folder = spec_folders_to_analyze[0]
+    spec_folder = current_spec_folders[0]
     
     # Build path
     raw_dir = _build_experiment_path(
@@ -1390,7 +1445,11 @@ def _build_experiment_path(local_path: str, experiment_type: str, game_type: str
     
     # Only create synergy subfolder if synergy was explicitly provided (even if it's 0)
     if synergy_provided:
-        synergy_folder = f"synergy_{synergy_scaling_factor}" if synergy_scaling_factor != 0 else "synergy_0"
+        # Format synergy folder name with 2 decimal places to match actual folder names
+        if synergy_scaling_factor == 0:
+            synergy_folder = "synergy_0"
+        else:
+            synergy_folder = f"synergy_{synergy_scaling_factor:.2f}"
         
         # Build the experiment path based on experiment type with synergy folder and specialization
         if 'pretrain' in experiment_type.lower():
@@ -1469,6 +1528,51 @@ def _build_experiment_path(local_path: str, experiment_type: str, game_type: str
                     raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}"
     
     return raw_dir
+
+
+def _detect_available_synergy_folders(local_path: str, experiment_type: str, 
+                                     game_type: str, init_type: str, map_name: str, 
+                                     study_name: Optional[str]) -> List[float]:
+    """
+    Detect available synergy folders (synergy_0, synergy_0.5, synergy_1, etc.).
+    
+    Returns a list of synergy values that actually exist in the filesystem.
+    If no synergy folders exist, returns [None] to indicate no synergy subfolders.
+    """
+    import os
+    import glob
+    
+    # Build base path without synergy folder (synergy_provided=False)
+    base_path = _build_experiment_path(
+        local_path, experiment_type, game_type, init_type, 
+        map_name, False, None, None, study_name
+    )
+    
+    # Look for synergy_* folders
+    if os.path.exists(base_path):
+        synergy_pattern = os.path.join(base_path, "synergy_*")
+        synergy_paths = glob.glob(synergy_pattern)
+        
+        # Extract synergy values and sort them
+        synergy_values = []
+        for path in synergy_paths:
+            folder_name = os.path.basename(path)
+            if os.path.isdir(path):
+                try:
+                    synergy_str = folder_name.replace("synergy_", "")
+                    synergy_val = float(synergy_str)
+                    synergy_values.append(synergy_val)
+                except ValueError:
+                    continue  # Skip invalid folder names
+        
+        # Sort by synergy value for consistent ordering
+        synergy_values.sort()
+        
+        # If synergy folders found, return them; otherwise return [None]
+        return synergy_values if synergy_values else [None]
+    
+    # If base path doesn't exist, return [None]
+    return [None]
 
 
 def _detect_available_specialization_folders(local_path: str, experiment_type: str, 

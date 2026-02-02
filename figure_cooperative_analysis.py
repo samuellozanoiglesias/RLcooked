@@ -20,10 +20,10 @@ Examples:
     nohup python figure_cooperative_analysis.py --episode_range final --num_episodes 100 > figure_cooperative_analysis_final.log 2>&1 &
     
     # Analyze specific lambda data
-    nohup python figure_cooperative_analysis.py --episode_range final --specialization_lambda 0 --num_episodes 100 > figure_cooperative_analysis_lambda_0.log 2>&1 &
+    nohup python figure_cooperative_analysis.py --episode_range final --specialization 0 --num_episodes 100 > figure_cooperative_analysis_lambda_0.log 2>&1 &
     
     # Analyze different lambda values
-    nohup python figure_cooperative_analysis.py --episode_range final --specialization_lambda 5.0 --num_episodes 100 > figure_cooperative_analysis_lambda_5.log 2>&1 &
+    nohup python figure_cooperative_analysis.py --episode_range final --specialization 5.0 --num_episodes 100 > figure_cooperative_analysis_lambda_5.log 2>&1 &
     
     # Analyze empty_init data (both specializations)
     nohup python figure_cooperative_analysis.py --episode_range final --init_type empty_init --num_episodes 100 > figure_cooperative_analysis_empty_init.log 2>&1 &
@@ -31,8 +31,8 @@ Examples:
     # Analyze speeds study with specific initialization
     nohup python figure_cooperative_analysis.py --episode_range final --study_name speeds --init_type random_init --num_episodes 100 > figure_cooperative_analysis_speeds.log 2>&1 &
     
-    # Analyze with synergy_scaling_factor parameter (reference-based reward shaping)
-    nohup python figure_cooperative_analysis.py --episode_range final --init_type random_init --synergy_scaling_factor 0.5 --num_episodes 100 > figure_cooperative_analysis_synergy_0.5.log 2>&1 &
+    # Analyze with synergy parameter (reference-based reward shaping)
+    nohup python figure_cooperative_analysis.py --episode_range final --init_type random_init --synergy 0.5 --num_episodes 100 > figure_cooperative_analysis_synergy_0.5.log 2>&1 &
     
     # Custom maps (e.g., baseline vs forced) with empty_init
     nohup python figure_cooperative_analysis.py --episode_range final --map_name_1 baseline_division_of_labor_large --map_name_2 collision_division_of_labor_large --init_type empty_init --num_episodes 100 > figure_cooperative_analysis_baseline_forced.log 2>&1 &
@@ -71,9 +71,9 @@ class CooperativeAnalyzer:
                  map_name_1: str = 'baseline_division_of_labor_large',
                  map_name_2: str = 'encouraged_division_of_labor_large',
                  init_type: str = 'random_init',
-                 synergy_scaling_factor: float = 0.0,
+                 synergy: float = 0.0,
                  synergy_provided: bool = False,
-                 specialization_lambda: Optional[float] = None,
+                 specialization: Optional[float] = None,
                  cluster: str = 'cuenca'):
         self.config = AnalysisConfig()
         self.data_processor = DataProcessor(self.config)
@@ -81,9 +81,9 @@ class CooperativeAnalyzer:
         self.map_name_1 = map_name_1
         self.map_name_2 = map_name_2
         self.init_type = init_type
-        self.synergy_scaling_factor = synergy_scaling_factor
+        self.synergy = synergy
         self.synergy_provided = synergy_provided
-        self.specialization_lambda = specialization_lambda  # None=auto-detect, float=specific lambda
+        self.specialization = specialization  # None=auto-detect, float=specific lambda
         self.cluster = cluster
         self.detected_specializations = []  # Track which specializations were found
         
@@ -170,66 +170,168 @@ class CooperativeAnalyzer:
         # Fallback: use first word
         return map_name.split('_')[0]
     
+    def _detect_available_synergy_values(self) -> List[float]:
+        """Detect available synergy values from directory structure.
+        
+        Returns:
+            List of synergy values found in the directory structure
+        """
+        synergy_values = []
+        
+        # Build path to check for synergy directories
+        base_path = os.path.join(self.local_path, 'data', 'samuel_lozano', 'cooked', 'classic', self.init_type, f'map_{self.map_name_1}')
+        
+        if os.path.exists(base_path):
+            try:
+                # List all directories in the base path
+                subdirs = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
+                
+                for subdir in subdirs:
+                    if subdir.startswith('synergy_'):
+                        try:
+                            # Extract synergy value from directory name
+                            synergy_str = subdir.replace('synergy_', '')
+                            if synergy_str == '0':
+                                synergy_val = 0.0
+                            else:
+                                synergy_val = float(synergy_str)
+                            synergy_values.append(synergy_val)
+                        except ValueError:
+                            print(f"    Warning: Could not parse synergy value from directory {subdir}")
+                            continue
+                            
+                if synergy_values:
+                    synergy_values.sort()
+                    print(f"    Found synergy values: {synergy_values}")
+                else:
+                    print(f"    No synergy directories found, using default synergy=0.0")
+                    synergy_values = [0.0]
+                    
+            except Exception as e:
+                print(f"    Warning: Error detecting synergy values: {e}")
+                synergy_values = [0.0]
+        else:
+            print(f"    Warning: Base path {base_path} not found, using default synergy=0.0")
+            synergy_values = [0.0]
+            
+        return synergy_values
+    
+    def _detect_available_specialization_values(self, synergy_val: float) -> List[str]:
+        """Detect available specialization values for a given synergy value.
+        
+        Args:
+            synergy_val: Synergy value to check
+            
+        Returns:
+            List of specialization folder names found
+        """
+        specialization_values = []
+        
+        # Build path to check for specialization directories
+        # Use 2 decimal places to match actual folder names on disk
+        synergy_str = 'synergy_0' if synergy_val == 0.0 else f'synergy_{synergy_val:.2f}'
+        base_path = os.path.join(self.local_path, 'data', 'samuel_lozano', 'cooked', 'classic', self.init_type, f'map_{self.map_name_1}', synergy_str)
+        
+        if os.path.exists(base_path):
+            try:
+                # List all directories in the synergy path
+                subdirs = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
+                
+                for subdir in subdirs:
+                    if subdir.startswith('specialized_'):
+                        specialization_values.append(subdir)
+                        
+                if specialization_values:
+                    specialization_values.sort()
+                    print(f"    Found specialization values for synergy {synergy_val}: {specialization_values}")
+                else:
+                    print(f"    No specialization directories found for synergy {synergy_val}")
+                    
+            except Exception as e:
+                print(f"    Warning: Error detecting specialization values for synergy {synergy_val}: {e}")
+        else:
+            print(f"    Warning: Synergy path {base_path} not found")
+            
+        return specialization_values
+    
     def load_experimental_data(self) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
         """Load and combine data from all experimental conditions.
         
         Returns:
-            If analyzing single specialization: pd.DataFrame
-            If analyzing both specializations: Dict[str, pd.DataFrame] with keys:
-                - 'non_specialized': All conditions using non_specialized data
-                - 'mixed': Mixed conditions with specialized data, stars conditions with non_specialized data
-                - 'specialized': All conditions using specialized data
+            If analyzing single synergy/specialization: pd.DataFrame
+            If analyzing multiple combinations: Dict[str, pd.DataFrame] with keys like:
+                - 'synergy_0.50__specialized_0.25': Data for that specific combination
+                - 'synergy_1.00__specialized_5.00': Data for that specific combination
+                - etc.
         """
         print("Loading experimental data from all conditions...")
         if self.study_name:
             print(f"Using study name: {self.study_name}")
-        if self.specialization_lambda is None:
+        if self.specialization is None:
             print("Specialization lambda: Auto-detecting all available lambda values")
         else:
-            print(f"Specialization lambda: {self.specialization_lambda}")
+            print(f"Specialization lambda: {self.specialization}")
         
-        # Determine which specialization lambdas to try
-        # For now, simplified approach: if lambda specified, use it; otherwise try common values
-        if self.specialization_lambda is None:
-            # Try to detect available lambdas (common values: 0, 5.0)
-            spec_modes_to_analyze = ['specialized_0', 'specialized_5']  # Could be enhanced to auto-detect
-            create_three_datasets = False  # Simplified for now
+        # Auto-detect synergy values if not explicitly specified
+        synergy_values_to_analyze = []
+        if not self.synergy_provided:
+            print("Synergy: Auto-detecting all available synergy values")
+            synergy_values_to_analyze = self._detect_available_synergy_values()
         else:
-            # Use specified lambda
-            if self.specialization_lambda == 0:
-                spec_folder_name = 'specialized_0'
-            else:
-                lambda_str = f"{self.specialization_lambda:g}"
-                spec_folder_name = f'specialized_{lambda_str}'
-            spec_modes_to_analyze = [spec_folder_name]
-            create_three_datasets = False
+            synergy_values_to_analyze = [self.synergy]
+            print(f"Synergy: Using specified value {self.synergy}")
         
-        # Store data separately for each specialization mode
-        # When create_three_datasets is True, we'll store data organized by (spec_mode, speed_config)
-        data_by_spec_and_speed = {} if create_three_datasets else None
-        data_by_specialization = {}
+        # Store data separately for each synergy/specialization combination
+        all_combinations = {}
         
-        # Load data for each specialization mode
-        for spec_mode in spec_modes_to_analyze:
-            all_data = []  # Reset for each specialization mode
+        # Iterate over all synergy values
+        for synergy_val in synergy_values_to_analyze:
+            print(f"\nProcessing synergy value: {synergy_val}")
             
-            # Load all conditions for this specialization mode
-            for (map_name, game_type, speed_config), condition_name in self.base_condition_mapping.items():
-                # Keep original condition name (no suffix)
-                print(f"\nProcessing condition: {condition_name}")
-                print(f"  Map: {map_name}, Game type: {game_type}, Speed config: {speed_config}")
-                if spec_mode:
-                    print(f"  Specialization: {spec_mode}")
+            # Determine which specialization lambdas to try for this synergy value
+            if self.specialization is None:
+                # Auto-detect available specialization values for this synergy
+                spec_modes_to_analyze = self._detect_available_specialization_values(synergy_val)
+                if not spec_modes_to_analyze:
+                    # Fallback to common values
+                    spec_modes_to_analyze = ['specialized_0', 'specialized_5']
+                    print(f"    Using fallback specialization values: {spec_modes_to_analyze}")
+            else:
+                # Use specified lambda - format with 2 decimal places to match folder names
+                if self.specialization == 0:
+                    spec_folder_name = 'specialized_0'
+                else:
+                    spec_folder_name = f'specialized_{self.specialization:.2f}'
+                spec_modes_to_analyze = [spec_folder_name]
+            
+            # Load data for each specialization mode for this synergy value
+            for spec_mode in spec_modes_to_analyze:
+                print(f"  Processing specialization: {spec_mode}")
                 
-                try:
-                    # Set up paths for this condition with init_type and synergy in the correct order
-                    # Only include synergy folder if synergy was explicitly provided (even if it's 0)
+                # Temporarily update synergy for this iteration
+                original_synergy = self.synergy
+                self.synergy = synergy_val
+                condition_data = []  # Reset for each specialization mode
+                
+                # Load all conditions for this specialization mode
+                for (map_name, game_type, speed_config), condition_name in self.base_condition_mapping.items():
+                    # Keep original condition name (no suffix)
+                    print(f"\nProcessing condition: {condition_name}")
+                    print(f"  Map: {map_name}, Game type: {game_type}, Speed config: {speed_config}")
+                    if spec_mode:
+                        print(f"  Specialization: {spec_mode}")
                     
-                    if self.synergy_provided:
-                        # Build path with synergy folder
-                        synergy_folder = f"synergy_{self.synergy_scaling_factor}" if self.synergy_scaling_factor != 0 else "synergy_0"
+                    try:
+                        # Set up paths for this condition with init_type and synergy in the correct order
+                        # Always use synergy folder when we have a specific synergy value (either provided or auto-detected)
                         
-                        # Use the specific specialization mode (no fallback)
+                        # Build path with synergy folder
+                        if self.synergy == 0.0:
+                            synergy_folder = "synergy_0"
+                        else:
+                            synergy_folder = f"synergy_{self.synergy:.2f}"
+                        
+                        # Use the specific specialization mode
                         if spec_mode:
                             spec_folder = spec_mode
                         else:
@@ -248,167 +350,117 @@ class CooperativeAnalyzer:
                                 raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{synergy_folder}/{spec_folder}"
                             else:
                                 raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{synergy_folder}"
+                        
+                        print(f"  Loading from: {raw_dir}")
                     
-                    else:
-                        # No synergy folder - use original structure when synergy is not provided
-                        if self.study_name:
-                            # Use study_name folder structure
-                            raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{self.study_name}"
-                        else:
-                            # Default structure
-                            raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}"
-                
-                except Exception as e:
-                    print(f"  Error loading condition {condition_name}: {e}")
-                    continue
-                
-                paths = {
-                    'raw_dir': raw_dir,
-                    'output_path': f"{raw_dir}/training_results.csv",
-                    'figures_dir': f"{raw_dir}/training_figures/",
-                    'smoothed_figures_dir': f"{raw_dir}/training_figures/smoothed_{self.config.smoothing_factor}/",
-                    'study_name': self.study_name
-                }
-                
-                # Create the directories if they don't exist
-                for dir_path in [paths['raw_dir'], paths['figures_dir'], paths['smoothed_figures_dir']]:
-                    os.makedirs(dir_path, exist_ok=True)
-                
-                # Load the data (using 2 agents since this is multi-agent cooperative data)
-                df = self.data_processor.load_experiment_data(paths, num_agents=2)
-                
-                if df is not None and len(df) > 0:
-                    print(f"  Loaded initial data shape: {df.shape}")
-                    print(f"  Available columns: {list(df.columns)[:10]}...")  # Show first 10 columns
-                    
-                    # Check if the training has the expected speed configuration
-                    # Speed information is stored in walking_speed_1, cutting_speed_1, etc. columns
-                    df_filtered = self._filter_by_speed_config(df, speed_config)
-                    
-                    if len(df_filtered) == 0:
-                        print(f"  Warning: No data found matching speed configuration {speed_config}")
-                        print(f"  Available speed configurations in this training:")
-                        self._print_available_speeds(df)
+                    except Exception as e:
+                        print(f"  Error loading condition {condition_name}: {e}")
                         continue
                     
-                    print(f"  Filtered to {len(df_filtered)} episodes matching speed {speed_config}")
+                    paths = {
+                        'raw_dir': raw_dir,
+                        'output_path': f"{raw_dir}/training_results.csv",
+                        'figures_dir': f"{raw_dir}/training_figures/",
+                        'smoothed_figures_dir': f"{raw_dir}/training_figures/smoothed_{self.config.smoothing_factor}/",
+                        'study_name': self.study_name
+                    }
                     
-                    # Create combined metrics from individual agent metrics
-                    self._create_combined_metrics(df_filtered)
+                    # Create the directories if they don't exist
+                    for dir_path in [paths['raw_dir'], paths['figures_dir'], paths['smoothed_figures_dir']]:
+                        os.makedirs(dir_path, exist_ok=True)
                     
-                    # Add condition metadata
-                    df_filtered['condition'] = condition_name
-                    df_filtered['map_name'] = map_name 
-                    df_filtered['game_type_clean'] = game_type
-                    df_filtered['speed_condition'] = speed_config
-                    if spec_mode:
-                        df_filtered['specialization'] = spec_mode
+                    # Load the data (using 2 agents since this is multi-agent cooperative data)
+                    df = self.data_processor.load_experiment_data(paths, num_agents=2)
                     
-                    # Add color palette entry for this specific condition
-                    if condition_name not in self.color_palette:
-                        # Get base color
-                        base_color = self.base_color_palette.get(condition_name, '#666666')
-                        self.color_palette[condition_name] = base_color
-                    
-                    # Store data appropriately
-                    if create_three_datasets:
-                        # Store by (spec_mode, speed_config) tuple for later combining
-                        key = (spec_mode, speed_config)
-                        if key not in data_by_spec_and_speed:
-                            data_by_spec_and_speed[key] = []
-                        data_by_spec_and_speed[key].append(df_filtered)
+                    if df is not None and len(df) > 0:
+                        print(f"  Loaded initial data shape: {df.shape}")
+                        print(f"  Available columns: {list(df.columns)[:10]}...")  # Show first 10 columns
+                        
+                        # Check if the training has the expected speed configuration
+                        # Speed information is stored in walking_speed_1, cutting_speed_1, etc. columns
+                        df_filtered = self._filter_by_speed_config(df, speed_config)
+                        
+                        if len(df_filtered) == 0:
+                            print(f"  Warning: No data found matching speed configuration {speed_config}")
+                            print(f"  Available speed configurations in this training:")
+                            self._print_available_speeds(df)
+                            continue
+                        
+                        print(f"  Filtered to {len(df_filtered)} episodes matching speed {speed_config}")
+                        
+                        # Create combined metrics from individual agent metrics
+                        self._create_combined_metrics(df_filtered)
+                        
+                        # Add condition metadata
+                        df_filtered['condition'] = condition_name
+                        df_filtered['map_name'] = map_name 
+                        df_filtered['game_type_clean'] = game_type
+                        df_filtered['speed_condition'] = speed_config
+                        if spec_mode:
+                            df_filtered['specialization'] = spec_mode
+                        
+                        # Add color palette entry for this specific condition
+                        if condition_name not in self.color_palette:
+                            # Get base color
+                            base_color = self.base_color_palette.get(condition_name, '#666666')
+                            self.color_palette[condition_name] = base_color
+                        
+                        # Store data for this condition
+                        condition_data.append(df_filtered)
+                        
+                        print(f"  Loaded {len(df_filtered)} episodes")
+                        
+                        # Debug: Check if our target metrics exist
+                        print(f"  Loaded {len(df_filtered)} episodes")
+                        
+                        # Debug: Check if our target metrics exist
+                        missing_metrics = [metric for metric in self.performance_metrics.keys() if metric not in df_filtered.columns]
+                        if missing_metrics:
+                            print(f"  Warning: Missing metrics: {missing_metrics}")
+                            available_metrics = [metric for metric in self.performance_metrics.keys() if metric in df_filtered.columns]
+                            print(f"  Available metrics: {available_metrics}")
+                        
                     else:
-                        # Normal storage for single specialization mode
-                        all_data.append(df_filtered)
+                        print(f"  Warning: No data loaded for condition {condition_name}")
+                
+                # Store data for this combination if we have any
+                if condition_data:
+                    combined_df = pd.concat(condition_data, ignore_index=True)
                     
-                    print(f"  Loaded {len(df_filtered)} episodes")
+                    # Add metadata about this combination
+                    combined_df['synergy_value'] = synergy_val
+                    combined_df['specialization_mode'] = spec_mode
                     
-                    # Debug: Check if our target metrics exist
-                    missing_metrics = [metric for metric in self.performance_metrics.keys() if metric not in df_filtered.columns]
-                    if missing_metrics:
-                        print(f"  Warning: Missing metrics: {missing_metrics}")
-                        available_metrics = [metric for metric in self.performance_metrics.keys() if metric in df_filtered.columns]
-                        print(f"  Available metrics: {available_metrics}")
+                    # Track this combination
+                    combination_key = f"synergy_{synergy_val}__{spec_mode}"
                     
+                    print(f"    Loaded {len(combined_df)} episodes for {combination_key}")
+                    print(f"    Conditions in this combination: {sorted(combined_df['condition'].unique())}")
+                    
+                    all_combinations[combination_key] = combined_df
                 else:
-                    print(f"  Warning: No data loaded for condition {condition_name}")
-            
-            # Store data for this specialization mode if we have any (only for non-create_three_datasets mode)
-            if not create_three_datasets and all_data:
-                if spec_mode:
-                    data_by_specialization[spec_mode] = pd.concat(all_data, ignore_index=True)
-                else:
-                    # No specialization mode - just return single DataFrame
-                    data_by_specialization['default'] = pd.concat(all_data, ignore_index=True)
+                    print(f"    No data found for synergy {synergy_val}, specialization {spec_mode}")
+                
+                # Restore original synergy
+                self.synergy = original_synergy
         
-        # Return based on what we collected
-        if not data_by_specialization and not create_three_datasets:
-            raise ValueError("No data could be loaded from any experimental condition")
+        # Return based on how many combinations we found
+        if not all_combinations:
+            raise ValueError("No data could be loaded from any synergy/specialization combination")
         
-        # If creating three datasets, combine data accordingly
-        if create_three_datasets:
-            print("\n" + "=" * 60)
-            print("CREATING THREE DATASETS")
-            print("=" * 60)
-            
-            # Dataset 1: All non_specialized (both stars and mixed)
-            dataset_1_data = []
-            for (spec_mode, speed_config), data_list in data_by_spec_and_speed.items():
-                if spec_mode == 'non_specialized':
-                    dataset_1_data.extend(data_list)
-            
-            if dataset_1_data:
-                data_by_specialization['non_specialized'] = pd.concat(dataset_1_data, ignore_index=True)
-                print(f"Dataset 1 (non_specialized): {len(data_by_specialization['non_specialized'])} episodes")
-            
-            # Dataset 2: Mixed from specialized, Stars from non_specialized
-            dataset_2_data = []
-            for (spec_mode, speed_config), data_list in data_by_spec_and_speed.items():
-                if spec_mode == 'specialized' and speed_config == 'mixed':
-                    dataset_2_data.extend(data_list)
-                elif spec_mode == 'non_specialized' and speed_config == 'superstar':
-                    dataset_2_data.extend(data_list)
-            
-            if dataset_2_data:
-                data_by_specialization['mixed'] = pd.concat(dataset_2_data, ignore_index=True)
-                print(f"Dataset 2 (mixed): {len(data_by_specialization['mixed'])} episodes")
-            
-            # Dataset 3: All specialized (both stars and mixed)
-            dataset_3_data = []
-            for (spec_mode, speed_config), data_list in data_by_spec_and_speed.items():
-                if spec_mode == 'specialized':
-                    dataset_3_data.extend(data_list)
-            
-            if dataset_3_data:
-                data_by_specialization['specialized'] = pd.concat(dataset_3_data, ignore_index=True)
-                print(f"Dataset 3 (specialized): {len(data_by_specialization['specialized'])} episodes")
-            
-            if not data_by_specialization:
-                raise ValueError("No data could be loaded from any experimental condition")
-            
-            print("\n" + "=" * 60)
-            for spec_mode, df in data_by_specialization.items():
-                print(f"\n{spec_mode.upper()} data: {len(df)} episodes across {df['condition'].nunique()} conditions")
-                print(f"  Conditions: {sorted(df['condition'].unique())}")
-            print(f"Datasets created: {sorted(data_by_specialization.keys())}")
-            return data_by_specialization
+        if len(all_combinations) == 1:
+            # Single combination - return as DataFrame
+            combination_key = list(all_combinations.keys())[0]
+            print(f"\nReturning single combination: {combination_key}")
+            return all_combinations[combination_key]
+        else:
+            # Multiple combinations - return as Dict
+            print(f"\nReturning {len(all_combinations)} combinations:")
+            for combination_key, df in all_combinations.items():
+                print(f"  {combination_key}: {len(df)} episodes")
+            return all_combinations
         
-        # If analyzing both specializations (old logic - shouldn't happen now), return dict with separate DataFrames
-        if self.specialization_mode is None and len(data_by_specialization) > 1:
-            for spec_mode, df in data_by_specialization.items():
-                print(f"\n{spec_mode.upper()} data: {len(df)} episodes across {df['condition'].nunique()} conditions")
-                print(f"  Conditions: {sorted(df['condition'].unique())}")
-            print(f"Specialization modes found: {sorted(data_by_specialization.keys())}")
-            return data_by_specialization
-        
-        # Otherwise, return single DataFrame
-        combined_df = list(data_by_specialization.values())[0]
-        print(f"\nTotal loaded data: {len(combined_df)} episodes across {combined_df['condition'].nunique()} conditions")
-        print(f"Conditions found: {sorted(combined_df['condition'].unique())}")
-        if self.detected_specializations:
-            print(f"Specialization modes found: {sorted(self.detected_specializations)}")
-        
-        return combined_df
+        return final_combined_df
     
     def prepare_episode_data(self, df: pd.DataFrame, episode_selection: str = 'all', 
                            num_episodes: int = 100, target_episode: Optional[int] = None) -> pd.DataFrame:
@@ -1003,14 +1055,14 @@ def setup_argument_parser() -> argparse.ArgumentParser:
     )
     
     parser.add_argument(
-        '--synergy_scaling_factor',
+        '--synergy',
         type=float,
         default=0.0,
         help='Synergy scaling factor for reference-based reward shaping (default: 0.0)'
     )
     
     parser.add_argument(
-        '--specialization_lambda',
+        '--specialization',
         type=float,
         default=None,
         help='Which specialization lambda value to analyze (e.g., 0, 5.0). If not specified, auto-detects all available lambdas.'
@@ -1032,11 +1084,11 @@ def main():
     args = parser.parse_args()
     
     try:
-        # Check if synergy_scaling_factor was explicitly provided
-        synergy_provided = '--synergy_scaling_factor' in sys.argv
+        # Check if synergy was explicitly provided
+        synergy_provided = '--synergy' in sys.argv
         
         # Use specialization lambda directly
-        specialization_lambda = args.specialization_lambda
+        specialization = args.specialization
         
         # Set up output directory based on cluster if not explicitly provided
         cluster = args.cluster if args.cluster else 'cuenca'
@@ -1054,9 +1106,9 @@ def main():
             map_name_1=args.map_name_1,
             map_name_2=args.map_name_2,
             init_type=args.init_type,
-            synergy_scaling_factor=args.synergy_scaling_factor,
+            synergy=args.synergy,
             synergy_provided=synergy_provided,
-            specialization_lambda=specialization_lambda,
+            specialization=specialization,
             cluster=cluster
         )
         
@@ -1066,7 +1118,7 @@ def main():
         print("=" * 60)
         print(f"Cluster: {args.cluster if args.cluster else 'cuenca'}")
         print(f"Init type: {args.init_type}")
-        print(f"Synergy scaling factor: {args.synergy_scaling_factor}")
+        print(f"Synergy scaling factor: {args.synergy}")
         print(f"Specialization: {args.specialization}")
         print(f"Map 1: {args.map_name_1}")
         print(f"Map 2: {args.map_name_2}")
@@ -1075,16 +1127,22 @@ def main():
         
         df_or_dict = analyzer.load_experimental_data()
         
-        # Check if we got a dict (multiple specializations) or single DataFrame
+        # Check if we got a dict (multiple combinations) or single DataFrame
         if isinstance(df_or_dict, dict):
-            # Process each specialization separately and create separate graphs
+            # Multiple synergy/specialization combinations - create separate figure for each
             print("\n" + "=" * 60)
-            print("CREATING SEPARATE GRAPHS FOR EACH SPECIALIZATION")
+            print(f"CREATING {len(df_or_dict)} SEPARATE FIGURES FOR EACH COMBINATION")
             print("=" * 60)
             
-            for spec_mode in sorted(df_or_dict.keys()):
-                print(f"\nProcessing {spec_mode} data...")
-                df = df_or_dict[spec_mode]
+            for combination_key in sorted(df_or_dict.keys()):
+                print(f"\nProcessing {combination_key}...")
+                df = df_or_dict[combination_key]
+                
+                # Extract synergy and specialization from combination key
+                # Format: "synergy_{value}__specialized_{value}"
+                parts = combination_key.split('__')
+                synergy_part = parts[0]  # e.g., "synergy_0.50"
+                spec_part = parts[1]      # e.g., "specialized_0.25"
                 
                 # Prepare data based on episode selection
                 processed_df = analyzer.prepare_episode_data(
@@ -1098,15 +1156,15 @@ def main():
                 output_dir = Path(output_dir_base)
                 output_dir.mkdir(parents=True, exist_ok=True)
                 
-                # Generate filename with specialization mode
+                # Generate filename with synergy and specialization
                 filename_parts = ["cooperative_analysis"]
                 filename_parts.append(args.init_type)
                 
-                if analyzer.synergy_provided:
-                    filename_parts.append(f"synergy_{args.synergy_scaling_factor}" if args.synergy_scaling_factor != 0 else "synergy_0")
+                # Add synergy part
+                filename_parts.append(synergy_part)
                 
-                # Add the specific specialization mode
-                filename_parts.append(spec_mode)
+                # Add specialization part
+                filename_parts.append(spec_part)
                 
                 # Add map names (short versions)
                 filename_parts.append(f"{analyzer.map_1_short}_vs_{analyzer.map_2_short}")
@@ -1131,7 +1189,7 @@ def main():
                 filename = "_".join(filename_parts) + ".png"
                 output_path = output_dir / filename
                 
-                # Create raincloud plots for this specialization
+                # Create raincloud plots for this combination
                 plotter = RaincloudPlotter(
                     analyzer.color_palette, 
                     analyzer.performance_metrics,
@@ -1140,15 +1198,15 @@ def main():
                 fig = plotter.create_composite_figure(processed_df, str(output_path), extended=args.extended)
                 
                 # Display results
-                print(f"\nGraph for {spec_mode} completed!")
-                print(f"  Figure saved to: {output_path}")
+                print(f"\nFigure for {combination_key} completed!")
+                print(f"  Saved to: {output_path}")
                 print(f"  Total episodes: {len(processed_df)}")
                 print(f"  Conditions: {sorted(processed_df['condition'].unique())}")
                 
                 plt.close(fig)  # Close figure to free memory
             
             print("\n" + "=" * 60)
-            print("ALL GRAPHS COMPLETED SUCCESSFULLY!")
+            print(f"ALL {len(df_or_dict)} FIGURES COMPLETED SUCCESSFULLY!")
             print("=" * 60)
             
         else:
@@ -1175,12 +1233,12 @@ def main():
             
             # Add synergy if explicitly provided (even if 0)
             if analyzer.synergy_provided:
-                filename_parts.append(f"synergy_{args.synergy_scaling_factor}" if args.synergy_scaling_factor != 0 else "synergy_0")
+                filename_parts.append(f"synergy_{args.synergy}" if args.synergy != 0 else "synergy_0")
             
             # Add specialization information
-            if args.specialization != 'both':
+            if args.specialization is not None and args.specialization != 'both':
                 # When analyzing specific mode, add it to filename
-                filename_parts.append(args.specialization)
+                filename_parts.append(f"specialized_{args.specialization:.2f}" if args.specialization != 0 else "specialized_0")
             
             # Add map names (short versions)
             map_1_short = analyzer.map_1_short

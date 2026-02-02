@@ -258,7 +258,9 @@ def generate_individual_training_plots(analysis_results):
 def main():
     """Main execution function."""
     parser = setup_argument_parser('classic')
-    parser.add_argument('--specialization', type=float, 
+    parser.add_argument('--synergy', type=float, default=None,
+                       help='Analyze only specific synergy scaling factor value (e.g., 0.5, 1.0). If not specified, analyzes all available synergies.')
+    parser.add_argument('--specialization', type=float, default=None,
                        help='Analyze only specific specialization lambda value (e.g., 0, 5.0). If not specified, analyzes all available lambdas.')
     args = parser.parse_args()
 
@@ -269,8 +271,9 @@ def main():
     print(f"Study name: {args.study_name}")
     print(f"Game type: {args.game_type}")
     print(f"Init type: {args.init_type}")
-    print(f"Synergy scaling factor: {args.synergy}")
-    if hasattr(args, 'specialization') and args.specialization is not None:
+    if args.synergy is not None:
+        print(f"Synergy scaling factor: {args.synergy}")
+    if args.specialization is not None:
         print(f"Specialization lambda: {args.specialization}")
 
     try:
@@ -278,7 +281,7 @@ def main():
         synergy_provided = '--synergy' in sys.argv
         
         # Set specialization based on command line argument
-        specialization = getattr(args, 'specialization', None)
+        specialization = args.specialization
         
         # Run main analysis pipeline
         analysis_results = main_analysis_pipeline(
@@ -294,28 +297,28 @@ def main():
             specialization_lambda=specialization
         )
 
-        # Check if we got a dict of results (multiple specialization modes) or single result
-        if isinstance(analysis_results, dict) and any(key.startswith('specialized_') for key in analysis_results.keys()):
-            # Multiple specialization modes - process each separately
+        # Check if we got a dict of results (multiple combinations) or single result
+        if isinstance(analysis_results, dict) and any(key.startswith(('specialized_', 'synergy_')) for key in analysis_results.keys()):
+            # Multiple synergy/specialization combinations - process each separately
             print("\n" + "=" * 60)
-            print("GENERATING PLOTS FOR EACH SPECIALIZATION MODE")
+            print("GENERATING PLOTS FOR EACH SYNERGY/SPECIALIZATION COMBINATION")
             print("=" * 60)
             
-            for spec_mode in sorted(analysis_results.keys()):
+            for combination_key in sorted(analysis_results.keys()):
                 print(f"\n{'='*60}")
-                print(f"CREATING PLOTS FOR {spec_mode.upper()}")
+                print(f"CREATING PLOTS FOR {combination_key.upper()}")
                 print(f"{'='*60}")
                 
-                # Generate classic-specific plots for this specialization mode
-                generate_classic_plots(analysis_results[spec_mode])
+                # Generate classic-specific plots for this combination
+                generate_classic_plots(analysis_results[combination_key])
                 
-                print(f"\n{spec_mode.upper()} plots completed!")
+                print(f"\n{combination_key.upper()} plots completed!")
             
             print("\n" + "=" * 60)
-            print("ALL SPECIALIZATION MODES COMPLETED SUCCESSFULLY!")
+            print("ALL COMBINATIONS COMPLETED SUCCESSFULLY!")
             print("=" * 60)
         else:
-            # Single specialization mode
+            # Single combination
             generate_classic_plots(analysis_results)
 
         print("Analysis completed successfully!")

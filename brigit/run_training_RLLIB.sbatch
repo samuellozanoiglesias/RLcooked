@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=baseline_collision
+#SBATCH --job-name=encouraged_division_of_labor_training
 #SBATCH -t 30-00:00:00
 #SBATCH --partition=gpu
 #SBATCH --qos=qos_gpu_long
@@ -25,9 +25,9 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/cooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NR=baseline_division_of_labor_large
+MAP_NR=encouraged_division_of_labor_large
 LR=3e-4
-GAME_VERSIONS=(classic_collision)  # List of game versions to run
+GAME_VERSIONS=(classic)  # List of game versions to run
 NUM_AGENTS=2
 NUM_EPOCHS=200  # Number of training epochs
 SEEDS=(0)  # Different random seeds for runs
@@ -49,14 +49,14 @@ SPEED_PAIRS=(
 # Define checkpoint paths for each speed pair
 # Key format: "cut1,walk1 cut2,walk2" -> Value: checkpoint path or "None"
 declare -A CHECKPOINT_MAP
-CHECKPOINT_MAP["1.0,1.0 1.0,1.0"]="checkpoints/checkpoints_baseline_collision_stars.txt"
-CHECKPOINT_MAP["1.0,0.4 0.2,1.0"]="checkpoints/checkpoints_baseline_collision_mixed.txt"
+CHECKPOINT_MAP["1.0,1.0 1.0,1.0"]="checkpoints/checkpoints_encouraged_stars.txt"
+CHECKPOINT_MAP["1.0,0.4 0.2,1.0"]="checkpoints/checkpoints_encouraged_mixed.txt"
 
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)
-SYNERGY_SCALING_FACTOR_VALUES=(0.0 0.5 1.0 2.0 5.0)
+SYNERGY_SCALING_FACTOR_VALUES=(0.25)
 
 # Define specialization penalty scale values
-SPECIALIZATION_PENALTY_SCALE_VALUES=(0.0 5.0)
+SPECIALIZATION_PENALTY_SCALE_VALUES=(1.0)
 
 # Maximum number of parallel jobs
 MAX_PARALLEL=10 # Set this to control how many jobs run in parallel
