@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=encouraged_division_of_labor_training
+#SBATCH --job-name=encouraged_collision
 #SBATCH -t 30-00:00:00
 #SBATCH --partition=gpu
 #SBATCH --qos=qos_gpu_long
@@ -25,9 +25,9 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/cooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NR=encouraged_division_of_labor_large
+MAP_NRS=(baseline_division_of_labor_large encouraged_division_of_labor_large)  # List of maps to run
 LR=3e-4
-GAME_VERSIONS=(classic)  # List of game versions to run
+GAME_VERSIONS=(classic classic_collision)  # List of game versions to run
 NUM_AGENTS=2
 NUM_EPOCHS=200  # Number of training epochs
 SEEDS=(0)  # Different random seeds for runs
@@ -46,14 +46,8 @@ SPEED_PAIRS=(
     "1.0,0.4 0.2,1.0"
 )
 
-# Define checkpoint paths for each speed pair
-# Key format: "cut1,walk1 cut2,walk2" -> Value: checkpoint path or "None"
-declare -A CHECKPOINT_MAP
-CHECKPOINT_MAP["1.0,1.0 1.0,1.0"]="checkpoints/checkpoints_encouraged_stars.txt"
-CHECKPOINT_MAP["1.0,0.4 0.2,1.0"]="checkpoints/checkpoints_encouraged_mixed.txt"
-
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)
-SYNERGY_SCALING_FACTOR_VALUES=(0.25)
+SYNERGY_SCALING_FACTOR_VALUES=(2.0)
 
 # Define specialization penalty scale values
 SPECIALIZATION_PENALTY_SCALE_VALUES=(1.0)
@@ -61,18 +55,47 @@ SPECIALIZATION_PENALTY_SCALE_VALUES=(1.0)
 # Maximum number of parallel jobs
 MAX_PARALLEL=10 # Set this to control how many jobs run in parallel
 
-# Count number of jobs = seeds × angle pairs × speed pairs × eta values × specialization options × game versions × agents_to_train (if NUM_AGENTS=1)
+# Function to get checkpoint name based on map and game version
+get_checkpoint_name() {
+    local map_name=$1
+    local game_version=$2
+    local speeds=$3
+    
+    # Extract first word from map name (e.g., "baseline" from "baseline_division_of_labor_large")
+    local map_prefix=$(echo "$map_name" | cut -d'_' -f1)
+    
+    # Determine suffix based on speeds
+    if [ "$speeds" = "1.0,1.0 1.0,1.0" ]; then
+        local speed_suffix="stars"
+    elif [ "$speeds" = "1.0,0.4 0.2,1.0" ]; then
+        local speed_suffix="mixed"
+    else
+        local speed_suffix="custom"
+    fi
+    
+    # Generate checkpoint path based on game version
+    if [ "$game_version" = "classic" ]; then
+        echo "checkpoints/checkpoints_${map_prefix}_${speed_suffix}.txt"
+    elif [ "$game_version" = "classic_collision" ]; then
+        echo "checkpoints/checkpoints_${map_prefix}_collision_${speed_suffix}.txt"
+    else
+        echo "checkpoints/checkpoints_${map_prefix}_${game_version}_${speed_suffix}.txt"
+    fi
+}
+
+# Count number of jobs = seeds × angle pairs × speed pairs × eta values × specialization options × game versions × maps × agents_to_train (if NUM_AGENTS=1)
 NUM_SEEDS=${#SEEDS[@]}
 NUM_ANGLES=${#ANGLE_PAIRS[@]}
 NUM_SPEEDS=${#SPEED_PAIRS[@]}
 NUM_SYNERGY_VALUES=${#SYNERGY_SCALING_FACTOR_VALUES[@]}
 NUM_SPEC_SCALE_VALUES=${#SPECIALIZATION_PENALTY_SCALE_VALUES[@]}
 NUM_GAME_VERSIONS=${#GAME_VERSIONS[@]}
+NUM_MAPS=${#MAP_NRS[@]}
 NUM_AGENTS_TO_TRAIN=${#AGENTS_TO_TRAIN[@]}
 if [ $NUM_AGENTS -eq 1 ]; then
-    NUM_JOBS=$(( NUM_SEEDS * NUM_ANGLES * NUM_SPEEDS * NUM_SYNERGY_VALUES * NUM_SPEC_SCALE_VALUES * NUM_GAME_VERSIONS * NUM_AGENTS_TO_TRAIN ))
+    NUM_JOBS=$(( NUM_SEEDS * NUM_ANGLES * NUM_SPEEDS * NUM_SYNERGY_VALUES * NUM_SPEC_SCALE_VALUES * NUM_GAME_VERSIONS * NUM_MAPS * NUM_AGENTS_TO_TRAIN ))
 else
-    NUM_JOBS=$(( NUM_SEEDS * NUM_ANGLES * NUM_SPEEDS * NUM_SYNERGY_VALUES * NUM_SPEC_SCALE_VALUES * NUM_GAME_VERSIONS ))
+    NUM_JOBS=$(( NUM_SEEDS * NUM_ANGLES * NUM_SPEEDS * NUM_SYNERGY_VALUES * NUM_SPEC_SCALE_VALUES * NUM_GAME_VERSIONS * NUM_MAPS ))
 fi
 
 TOTAL_CPUS=$SLURM_NTASKS
@@ -98,6 +121,7 @@ echo "NUM_SPEEDS = $NUM_SPEEDS"
 echo "NUM_SYNERGY_VALUES = $NUM_SYNERGY_VALUES"
 echo "NUM_SPEC_SCALE_VALUES = $NUM_SPEC_SCALE_VALUES"
 echo "NUM_GAME_VERSIONS = $NUM_GAME_VERSIONS"
+echo "NUM_MAPS = $NUM_MAPS"
 if [ $NUM_AGENTS -eq 1 ]; then
     echo "NUM_AGENTS_TO_TRAIN = $NUM_AGENTS_TO_TRAIN"
 fi
@@ -119,27 +143,6 @@ declare -a job_list=()
 if [ $NUM_AGENTS -eq 1 ]; then
     # Include AGENTS_TO_TRAIN as outer loop when NUM_AGENTS is 1
     for AGENTS in "${AGENTS_TO_TRAIN[@]}"; do
-        for GAME_VERSION in "${GAME_VERSIONS[@]}"; do
-            for ANGLES in "${ANGLE_PAIRS[@]}"; do
-                read ANGLE1 ANGLE2 <<< "$ANGLES"
-                for SPEEDS in "${SPEED_PAIRS[@]}"; do
-                    read AGENT1_SPEEDS AGENT2_SPEEDS <<< "$SPEEDS"
-                    IFS=',' read CUTTING_SPEED_1 WALKING_SPEED_1 <<< "$AGENT1_SPEEDS"
-                    IFS=',' read CUTTING_SPEED_2 WALKING_SPEED_2 <<< "$AGENT2_SPEEDS"
-                    for SYNERGY_SCALING_FACTOR in "${SYNERGY_SCALING_FACTOR_VALUES[@]}"; do
-                        for SPEC_PENALTY_SCALE in "${SPECIALIZATION_PENALTY_SCALE_VALUES[@]}"; do
-                            for SEED in "${SEEDS[@]}"; do
-                                job_list+=("$ANGLE1 $ANGLE2 $CUTTING_SPEED_1 $WALKING_SPEED_1 $CUTTING_SPEED_2 $WALKING_SPEED_2 $SYNERGY_SCALING_FACTOR $SPEC_PENALTY_SCALE $SEED $AGENTS $GAME_VERSION")
-                            done
-                        done
-                    done
-                done
-            done
-        done
-    done
-else
-    # Original loop without AGENTS_TO_TRAIN
-    for GAME_VERSION in "${GAME_VERSIONS[@]}"; do
         for ANGLES in "${ANGLE_PAIRS[@]}"; do
             read ANGLE1 ANGLE2 <<< "$ANGLES"
             for SPEEDS in "${SPEED_PAIRS[@]}"; do
@@ -149,7 +152,32 @@ else
                 for SYNERGY_SCALING_FACTOR in "${SYNERGY_SCALING_FACTOR_VALUES[@]}"; do
                     for SPEC_PENALTY_SCALE in "${SPECIALIZATION_PENALTY_SCALE_VALUES[@]}"; do
                         for SEED in "${SEEDS[@]}"; do
-                            job_list+=("$ANGLE1 $ANGLE2 $CUTTING_SPEED_1 $WALKING_SPEED_1 $CUTTING_SPEED_2 $WALKING_SPEED_2 $SYNERGY_SCALING_FACTOR $SPEC_PENALTY_SCALE $SEED $GAME_VERSION")
+                            for GAME_VERSION in "${GAME_VERSIONS[@]}"; do
+                                for MAP_NR in "${MAP_NRS[@]}"; do
+                                    job_list+=("$ANGLE1 $ANGLE2 $CUTTING_SPEED_1 $WALKING_SPEED_1 $CUTTING_SPEED_2 $WALKING_SPEED_2 $SYNERGY_SCALING_FACTOR $SPEC_PENALTY_SCALE $SEED $AGENTS $GAME_VERSION $MAP_NR")
+                                done
+                            done
+                        done
+                    done
+                done
+            done
+        done
+    done
+else
+    # Original loop without AGENTS_TO_TRAIN
+    for ANGLES in "${ANGLE_PAIRS[@]}"; do
+        read ANGLE1 ANGLE2 <<< "$ANGLES"
+        for SPEEDS in "${SPEED_PAIRS[@]}"; do
+            read AGENT1_SPEEDS AGENT2_SPEEDS <<< "$SPEEDS"
+            IFS=',' read CUTTING_SPEED_1 WALKING_SPEED_1 <<< "$AGENT1_SPEEDS"
+            IFS=',' read CUTTING_SPEED_2 WALKING_SPEED_2 <<< "$AGENT2_SPEEDS"
+            for SYNERGY_SCALING_FACTOR in "${SYNERGY_SCALING_FACTOR_VALUES[@]}"; do
+                for SPEC_PENALTY_SCALE in "${SPECIALIZATION_PENALTY_SCALE_VALUES[@]}"; do
+                    for SEED in "${SEEDS[@]}"; do
+                        for GAME_VERSION in "${GAME_VERSIONS[@]}"; do
+                            for MAP_NR in "${MAP_NRS[@]}"; do
+                                job_list+=("$ANGLE1 $ANGLE2 $CUTTING_SPEED_1 $WALKING_SPEED_1 $CUTTING_SPEED_2 $WALKING_SPEED_2 $SYNERGY_SCALING_FACTOR $SPEC_PENALTY_SCALE $SEED $GAME_VERSION $MAP_NR")
+                            done
                         done
                     done
                 done
@@ -164,9 +192,9 @@ echo "Total jobs to run: ${#job_list[@]}"
 job_count=0
 for job in "${job_list[@]}"; do
     if [ $NUM_AGENTS -eq 1 ]; then
-        read ANGLE1 ANGLE2 CUTTING_SPEED_1 WALKING_SPEED_1 CUTTING_SPEED_2 WALKING_SPEED_2 SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE SEED AGENTS GAME_VERSION <<< "$job"
+        read ANGLE1 ANGLE2 CUTTING_SPEED_1 WALKING_SPEED_1 CUTTING_SPEED_2 WALKING_SPEED_2 SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE SEED AGENTS GAME_VERSION MAP_NR <<< "$job"
     else
-        read ANGLE1 ANGLE2 CUTTING_SPEED_1 WALKING_SPEED_1 CUTTING_SPEED_2 WALKING_SPEED_2 SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE SEED GAME_VERSION <<< "$job"
+        read ANGLE1 ANGLE2 CUTTING_SPEED_1 WALKING_SPEED_1 CUTTING_SPEED_2 WALKING_SPEED_2 SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE SEED GAME_VERSION MAP_NR <<< "$job"
         AGENTS=""  # Empty when not used
     fi
     
@@ -182,9 +210,9 @@ for job in "${job_list[@]}"; do
     ALPHA2=$(python -c "import numpy as np; print(np.cos($RAD2))")
     BETA2=$(python -c "import numpy as np; print(np.sin($RAD2))")
 
-    # Get checkpoint path for this speed pair
+    # Get checkpoint path based on map and game version
     SPEED_KEY="${CUTTING_SPEED_1},${WALKING_SPEED_1} ${CUTTING_SPEED_2},${WALKING_SPEED_2}"
-    CHECKPOINT_PATHS="${CHECKPOINT_MAP[$SPEED_KEY]}"
+    CHECKPOINT_PATHS=$(get_checkpoint_name "$MAP_NR" "$GAME_VERSION" "$SPEED_KEY")
 
     if [ $NUM_AGENTS -eq 1 ]; then
         INPUT_FILE="inputs/input_${ANGLE1}_${ANGLE2}_c${CUTTING_SPEED_1}${CUTTING_SPEED_2}_w${WALKING_SPEED_1}${WALKING_SPEED_2}_synergy${SYNERGY_SCALING_FACTOR}_spec${SPEC_PENALTY_SCALE}_agent${AGENTS}.txt"

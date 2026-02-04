@@ -23,6 +23,12 @@ class AgentPathInfo(NamedTuple):
 class PathProcessor:
     """Simple path calculation system for RL training."""
     
+    # Collision detection configuration
+    FINAL_POSITION_OCCUPY_TIME = 2.0  # Seconds to occupy final position after path completion
+    TEMPORAL_TOLERANCE = 0.15  # Seconds - allow agents to pass if >0.15s apart at same tile
+    MAX_COLLISION_CHECK_TIME = 10.0  # Maximum time window for collision checking
+    ALTERNATIVE_PATH_ATTEMPTS = 8  # Number of alternative path attempts before giving up
+    
     def __init__(self, map_nr: int, collision_enabled: bool = True):
         self.collision_enabled = collision_enabled
         self.active_paths: Dict[str, AgentPathInfo] = {}  # Agent path information storage
@@ -246,7 +252,10 @@ class PathProcessor:
             return path
                 
         # Strategy 1: Different heuristic weights (favor exploration over direct routes)
-        for heuristic_weight in [0.5, 1.5, 2.0]:
+        heuristic_weights = [0.5, 1.5, 2.0, 0.2, 3.0]
+        for i, heuristic_weight in enumerate(heuristic_weights):
+            if i >= self.ALTERNATIVE_PATH_ATTEMPTS // 2:
+                break
             path = self._find_collision_free_path_weighted(grid, start_node, target_node, agent_id, 
                                                          current_time, game, heuristic_weight)
             if path:
@@ -254,11 +263,20 @@ class PathProcessor:
         
         # Strategy 2: Try different initial directions to force exploration of different routes
         start_neighbors = self._get_valid_neighbors(grid, start_node, set())
-        for start_direction in start_neighbors:
+        for i, start_direction in enumerate(start_neighbors):
+            if i >= self.ALTERNATIVE_PATH_ATTEMPTS // 2:
+                break
             # Force path to go through this neighbor first
             path = self._find_collision_free_path_via_waypoint(grid, start_node, start_direction, 
                                                              target_node, agent_id, current_time, game)
             if path:
+                return path
+        
+        # Strategy 3: Try waiting a bit (delayed start) to let other agent pass
+        for wait_time in [0.5, 1.0, 1.5]:
+            path = self._find_collision_free_path(grid, start_node, target_node, agent_id, current_time + wait_time, game)
+            if path:
+                # Path found with delayed start - the agent would wait then follow this path
                 return path
         
         return None
@@ -281,8 +299,8 @@ class PathProcessor:
         open_set = [(0, 0, counter, start_node, [start_node])]
         visited = set()
         
-        # Increased limits for alternative path finding
-        max_iterations = 2000
+        # Increased limits for alternative path finding - allow more exploration
+        max_iterations = 3000  # Increased from 2000
         
         for iteration in range(max_iterations):
             if not open_set:
@@ -509,8 +527,11 @@ class PathProcessor:
             other_path_info.current_position, other_path_info.speed
         )
         
-        # Use the maximum time between both paths
-        max_simulation_time = max(requesting_path_time, other_path_time)
+        # Use the maximum time between both paths, but cap it to avoid overly long collision windows
+        max_simulation_time = min(
+            max(requesting_path_time, other_path_time) + self.FINAL_POSITION_OCCUPY_TIME,
+            self.MAX_COLLISION_CHECK_TIME
+        )
         
         # Precompute path snapshots for both agents until paths complete
         requesting_snapshots = self._get_path_snapshots(path, 0, requesting_agent_speed, max_simulation_time)
@@ -531,13 +552,25 @@ class PathProcessor:
         if not requesting_tiles.intersection(other_tiles):
             return False
         
-        # Check for exact time-tile collisions
+        # Check for time-tile collisions with temporal tolerance
         collision_found = False
+        tolerance_steps = int(self.TEMPORAL_TOLERANCE * 10)  # Convert seconds to 0.1s steps
+        
         for time_key in requesting_snapshots:
-            if time_key in other_snapshots:
-                if requesting_snapshots[time_key] == other_snapshots[time_key]:
-                    collision_found = True
-                    break
+            requesting_tile = requesting_snapshots[time_key]
+            
+            # Check if other agent occupies same tile within temporal tolerance window
+            has_collision_in_window = False
+            for time_offset in range(-tolerance_steps, tolerance_steps + 1):
+                other_time_key = time_key + time_offset
+                if other_time_key in other_snapshots:
+                    if requesting_tile == other_snapshots[other_time_key]:
+                        has_collision_in_window = True
+                        break
+            
+            if has_collision_in_window:
+                collision_found = True
+                break
         
         return collision_found
     
@@ -592,9 +625,14 @@ class PathProcessor:
             time_key = int(round(current_time * 10))  # Convert to int key (0.1s = 1, 0.2s = 2, etc.)
             
             if current_time >= path_completion_time and path_completion_time > 0:
-                # Agent has completed path and stays at final position
-                final_tile = (path[-1].x, path[-1].y)
-                snapshots[time_key] = final_tile
+                # Agent has completed path - only occupy final position for limited time
+                time_since_completion = current_time - path_completion_time
+                if time_since_completion <= self.FINAL_POSITION_OCCUPY_TIME:
+                    final_tile = (path[-1].x, path[-1].y)
+                    snapshots[time_key] = final_tile
+                else:
+                    # After occupation time expires, agent no longer blocks this path
+                    break
                 
             else:
                 # Agent is still moving along the path
@@ -669,12 +707,17 @@ class PathProcessor:
             snapshots[time_key] = tile
             
             if current_time >= path_completion_time and path_completion_time > 0:
-                # Agent has completed path and stays at final position
-                if path_idx < len(path):
-                    # Move to final position if not already there
-                    final_pos = (path[-1].x, path[-1].y)
-                    current_pos = final_pos
-                    path_idx = len(path)
+                # Agent has completed path - only occupy final position for limited time
+                time_since_completion = current_time - path_completion_time
+                if time_since_completion <= self.FINAL_POSITION_OCCUPY_TIME:
+                    if path_idx < len(path):
+                        # Move to final position if not already there
+                        final_pos = (path[-1].x, path[-1].y)
+                        current_pos = final_pos
+                        path_idx = len(path)
+                else:
+                    # After occupation time expires, agent no longer blocks this path
+                    break
             
             else:
                 # Agent is still moving along the path
