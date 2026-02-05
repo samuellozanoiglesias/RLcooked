@@ -22,6 +22,10 @@ class Agent(agent.Agent):
         self.provisional_item = None  # Item that is being processed (e.g., being cut)
         self.walk_speed = walk_speed
         self.cut_speed = cut_speed
+        # Set movement speed: base 30 pixels/second * walk_speed multiplier
+        # walk_speed=1.0 → 30 px/s (1.875 tiles/s)
+        # walk_speed=0.5 → 15 px/s (0.9375 tiles/s)
+        self.speed = 30.0 * walk_speed  # pixels/second
         self.action = None
         self.score = 0
         self.current_action = None

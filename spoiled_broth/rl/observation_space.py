@@ -44,7 +44,7 @@ def get_item_indices_on_counters(game, item_name):
             indices.append((idx, x, y))
     return indices
 
-def get_distance_and_path(path_processor, from_xy, to_xy, agent_id=None, game=None, current_time=0.0, agent_speed=1.875):
+def get_distance_and_path(path_processor, from_xy, to_xy, agent_id=None, game=None, current_time=0.0, agent_speed=1.875, force_ignore_agents=False):
     """
     Get shortest path distance between two positions using pathfinding.
     Returns path length if path exists, None if no path exists.
@@ -57,6 +57,8 @@ def get_distance_and_path(path_processor, from_xy, to_xy, agent_id=None, game=No
         game: Game instance (needed for grid access)
         current_time: Current game time (for collision detection)
         agent_speed: Agent's walking speed in tiles/second (default 1.875 = 30/16)
+        force_ignore_agents: If True, ignores other agents even if collision detection is enabled
+                            Used for calculating ACCESSIBILITY (path exists ignoring agents)
     
     Returns:
         tuple: (distance, path) where distance is float or None, path is list of nodes or None
@@ -71,11 +73,22 @@ def get_distance_and_path(path_processor, from_xy, to_xy, agent_id=None, game=No
         dist = ((from_xy[0] - to_xy[0]) ** 2 + (from_xy[1] - to_xy[1]) ** 2) ** 0.5
         return dist, None
     
-    # Use path processor to calculate shortest path distance
-    distance, path = path_processor.get_shortest_path_distance(
-        game.grid, from_xy, to_xy, agent_id, current_time, agent_speed, game
-    )
-    return distance, path
+    # Temporarily override collision detection if force_ignore_agents=True
+    # This allows us to calculate ACCESSIBILITY (ignoring agents) separately from AVAILABILITY (considering agents)
+    original_collision_enabled = path_processor.collision_enabled
+    if force_ignore_agents:
+        path_processor.collision_enabled = False
+    
+    try:
+        # Use path processor to calculate shortest path distance
+        distance, path = path_processor.get_shortest_path_distance(
+            game.grid, from_xy, to_xy, agent_id, current_time, agent_speed, game
+        )
+        return distance, path
+    finally:
+        # Restore original collision detection setting
+        if force_ignore_agents:
+            path_processor.collision_enabled = original_collision_enabled
 
 # ---- Classic mode without ownership awareness ---- #
 def game_to_obs_vector_classic(game, agent_id, path_processor=None):
@@ -132,6 +145,10 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
     
 
     # --- Add times to tile types ---
+    # For each tile type, we calculate THREE indicators:
+    # 1. ACCESSIBILITY: Can we reach this tile ignoring other agents? (0 or 1)
+    # 2. AVAILABILITY: Can we reach this tile considering other agents' current positions? (0 or 1)
+    # 3. TIME: Normalized time to reach the tile
     for tile_type in tile_types:
         if tile_type == 'cutting_board':
             action_time = agent_cutting_speed 
@@ -140,104 +157,212 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
 
         indices = get_tile_indices_by_type(game, tile_type)
 
-        # Only consider accessible tiles for agent
-        accessible_agent = [(_idx, x, y) for (_idx, x, y) in indices if get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed)[0] is not None]
-        min_dist = None
-        considered_path = None
-        tile_index = None
+        # STEP 1: Calculate ACCESSIBILITY (ignoring other agents)
+        # Find the closest tile of this type that has a valid path (ignoring agents)
+        accessible_agent = [(_idx, x, y) for (_idx, x, y) in indices 
+                           if get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True)[0] is not None]
+        
+        min_dist_no_agents = None
+        best_tile_idx = None
+        best_tile_xy = None
+        
         for _idx, x, y in accessible_agent:
-            d, path = get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed)
-            if d == -1:
-                pass  # Path blocked by collisions
-            if min_dist is None or (d < min_dist and d >= 0):
-                min_dist = d
-                considered_path = path
-                tile_index = _idx
-        if min_dist is not None and min_dist >= 0:
-            # Accessible tile
-            time_to_tile = (min_dist / agent_walking_speed + action_time) / normalization_factor
-            considered_paths.append(considered_path)
-            considered_tiles.append(tile_index)
-            obs_vector.append(1.0)  # Accessibility indicator: 1 = accessible
-            obs_vector.append(time_to_tile)
-        elif min_dist is not None and min_dist == -1:
-            # Path blocked by collisions
-            time_to_tile = 1
-            considered_paths.append(considered_path)
-            considered_tiles.append(-1)
-            obs_vector.append(0.0)  # Accessibility indicator: 0 = blocked
+            d, _ = get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True)
+            if d is not None and d >= 0:
+                if min_dist_no_agents is None or d < min_dist_no_agents:
+                    min_dist_no_agents = d
+                    best_tile_idx = _idx
+                    best_tile_xy = (x, y)
+        
+        # STEP 2: If accessible, calculate AVAILABILITY (considering other agents)
+        # Only relevant if collision detection is enabled
+        if best_tile_xy is not None:
+            # Tile is accessible (path exists ignoring agents)
+            accessibility = 1.0
+            
+            # Now check availability (considering agents)
+            if path_processor.collision_enabled:
+                # Calculate path considering other agents' positions
+                dist_with_agents, path_with_agents = get_distance_and_path(
+                    path_processor, agent_pos, best_tile_xy, agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=False
+                )
+                
+                if dist_with_agents is not None and dist_with_agents >= 0:
+                    # Path is available (not blocked by other agents)
+                    availability = 1.0
+                    final_dist = dist_with_agents
+                    final_path = path_with_agents
+                else:
+                    # Path is blocked by other agents (tile is accessible but not currently available)
+                    availability = 0.0
+                    # Mark tile_index as -1 to indicate "not available" in game_env
+                    best_tile_idx = -1
+                    final_dist = min_dist_no_agents  # Use distance ignoring agents for observation
+                    final_path = None
+            else:
+                # Collision detection disabled: availability is always 1
+                availability = 1.0
+                final_dist = min_dist_no_agents
+                _, final_path = get_distance_and_path(
+                    path_processor, agent_pos, best_tile_xy, agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True
+                )
+            
+            # Calculate time and add to observation
+            time_to_tile = (final_dist / agent_walking_speed + action_time) / normalization_factor
+            considered_paths.append(final_path)
+            considered_tiles.append(best_tile_idx)
+            obs_vector.append(accessibility)  # 1.0 = tile is accessible
+            obs_vector.append(availability)   # 1.0 = tile is available, 0.0 = blocked by agents
             obs_vector.append(time_to_tile)
         else:
-            # No accessible tile found
+            # No accessible tile found (no path exists even ignoring agents)
             considered_paths.append(None)
             considered_tiles.append(None)
-            obs_vector.append(0.0)  # Accessibility indicator: 0 = inaccessible
-            obs_vector.append(1)
+            obs_vector.append(0.0)  # Accessibility: 0 = inaccessible
+            obs_vector.append(0.0)  # Availability: 0 = not available (because inaccessible)
+            obs_vector.append(1.0)  # Max time (normalized)
 
 
     # --- Add times to items on counters ---
+    # For each item type on counters, we calculate for the CLOSEST counter:
+    # 1. PRESENCE: Does this item exist on any counter? (0 or 1)
+    # 2. ACCESSIBILITY: Can we reach the closest counter with this item ignoring other agents? (0 or 1)
+    # 3. AVAILABILITY: Can we reach it considering other agents? (0 or 1)
+    # 4. TIME: Normalized time to reach the closest counter
+    # Then for the MIDPOINT counter (closest to midpoint between agents):
+    # 5. ACCESSIBILITY: Can we reach this specific counter ignoring other agents? (0 or 1)
+    # 6. AVAILABILITY: Can we reach it considering other agents? (0 or 1)
+    # 7. TIME: Normalized time to reach the midpoint counter
     for item_name in item_names:
         action_time = 0
         indices = get_item_indices_on_counters(game, item_name)
 
         if len(indices) > 0:
-            obs_vector.append(1) # There is a tile with that item
-            # Only consider accessible counters for agent
-            accessible_agent = [(_idx, x, y) for (_idx, x, y) in indices if get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed)[0] is not None]
-            min_dist = None
-            considered_path = None
-            tile_index = None
-            for _idx, x, y in accessible_agent:
-                d, path = get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed)
-                if min_dist is None or (d < min_dist and d >= 0):
-                    min_dist = d
-                    considered_path = path
-                    tile_index = _idx
-            if min_dist is not None and min_dist >= 0:
-                # Accessible counter (closest)
-                time_to_tile = (min_dist / agent_walking_speed + action_time) / normalization_factor
-                considered_paths.append(considered_path)
-                considered_tiles.append(tile_index)
-                obs_vector.append(1.0)  # Accessibility indicator: 1 = accessible
-                obs_vector.append(time_to_tile)
-            elif min_dist == -1:
-                # Path blocked by collisions
-                considered_paths.append(considered_path)
-                considered_tiles.append(-1)
-                obs_vector.append(0.0)  # Accessibility indicator: 0 = blocked
-                obs_vector.append(1)
+            obs_vector.append(1) # Presence: There is at least one counter with this item
+            
+            # STEP 1: Find CLOSEST counter with this item (ignoring agents)
+            closest_accessible = [(_idx, x, y) for (_idx, x, y) in indices 
+                                 if get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True)[0] is not None]
+            
+            min_dist_no_agents = None
+            best_closest_idx = None
+            best_closest_xy = None
+            
+            for _idx, x, y in closest_accessible:
+                d, _ = get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True)
+                if d is not None and d >= 0:
+                    if min_dist_no_agents is None or d < min_dist_no_agents:
+                        min_dist_no_agents = d
+                        best_closest_idx = _idx
+                        best_closest_xy = (x, y)
+            
+            # STEP 2: Check availability of closest counter
+            if best_closest_xy is not None:
+                # Closest counter is accessible
+                accessibility_closest = 1.0
+                
+                if path_processor.collision_enabled:
+                    # Check if path is available (not blocked by agents)
+                    dist_with_agents, path_with_agents = get_distance_and_path(
+                        path_processor, agent_pos, best_closest_xy, agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=False
+                    )
+                    
+                    if dist_with_agents is not None and dist_with_agents >= 0:
+                        availability_closest = 1.0
+                        final_dist_closest = dist_with_agents
+                        final_path_closest = path_with_agents
+                    else:
+                        # Path blocked by agents
+                        availability_closest = 0.0
+                        best_closest_idx = -1  # Mark as not available
+                        final_dist_closest = min_dist_no_agents
+                        final_path_closest = None
+                else:
+                    # Collision detection disabled
+                    availability_closest = 1.0
+                    final_dist_closest = min_dist_no_agents
+                    _, final_path_closest = get_distance_and_path(
+                        path_processor, agent_pos, best_closest_xy, agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True
+                    )
+                
+                time_to_closest = (final_dist_closest / agent_walking_speed + action_time) / normalization_factor
+                considered_paths.append(final_path_closest)
+                considered_tiles.append(best_closest_idx)
+                obs_vector.append(accessibility_closest)  # 1.0 = accessible
+                obs_vector.append(availability_closest)   # 1.0 = available, 0.0 = blocked by agents
+                obs_vector.append(time_to_closest)
             else:
-                # No accessible counter
+                # No accessible counter found
                 considered_paths.append(None)
                 considered_tiles.append(None)
-                obs_vector.append(0.0)  # Accessibility indicator: 0 = inaccessible
-                obs_vector.append(1)
+                obs_vector.append(0.0)  # Accessibility: not accessible
+                obs_vector.append(0.0)  # Availability: not available
+                obs_vector.append(1.0)  # Max time
 
-            # choose tile index with minimum Euclidean distance to midpoint
+            # STEP 3: Find counter closest to MIDPOINT (for coordination)
+            # Choose the counter tile that is closest to the midpoint by Euclidean distance
             best = min(indices, key=lambda it: math.hypot(it[1] - midpoint[0], it[2] - midpoint[1]))
             _idx, bx, by = best
-            path_dist, path = get_distance_and_path(path_processor, agent_pos, (bx, by), agent_id, game, 0.0, agent_walking_speed)
-            if path_dist is not None and path_dist >= 0:
-                # Accessible counter (midpoint)
-                time_to_midtile = (path_dist / agent_walking_speed + action_time) / normalization_factor
-                considered_tiles.append(_idx)
-                considered_paths.append(path)
-                obs_vector.append(1.0)  # Accessibility indicator: 1 = accessible
-                obs_vector.append(time_to_midtile)
+            
+            # Check accessibility of midpoint counter (ignoring agents)
+            dist_midpoint_no_agents, _ = get_distance_and_path(
+                path_processor, agent_pos, (bx, by), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True
+            )
+            
+            if dist_midpoint_no_agents is not None and dist_midpoint_no_agents >= 0:
+                # Midpoint counter is accessible
+                accessibility_midpoint = 1.0
+                
+                if path_processor.collision_enabled:
+                    # Check if available (not blocked by agents)
+                    dist_with_agents, path_with_agents = get_distance_and_path(
+                        path_processor, agent_pos, (bx, by), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=False
+                    )
+                    
+                    if dist_with_agents is not None and dist_with_agents >= 0:
+                        availability_midpoint = 1.0
+                        final_dist_mid = dist_with_agents
+                        final_path_mid = path_with_agents
+                        final_idx_mid = _idx
+                    else:
+                        # Blocked by agents
+                        availability_midpoint = 0.0
+                        final_dist_mid = dist_midpoint_no_agents
+                        final_path_mid = None
+                        final_idx_mid = -1
+                else:
+                    # Collision detection disabled
+                    availability_midpoint = 1.0
+                    final_dist_mid = dist_midpoint_no_agents
+                    _, final_path_mid = get_distance_and_path(
+                        path_processor, agent_pos, (bx, by), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True
+                    )
+                    final_idx_mid = _idx
+                
+                time_to_midpoint = (final_dist_mid / agent_walking_speed + action_time) / normalization_factor
+                considered_tiles.append(final_idx_mid)
+                considered_paths.append(final_path_mid)
+                obs_vector.append(accessibility_midpoint)  # 1.0 = accessible
+                obs_vector.append(availability_midpoint)   # 1.0 = available, 0.0 = blocked
+                obs_vector.append(time_to_midpoint)
             else:
                 # Midpoint counter not accessible
-                time_to_midtile = 1
                 considered_tiles.append(None)
                 considered_paths.append(None)
-                obs_vector.append(0.0)  # Accessibility indicator: 0 = inaccessible
-                obs_vector.append(time_to_midtile)
+                obs_vector.append(0.0)  # Accessibility: not accessible
+                obs_vector.append(0.0)  # Availability: not available
+                obs_vector.append(1.0)  # Max time
         else:
-            # no counters with that item: append fallbacks for agent time and midpoint time
-            obs_vector.append(0) # There are no tiles with that item
-            obs_vector.append(0.0) # Accessibility indicator: 0 = no tiles exist
-            obs_vector.append(1) # Fallback for agent time
-            obs_vector.append(0.0) # Accessibility indicator: 0 = no tiles exist
-            obs_vector.append(1) # Fallback for midpoint time
+            # No counters with this item exist
+            obs_vector.append(0) # Presence: no tiles with this item
+            # Closest counter values
+            obs_vector.append(0.0) # Accessibility: no tiles exist
+            obs_vector.append(0.0) # Availability: no tiles exist
+            obs_vector.append(1.0) # Time: max
+            # Midpoint counter values
+            obs_vector.append(0.0) # Accessibility: no tiles exist
+            obs_vector.append(0.0) # Availability: no tiles exist
+            obs_vector.append(1.0) # Time: max
             considered_paths.append(None)
             considered_paths.append(None)
             considered_tiles.append(None)
@@ -334,6 +459,7 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
     considered_tiles.append(-2)  # Use -2 to indicate do_nothing
 
     # --- Add times to tile types ---
+    # Same three-indicator system as classic mode: [accessibility, availability, time]
     for tile_type in tile_types:
         if tile_type == 'cutting_board':
             action_time = agent_cutting_speed
@@ -341,102 +467,185 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
             action_time = 0
 
         indices = get_tile_indices_by_type(game, tile_type)
-        # Only consider accessible tiles for agent
-        accessible_agent = [(_idx, x, y) for (_idx, x, y) in indices if get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed)[0] is not None]
-        min_dist = None
-        considered_path = None
-        tile_index = None
+
+        # STEP 1: Calculate ACCESSIBILITY (ignoring other agents)
+        accessible_agent = [(_idx, x, y) for (_idx, x, y) in indices 
+                           if get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True)[0] is not None]
+        
+        min_dist_no_agents = None
+        best_tile_idx = None
+        best_tile_xy = None
+        
         for _idx, x, y in accessible_agent:
-            d, path = get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed)
-            if min_dist is None or (d < min_dist and d >= 0):
-                min_dist = d
-                considered_path = path
-                tile_index = _idx
-        if min_dist is not None and min_dist >= 0:
-            # Accessible tile
-            time_to_tile = (min_dist / agent_walking_speed + action_time) / normalization_factor
-            considered_paths.append(considered_path)
-            considered_tiles.append(tile_index)
-            obs_vector.append(1.0)  # Accessibility indicator: 1 = accessible
-            obs_vector.append(time_to_tile)
-        elif min_dist is not None and min_dist == -1:
-            # Path blocked by collisions
-            time_to_tile = 1
-            considered_paths.append(considered_path)
-            considered_tiles.append(-1)
-            obs_vector.append(0.0)  # Accessibility indicator: 0 = blocked
+            d, _ = get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True)
+            if d is not None and d >= 0:
+                if min_dist_no_agents is None or d < min_dist_no_agents:
+                    min_dist_no_agents = d
+                    best_tile_idx = _idx
+                    best_tile_xy = (x, y)
+        
+        # STEP 2: If accessible, calculate AVAILABILITY (considering other agents)
+        if best_tile_xy is not None:
+            accessibility = 1.0
+            
+            if path_processor.collision_enabled:
+                dist_with_agents, path_with_agents = get_distance_and_path(
+                    path_processor, agent_pos, best_tile_xy, agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=False
+                )
+                
+                if dist_with_agents is not None and dist_with_agents >= 0:
+                    availability = 1.0
+                    final_dist = dist_with_agents
+                    final_path = path_with_agents
+                else:
+                    availability = 0.0
+                    best_tile_idx = -1
+                    final_dist = min_dist_no_agents
+                    final_path = None
+            else:
+                availability = 1.0
+                final_dist = min_dist_no_agents
+                _, final_path = get_distance_and_path(
+                    path_processor, agent_pos, best_tile_xy, agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True
+                )
+            
+            time_to_tile = (final_dist / agent_walking_speed + action_time) / normalization_factor
+            considered_paths.append(final_path)
+            considered_tiles.append(best_tile_idx)
+            obs_vector.append(accessibility)  # 1.0 = accessible
+            obs_vector.append(availability)   # 1.0 = available, 0.0 = blocked by agents
             obs_vector.append(time_to_tile)
         else:
             # No accessible tile found
             considered_paths.append(None)
             considered_tiles.append(None)
-            obs_vector.append(0.0)  # Accessibility indicator: 0 = inaccessible
-            obs_vector.append(1)
+            obs_vector.append(0.0)  # Accessibility: inaccessible
+            obs_vector.append(0.0)  # Availability: not available
+            obs_vector.append(1.0)  # Max time
 
     # --- Add distances to items on counters ---
+    # Same structure as classic mode: [presence, accessibility_closest, availability_closest, time_closest,
+    #                                   accessibility_midpoint, availability_midpoint, time_midpoint]
     for item_name in item_names:
         action_time = 0
         indices = get_item_indices_on_counters(game, item_name)
 
         if len(indices) > 0:
-            obs_vector.append(1) # There is a tile with that item
-            # Only consider accessible counters for agent
-            accessible_agent = [(_idx, x, y) for (_idx, x, y) in indices if get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed)[0] is not None]
-            min_dist = None
-            considered_path = None
-            tile_index = None
-            for _idx, x, y in accessible_agent:
-                d, path = get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed)
-                if min_dist is None or (d < min_dist and d >= 0):
-                    min_dist = d
-                    considered_path = path
-                    tile_index = _idx
-            if min_dist is not None and min_dist >= 0:
-                # Accessible counter (closest)
-                time_to_tile = (min_dist / agent_walking_speed + action_time) / normalization_factor
-                considered_paths.append(considered_path)
-                considered_tiles.append(tile_index)
-                obs_vector.append(1.0)  # Accessibility indicator: 1 = accessible
-                obs_vector.append(time_to_tile)
-            elif min_dist is not None and min_dist == -1:
-                # Path blocked by collisions
-                time_to_tile = 1
-                considered_paths.append(considered_path)
-                considered_tiles.append(-1)
-                obs_vector.append(0.0)  # Accessibility indicator: 0 = blocked
-                obs_vector.append(time_to_tile)
+            obs_vector.append(1) # Presence: item exists on counters
+            
+            # STEP 1: Find CLOSEST counter (ignoring agents)
+            closest_accessible = [(_idx, x, y) for (_idx, x, y) in indices 
+                                 if get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True)[0] is not None]
+            
+            min_dist_no_agents = None
+            best_closest_idx = None
+            best_closest_xy = None
+            
+            for _idx, x, y in closest_accessible:
+                d, _ = get_distance_and_path(path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True)
+                if d is not None and d >= 0:
+                    if min_dist_no_agents is None or d < min_dist_no_agents:
+                        min_dist_no_agents = d
+                        best_closest_idx = _idx
+                        best_closest_xy = (x, y)
+            
+            # STEP 2: Check availability of closest counter
+            if best_closest_xy is not None:
+                accessibility_closest = 1.0
+                
+                if path_processor.collision_enabled:
+                    dist_with_agents, path_with_agents = get_distance_and_path(
+                        path_processor, agent_pos, best_closest_xy, agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=False
+                    )
+                    
+                    if dist_with_agents is not None and dist_with_agents >= 0:
+                        availability_closest = 1.0
+                        final_dist_closest = dist_with_agents
+                        final_path_closest = path_with_agents
+                    else:
+                        availability_closest = 0.0
+                        best_closest_idx = -1
+                        final_dist_closest = min_dist_no_agents
+                        final_path_closest = None
+                else:
+                    availability_closest = 1.0
+                    final_dist_closest = min_dist_no_agents
+                    _, final_path_closest = get_distance_and_path(
+                        path_processor, agent_pos, best_closest_xy, agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True
+                    )
+                
+                time_to_closest = (final_dist_closest / agent_walking_speed + action_time) / normalization_factor
+                considered_paths.append(final_path_closest)
+                considered_tiles.append(best_closest_idx)
+                obs_vector.append(accessibility_closest)
+                obs_vector.append(availability_closest)
+                obs_vector.append(time_to_closest)
             else:
                 # No accessible counter
                 considered_paths.append(None)
                 considered_tiles.append(None)
-                obs_vector.append(0.0)  # Accessibility indicator: 0 = inaccessible
-                obs_vector.append(1)
+                obs_vector.append(0.0)  # Accessibility: not accessible
+                obs_vector.append(0.0)  # Availability: not available
+                obs_vector.append(1.0)  # Max time
 
-            # Choose the counter tile that is closest to the midpoint by Euclidean distance
+            # STEP 3: Find counter closest to MIDPOINT
             best = min(indices, key=lambda it: math.hypot(it[1] - midpoint[0], it[2] - midpoint[1]))
             _idx, bx, by = best
-            path_dist, path = get_distance_and_path(path_processor, agent_pos, (bx, by), agent_id, game, 0.0, agent_walking_speed)
-            if path_dist is not None and path_dist >= 0:
-                # Accessible counter (midpoint)
-                time_to_midtile = (path_dist / agent_walking_speed + action_time) / normalization_factor
-                considered_tiles.append(_idx)
-                considered_paths.append(path)
-                obs_vector.append(1.0)  # Accessibility indicator: 1 = accessible
-                obs_vector.append(time_to_midtile)
+            
+            dist_midpoint_no_agents, _ = get_distance_and_path(
+                path_processor, agent_pos, (bx, by), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True
+            )
+            
+            if dist_midpoint_no_agents is not None and dist_midpoint_no_agents >= 0:
+                accessibility_midpoint = 1.0
+                
+                if path_processor.collision_enabled:
+                    dist_with_agents, path_with_agents = get_distance_and_path(
+                        path_processor, agent_pos, (bx, by), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=False
+                    )
+                    
+                    if dist_with_agents is not None and dist_with_agents >= 0:
+                        availability_midpoint = 1.0
+                        final_dist_mid = dist_with_agents
+                        final_path_mid = path_with_agents
+                        final_idx_mid = _idx
+                    else:
+                        availability_midpoint = 0.0
+                        final_dist_mid = dist_midpoint_no_agents
+                        final_path_mid = None
+                        final_idx_mid = -1
+                else:
+                    availability_midpoint = 1.0
+                    final_dist_mid = dist_midpoint_no_agents
+                    _, final_path_mid = get_distance_and_path(
+                        path_processor, agent_pos, (bx, by), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True
+                    )
+                    final_idx_mid = _idx
+                
+                time_to_midpoint = (final_dist_mid / agent_walking_speed + action_time) / normalization_factor
+                considered_tiles.append(final_idx_mid)
+                considered_paths.append(final_path_mid)
+                obs_vector.append(accessibility_midpoint)
+                obs_vector.append(availability_midpoint)
+                obs_vector.append(time_to_midpoint)
             else:
                 # Midpoint counter not accessible
-                time_to_midtile = 1
                 considered_tiles.append(None)
                 considered_paths.append(None)
-                obs_vector.append(0.0)  # Accessibility indicator: 0 = inaccessible
-                obs_vector.append(time_to_midtile)
+                obs_vector.append(0.0)  # Accessibility: not accessible
+                obs_vector.append(0.0)  # Availability: not available
+                obs_vector.append(1.0)  # Max time
         else:
-            # no counters with that item: append fallbacks for agent distance and midpoint distance
-            obs_vector.append(0) # There are no tiles with that item
-            obs_vector.append(0.0) # Accessibility indicator: 0 = no tiles exist
-            obs_vector.append(1) # Fallback for agent time
-            obs_vector.append(0.0) # Accessibility indicator: 0 = no tiles exist
-            obs_vector.append(1) # Fallback for midpoint time
+            # No counters with this item
+            obs_vector.append(0) # Presence: no tiles
+            # Closest counter
+            obs_vector.append(0.0) # Accessibility
+            obs_vector.append(0.0) # Availability
+            obs_vector.append(1.0) # Time
+            # Midpoint counter
+            obs_vector.append(0.0) # Accessibility
+            obs_vector.append(0.0) # Availability
+            obs_vector.append(1.0) # Time
             considered_paths.append(None)
             considered_paths.append(None)
             considered_tiles.append(None)

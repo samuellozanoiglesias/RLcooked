@@ -98,10 +98,11 @@ MLP_LAYERS = [1024, 512, 256]
 # Game characteristics
 PENALTIES_CFG = {
     "busy": 0.01, # Penalty per second spent busy
-    "useless_action": 2.0, # Penalty for useless actions
+    "useless_action": 5.0, # Penalty for useless actions
     "destructive_action": 10.0, # Penalty for destructive actions
-    "inaccessible_tile": 5.0, # Penalty for trying to access an inaccessible tile
-    "not_available": 2.0, # Penalty for trying to perform an action that is not available
+    "inaccessible_tile": 10.0, # Penalty for trying to access an inaccessible tile (no path exists)
+    "not_available": 1.0, # Penalty for trying to perform an action that is not available (runtime block)
+    "collision": 5.0, # Penalty when collision cannot be rerouted (only with collision_enabled=True)
     "specialization_penalty_scale": SPECIALIZATION_PENALTY_SCALE,  # Specialization penalty scale (lambda): 0=no penalty, >0=penalty scale
 }
 

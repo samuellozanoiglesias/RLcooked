@@ -15,10 +15,53 @@ from spoiled_broth.rl.reward_analysis import get_rewards
 from spoiled_broth.rl.dynamic_rewards import calculate_dynamic_rewards
 from spoiled_broth.game import SpoiledBroth, random_game_state
 from spoiled_broth.rl.path_processing import PathProcessor
+from spoiled_broth.rl.tick_based_structure import (
+    agent_is_idle, assign_action, cancel_agent_action,
+    advance_agent_movement, detect_and_resolve_collisions, update_agent_interactions
+)
 
-# Base intent time for non-cutting actions
-INTENT_TIME = 0.5
-MOVE_TIME = 0.2
+# Tick-based simulation constants
+TICK_DURATION = 0.2  # Fixed time step in seconds (200ms) - minimum wait time for ANY action
+
+# Base intent time for non-cutting actions (1 tick minimum)
+INTENT_TIME = TICK_DURATION  # 0.2s = 1 tick for pickup/delivery/put_down
+
+# TIME MANAGEMENT SUMMARY:
+# =======================
+# 
+# TICK DURATION (0.2s):
+#   - Minimum time for ANY action or wait state
+#   - Idle agents wait at least 1 tick before next action
+#   - Rejected actions (inaccessible/not_available) wait 1 tick
+#   - All times are multiples of TICK_DURATION
+#
+# MOVEMENT TIME (continuous, based on agent.walk_speed):
+#   - Base speed: 30 pixels/second = 1.875 tiles/second
+#   - Scaled by walk_speed: agent.speed = 30 * walk_speed
+#   - walk_speed=1.0 → 0.533 seconds per tile (~2.7 ticks)
+#   - walk_speed=0.5 → 1.067 seconds per tile (~5.3 ticks, slower)
+#   - walk_speed=2.0 → 0.267 seconds per tile (~1.3 ticks, faster)
+#   - Progress tracked per tick: movement_progress += (speed * TICK_DURATION)
+#
+# INTERACTION TIME (fixed duration after reaching destination):
+#   - CUTTING: base_time / cut_speed (default 3.0s / cut_speed)
+#     * cut_speed=1.0 → 3.0 seconds (15 ticks)
+#     * cut_speed=0.5 → 6.0 seconds (30 ticks, slower)
+#     * cut_speed=2.0 → 1.5 seconds (7.5 ticks, faster)
+#   - OTHER ACTIONS: INTENT_TIME = 0.2 seconds (1 tick)
+#     * Pickup, delivery, put_down all use 1 tick
+#
+# AGENT IDLE STATE:
+#   Agent is idle ONLY when ALL of these are true:
+#   1. current_action is None (no action assigned)
+#   2. interaction_timer <= 0 (finished waiting for intent)
+#   3. current_path is empty (not moving)
+#   
+#   This ensures agents complete BOTH movement AND interaction time
+#   before being allowed to take a new action.
+#   
+#   When actions are rejected or do_nothing is selected, agents
+#   remain idle and must wait until next tick to request new action.
 
 def get_cutting_time(agent, game):
     """Calculate actual cutting time based on agent's cutting speed."""
@@ -60,34 +103,6 @@ ACTIONS_OBSERVATION_MAPPING_COMPETITION = {
     18: 42, 19: 44,  # pick_up_tomato_salad_from_counter → items[6] (tomato_salad) closest/midpoint time
     20: 47, 21: 49,  # pick_up_pumpkin_salad_from_counter → items[7] (pumpkin_salad) closest/midpoint time
 }
-
-class DistanceMatrixWrapper:
-    """
-    Lightweight wrapper that provides the same .get(from).get(to) lookup
-    semantics as the original nested dict, but backed by a numpy matrix
-    and index maps for speed.
-    """
-    def __init__(self, D, pos_from, pos_to):
-        # D: numpy array shape (N_from, N_to) with np.nan for missing
-        self.D = D
-        # pos_from / pos_to are arrays of shape (N,2)
-        self.pos_from = [tuple(p) for p in pos_from.tolist()]
-        self.pos_to = [tuple(p) for p in pos_to.tolist()]
-        self.pos_from_idx = {p: i for i, p in enumerate(self.pos_from)}
-        self.pos_to_idx = {p: i for i, p in enumerate(self.pos_to)}
-
-    def get(self, from_xy, default=None):
-        i = self.pos_from_idx.get(from_xy)
-        if i is None:
-            return {}
-        # Return a dict-like object for compatibility: mapping to_xy -> distance
-        row = self.D[i]
-        result = {}
-        for j, val in enumerate(row):
-            if not np.isnan(val):
-                result[self.pos_to[j]] = float(val)
-        return result
-
 
 def init_game(agents, map_nr=1, grid_size=(8, 8), seed=None, game_mode="classic", walking_speeds=None, cutting_speeds=None):
     num_agents = len(agents)
@@ -159,6 +174,7 @@ class GameEnv(ParallelEnv):
             "destructive_action": 1.0,
             "not_available": 0.5,
             "inaccessible_tile": 1.0,
+            "collision": 0.5,  # Penalty when collision cannot be rerouted
             "specialization_penalty_scale": 0.0,  # Specialization penalty scale (lambda): 0=no penalty, >0=penalty scale
         }
         default_rewards_cfg = {
@@ -178,34 +194,9 @@ class GameEnv(ParallelEnv):
         
         self.clickable_indices = None  # Initialize clickable indices storage
         
-        self.distance_map = None
-        if isinstance(distance_map, str):
-            # Only support .npz path strings now
-            try:
-                # direct path
-                if distance_map.endswith('.npz') and os.path.exists(distance_map):
-                    data = np.load(distance_map)
-                    D = data['D']
-                    pos_from = data['pos_from']
-                    pos_to = data['pos_to']
-                    self.distance_map = DistanceMatrixWrapper(D, pos_from, pos_to)
-                else:
-                    # Try the repo cache folder
-                    possible = os.path.join(os.path.dirname(__file__), '..', 'maps', 'distance_cache', distance_map)
-                    if possible.endswith('.npz') and os.path.exists(possible):
-                        data = np.load(possible)
-                        D = data['D']
-                        pos_from = data['pos_from']
-                        pos_to = data['pos_to']
-                        self.distance_map = DistanceMatrixWrapper(D, pos_from, pos_to)
-                    else:
-                        # if not found or not .npz, set None
-                        self.distance_map = None
-            except Exception:
-                self.distance_map = None
-        else:
-            # allow direct dict or wrapper being passed (for tests); otherwise None
-            self.distance_map = distance_map
+        # Note: distance_map parameter is no longer used. Time normalization uses
+        # max_distance loaded in game.py (from distance_map_{map_id}_max_distance.npy)
+        # and observation space calculates paths online using PathProcessor + A*.
                     
         # Load the accessibility map for this map
         self.accessibility_map = get_accessibility_map(map_nr)
@@ -249,10 +240,31 @@ class GameEnv(ParallelEnv):
         self.total_action_blocked = {agent_id: 0 for agent_id in self.agents}
         self.total_actions_not_available = {agent_id: 0 for agent_id in self.agents}
         self.total_actions_inaccessible = {agent_id: 0 for agent_id in self.agents}
+        
+        # Collision tracking statistics
+        self.total_collisions_detected = 0
+        self.total_collisions_rerouted = 0
+        self.total_collisions_failed = 0
 
         self.game, self.action_spaces, self._clickable_mask, self.clickable_indices = init_game(self.agents, map_nr=self.map_nr, grid_size=self.grid_size, seed=self.seed, game_mode=self.game_mode, walking_speeds=self.walking_speeds, cutting_speeds=self.cutting_speeds)
 
         self.agent_map = {agent_id: self.game.gameObjects[agent_id] for agent_id in self.agents}
+        
+        # Tick-based agent state tracking (replaces busy_until)
+        self.agent_state = {
+            agent_id: {
+                'current_action': None,  # Action name being executed
+                'current_path': [],  # Path nodes for current action
+                'path_index': 0,  # Current position in path
+                'movement_progress': 0.0,  # Fractional progress to next tile [0, 1)
+                'interaction_timer': 0.0,  # Time remaining for non-movement actions (cutting, pickup, etc.)
+                'target_tile_index': None,  # Final tile for current action
+                'action_type': None  # Type classification of current action
+            }
+            for agent_id in self.agents
+        }
+        
+        # Legacy compatibility (will be removed after refactor complete)
         self.busy_until = {agent_id: None for agent_id in self.agents}
         self.action_info = {agent_id: None for agent_id in self.agents}
 
@@ -296,6 +308,10 @@ class GameEnv(ParallelEnv):
         # Initialize pre-calculated paths storage
         self.agent_action_paths = {agent_id: [] for agent_id in self.agents}
         self.agent_action_tiles = {agent_id: [] for agent_id in self.agents}
+        
+        # Track which agents need observation refresh (only when they become idle)
+        # This avoids recalculating expensive pathfinding when agents are busy
+        self.agents_need_observation = {agent_id: True for agent_id in self.agents}
 
     def reset(self, seed=None, options=None):
         # Initialize or increment reset counter
@@ -358,12 +374,20 @@ class GameEnv(ParallelEnv):
         self.total_actions_asked = {agent_id: 0 for agent_id in self.agents}
         self.total_actions_not_available = {agent_id: 0 for agent_id in self.agents}
         self.total_actions_inaccessible = {agent_id: 0 for agent_id in self.agents}
+        
+        # Reset collision statistics
+        self.total_collisions_detected = 0
+        self.total_collisions_rerouted = 0
+        self.total_collisions_failed = 0
 
         self.observations = {agent: self.observe(agent) for agent in self.agents}
         self.modified_rewards = {agent: 0.0 for agent in self.agents}
         self.dones = {agent: False for agent in self.agents}
         self.infos = {agent: {} for agent in self.agents}
         self._last_score = 0
+        
+        # All agents start idle, so they all need observations
+        self.agents_need_observation = {agent_id: True for agent_id in self.agents}
 
         return self.observations, self.infos
 
@@ -386,7 +410,7 @@ class GameEnv(ParallelEnv):
                             initial_val = self.initial_rewards_cfg[reward_type]
                             current_val = self.rewards_cfg[reward_type]
                             print(f"  {reward_type}: {initial_val:.3f} -> {current_val:.3f} (ratio: {current_val/initial_val:.3f})")
-
+    
     def observe(self, agent):
         obs_vector, considered_paths, considered_tiles = game_to_obs_vector(self.game, agent, game_mode=self.game_mode, path_processor=self.path_processor)
         
@@ -397,9 +421,29 @@ class GameEnv(ParallelEnv):
         return obs
 
     def step(self, actions):
-        # --- Simultaneous agent update for minimal delta_time ---
+        """
+        Tick-based simulation step with reactive collision handling.
+        
+        OPTIMIZATION: Observations are only calculated for agents that CAN take actions.
+        - Busy agents: Skip action processing, skip observation calculation
+        - Idle agents: Process actions, calculate fresh observations for next step
+        
+        This avoids expensive pathfinding calculations (~80% of observation cost)
+        when agents are executing actions and cannot make decisions.
+        
+        Flow:
+        1. Process new actions ONLY for idle agents
+        2. Execute one tick (all agents move/interact)
+        3. Update observations ONLY for agents that became idle this tick
+        """
+        # Initialize agent map and event tracking
         self.agent_map = {agent_id: self.game.gameObjects[agent_id] for agent_id in self.agents}
         agent_penalties = {agent_id: 0.0 for agent_id in self.agents}
+        
+        # Track which agents will need fresh observations after this step
+        # (agents that are currently idle or will become idle during this tick)
+        agents_becoming_idle = set()
+        
         # Prepare agent_events dict
         if self.game_mode == "competition":
             agent_events = {agent_id: {"deliver_own": 0, "deliver_other": 0, "salad_own": 0, "salad_other": 0, "cut_own": 0, "cut_other": 0, "plate": 0, "raw_food_own": 0, "raw_food_other": 0, "counter": 0} for agent_id in self.agents}
@@ -407,158 +451,119 @@ class GameEnv(ParallelEnv):
             agent_events = {agent_id: {"deliver": 0, "salad": 0, "cut": 0, "plate": 0, "raw_food": 0, "counter": 0} for agent_id in self.agents}
         else:
             raise ValueError(f"Unknown game mode: {self.game_mode}")
-
-        # Track current actions and busy times
-        busy_times = {}
-        validated_actions = {}
         
         # Store validated actions for debug access (used by GameEnvDebug)
         self._logging_actions = {}
         
-        # First, calculate remaining busy times for all agents
-        for agent_id in self.agents:
-            agent = self.agent_map[agent_id]
-            if self.busy_until.get(agent_id) is not None and self.busy_until[agent_id] > self._elapsed_time:
-                busy_times[agent_id] = self.busy_until[agent_id] - self._elapsed_time
-            else:
-                busy_times[agent_id] = 0  # Agent is not busy
-        
-        # Only process actions for agents that are not busy
+        # --- Phase 1: Process new actions ONLY for idle agents ---
+        # Busy agents are skipped - they already have actions executing
         for agent_id, action_idx in actions.items():
+            # CRITICAL: Only process actions for idle agents
+            # Busy agents cannot make decisions, so we skip them entirely
+            if not agent_is_idle(self, agent_id):
+                continue
+            
+            self.total_actions_asked[agent_id] += 1
             agent = self.agent_map[agent_id]
-
-            # Check if agent is ready for a new action
-            if busy_times[agent_id] <= 0:
-                self.total_actions_asked[agent_id] += 1
-                action_name = get_rl_action_space(self.game_mode)[action_idx]
-                
-                # Handle do_nothing action
-                if action_name == "do_nothing":
-                    # Agent does nothing this step - minimal time advancement
-                    busy_times[agent_id] = MOVE_TIME
-                    self.busy_until[agent_id] = self._elapsed_time + busy_times[agent_id]
-                    
-                    # Store for logging
-                    self._logging_actions[agent_id] = {
-                        'elapsed_time': self._elapsed_time,
-                        'action_idx': action_idx,
-                        'action_name': action_name,
-                        'tile_index': -2,
-                        'action_type': 'do_nothing',
-                        'x': -2,
-                        'y': -2
-                    }
-                    continue
-                
-                if agent_id in self.agent_action_tiles:        
-                    cached_path = self.agent_action_paths[agent_id][action_idx]
-                    tile_index = self.agent_action_tiles[agent_id][action_idx]
-                else:
-                    cached_path = None
-                    tile_index = None
-                
-                if tile_index is None:
-                    # No valid tile found during observation (inaccessible)
-                    action_type = "inaccessible_tile"
-                    logging_index = -1
-                    logging_x, logging_y = -1, -1
-                elif tile_index == -1:
-                    # Path blocked by collisions
-                    action_type = "not_available"
-                    logging_index = -1
-                    logging_x, logging_y = -1, -1
-                else:
-                    # Action is valid - set up the path for the agent
-                    grid_w = self.game.grid.width
-                    x = tile_index % grid_w
-                    y = tile_index // grid_w
-                    tile = self.game.grid.tiles[x][y]
-                    action_type = get_action_type(tile, agent, agent_id, agent_food_type=self.agent_food_type, game_mode=self.game_mode, x=x, y=y, accessibility_map=self.accessibility_map)
-                    logging_index = tile_index
-                    logging_x = x
-                    logging_y = y
-                    
-                    # Set up the cached path for the agent
-                    if cached_path and len(cached_path) > 1:
-                        agent.path = cached_path[1:]  # Skip current tile
-                        agent.path_index = 0
-                    else:
-                        # Fallback to setup_agent_path if no cached path
-                        setup_agent_path(self, agent, tile_index)
-                    
-                    # Update path processor with agent's active path
-                    if self.path_processor.is_enabled() and hasattr(agent, 'path') and agent.path:
-                        # Convert agent speed from pixels/second to tiles/second for collision detection
-                        agent_speed_pixels = getattr(agent, 'speed', 30.0)
-                        agent_speed_tiles = agent_speed_pixels / 16.0  # tile_size is 16 pixels
-                        self.path_processor.update_agent_path(
-                            agent_id=agent_id,
-                            path=agent.path,
-                            current_position=(agent.slot_x, agent.slot_y),
-                            path_index=0,
-                            speed=agent_speed_tiles
-                        )
-                    
-                    # Set up action info for completion tracking
-                    self.action_info[agent_id] = {
-                        'tile_index': tile_index,
-                        'action_name': action_name,
-                        'action_type': action_type
-                    }
-                obs = self.observations.get(agent_id)
-                
-                # Store validated action for debug access
+            action_name = get_rl_action_space(self.game_mode)[action_idx]
+            
+            # Handle do_nothing action
+            if action_name == "do_nothing":
+                # Store for logging
                 self._logging_actions[agent_id] = {
                     'elapsed_time': self._elapsed_time,
                     'action_idx': action_idx,
                     'action_name': action_name,
-                    'tile_index': logging_index,
-                    'action_type': action_type,
-                    'x': logging_x,
-                    'y': logging_y
+                    'tile_index': -2,
+                    'action_type': 'do_nothing',
+                    'x': -2,
+                    'y': -2
                 }
-
-                if action_type == "inaccessible_tile":
-                    # No valid target found - action cannot be performed
-                    self.total_actions_inaccessible[agent_id] += 1
-                    self.total_action_types[agent_id][action_type] += 1
-                    agent_penalties[agent_id] += self.penalties_cfg["inaccessible_tile"]
-                    busy_times[agent_id] = MOVE_TIME
-                    self.busy_until[agent_id] = self._elapsed_time + busy_times[agent_id]
-                    continue
-                elif action_type == "not_available":
-                    self.total_actions_not_available[agent_id] += 1
-                    self.total_action_types[agent_id][action_type] += 1
-                    agent_penalties[agent_id] += self.penalties_cfg["not_available"]
-                    busy_times[agent_id] = MOVE_TIME
-                    self.busy_until[agent_id] = self._elapsed_time + busy_times[agent_id]
-                    continue
+                continue
+            
+            # Get cached path and tile from observation
+            if agent_id in self.agent_action_tiles:
+                cached_path = self.agent_action_paths[agent_id][action_idx]
+                tile_index = self.agent_action_tiles[agent_id][action_idx]
+            else:
+                cached_path = None
+                tile_index = None
+            
+            # --- THREE-TIER PENALTY SYSTEM ---
+            # Validate action based on observation space indicators:
+            # 
+            # 1. INACCESSIBLE (tile_index=None): No path exists ignoring agents
+            #    - Observation: accessibility=0, availability=0
+            #    - Action: REJECTED immediately, agent stays idle
+            #    - Penalty: penalties_cfg["inaccessible_tile"] (default: 5.0)
+            #
+            # 2. NOT_AVAILABLE (tile_index=-1): Path exists but blocked by agent's current position
+            #    - Observation: accessibility=1, availability=0
+            #    - Action: ACCEPTED and attempted (action is assigned to agent)
+            #    - Penalty: penalties_cfg["not_available"] (default: 2.0) applied immediately
+            #    - Note: Only occurs when collision_enabled=True
+            #
+            # 3. COLLISION (handled later in step()): Runtime collision during movement, rerouting failed
+            #    - Observation: accessibility=1, availability=1 (was available at observation time)
+            #    - Action: Attempted, collision detected during execution, rerouting fails
+            #    - Penalty: penalties_cfg["collision"] (default: 2.0) applied when rerouting fails
+            #    - Note: Only occurs when collision_enabled=True
+            
+            if tile_index is None:
+                # CASE 1: INACCESSIBLE - No path exists at all (ignoring agents)
+                # This means the tile is unreachable due to walls/obstacles, not other agents
+                action_type = "inaccessible_tile"
+                logging_index = -1
+                logging_x, logging_y = -1, -1
+                self.total_actions_inaccessible[agent_id] += 1
+                self.total_action_types[agent_id][action_type] += 1
+                agent_penalties[agent_id] += self.penalties_cfg["inaccessible_tile"]
+                # Action is REJECTED - agent remains idle, will ask for new action next step
+                # Mark that this agent needs a fresh observation for next step
+                agents_becoming_idle.add(agent_id)
                 
-                # Calculate movement time based on distance, but ensure minimum time
-                if obs is not None and action_idx in self.action_obs_mapping:
-                    distance_normalized = obs[self.action_obs_mapping[action_idx]]
-                    move_time = distance_normalized * getattr(self.game, 'normalization_factor', 1.0)
-                else:
-                    move_time = MOVE_TIME
+            elif tile_index == -1:
+                # CASE 2: NOT_AVAILABLE - Path exists but blocked by other agent's current position
+                # Tile is accessible (path exists ignoring agents) but not currently available
+                # We still ATTEMPT the action (assign it to agent) but apply penalty immediately
+                # This only happens when collision_enabled=True
+                action_type = "not_available"
+                logging_index = -1
+                logging_x, logging_y = -1, -1
+                self.total_actions_not_available[agent_id] += 1
+                self.total_action_types[agent_id][action_type] += 1
+                agent_penalties[agent_id] += self.penalties_cfg["not_available"]
+                # Note: We DO NOT assign the action here - it's blocked, so agent stays idle
+                # The agent will request a new action next step
+                # Mark that this agent needs a fresh observation for next step
+                agents_becoming_idle.add(agent_id)
                 
-                # Add intent time - for cutting actions, use agent-specific cutting time
-                intent_time = INTENT_TIME
-                if action_name == "use_cutting_board" and agent_id in self.agent_map:
-                    agent = self.agent_map[agent_id]
-                    intent_time = get_cutting_time(agent, self.game)
+            else:
+                # CASE 3: VALID ACTION - Tile is both accessible and available
+                # Action is assigned and will be executed
+                # COLLISION penalty may be applied later if runtime collision occurs during movement
+                grid_w = self.game.grid.width
+                x = tile_index % grid_w
+                y = tile_index // grid_w
+                tile = self.game.grid.tiles[x][y]
+                action_type = get_action_type(tile, agent, agent_id, agent_food_type=self.agent_food_type, game_mode=self.game_mode, x=x, y=y, accessibility_map=self.accessibility_map)
+                logging_index = tile_index
+                logging_x = x
+                logging_y = y
                 
-                busy_time = move_time + intent_time
-                self.busy_until[agent_id] = self._elapsed_time + busy_time
-                busy_times[agent_id] = busy_time
-
-                # Penalties
+                # Assign action to agent
+                assign_action(self, agent_id, action_idx, action_name, tile_index, cached_path, action_type)
+                
+                # Track action type
+                self.total_action_types[agent_id][action_type] += 1
+                
+                # Apply immediate penalties for useless/destructive actions
                 if action_type.startswith("useless_"):
                     agent_penalties[agent_id] += self.penalties_cfg["useless_action"]
                 elif action_type.startswith("destructive_"):
-                    # Get the penalty for the destroyed item based on what the agent is carrying
+                    # Get penalty for destroyed item
                     destroyed_item_penalty = 0.0
                     if hasattr(agent, 'item') and agent.item:
-                        # Map agent's item to corresponding reward value
                         if agent.item in ["tomato", "pumpkin"]:
                             destroyed_item_penalty = self.rewards_cfg["raw_food"]
                         elif agent.item == "plate":
@@ -567,101 +572,141 @@ class GameEnv(ParallelEnv):
                             destroyed_item_penalty = self.rewards_cfg["cut"]
                         elif agent.item in ["tomato_salad", "pumpkin_salad"]:
                             destroyed_item_penalty = self.rewards_cfg["salad"]
-
-                    # Apply both the base destructive penalty and the destroyed item penalty
                     agent_penalties[agent_id] += self.penalties_cfg["destructive_action"] + destroyed_item_penalty
+            
+            # Store for logging
+            self._logging_actions[agent_id] = {
+                'elapsed_time': self._elapsed_time,
+                'action_idx': action_idx,
+                'action_name': action_name,
+                'tile_index': logging_index,
+                'action_type': action_type,
+                'x': logging_x,
+                'y': logging_y
+            }
+        
+        # --- Phase 2: Execute one tick of simulation ---
+        # Advance time by one tick
+        self._elapsed_time += TICK_DURATION
+        
+        # Move all agents
+        agents_reached_destination = []
+        for agent_id in self.agents:
+            state = self.agent_state[agent_id]
+            
+            # Skip if agent is not moving
+            if len(state['current_path']) == 0:
+                continue
+            
+            # Advance movement
+            reached_next, reached_final, blocked = advance_agent_movement(self, agent_id, TICK_DURATION)
+            
+            if reached_final:
+                # Agent reached their destination tile
+                agents_reached_destination.append(agent_id)
                 
-                # Specialization penalty: penalize agents for performing actions they're not specialized for
-                penalty_scale = self.penalties_cfg.get("specialization_penalty_scale", 0.0)
-                if penalty_scale > 0:
-                    # Get agent abilities (normalized to [0, 1] where 1 is maximum)
+                # Start interaction timer for non-movement actions
+                action_name = state['current_action']
+                agent = self.agent_map[agent_id]
+                
+                if action_name == "use_cutting_board":
+                    # Use agent-specific cutting time
+                    state['interaction_timer'] = get_cutting_time(agent, self.game)
+                elif action_name:
+                    # All other interactions use INTENT_TIME
+                    state['interaction_timer'] = INTENT_TIME
+                
+                # Clear movement path (keep action state for interaction completion)
+                state['current_path'] = []
+                state['path_index'] = 0
+                state['movement_progress'] = 0.0
+        
+        # --- Detect and resolve collisions (only if collision detection enabled) ---
+        # CASE 3: COLLISION PENALTY - Runtime collision that cannot be rerouted
+        # This handles collisions that occur during execution (not at action selection time)
+        # When two agents are moving and collide at runtime:
+        #   1. Both agents try to reroute around collision point + other agent's position
+        #   2. If both rerouting attempts fail, apply collision penalty and cancel both actions
+        #   3. Collision statistics tracked: detected, rerouted (success), failed (penalty applied)
+        if self.path_processor.collision_enabled:
+            collision_stats = detect_and_resolve_collisions(self)
+            
+            # Update collision statistics
+            self.total_collisions_detected += collision_stats['collisions_detected']
+            self.total_collisions_rerouted += collision_stats['collisions_rerouted']
+            self.total_collisions_failed += collision_stats['collisions_failed']
+            
+            # Apply penalties to agents whose collisions couldn't be rerouted
+            # These agents had their actions cancelled in detect_and_resolve_collisions
+            for agent_id in collision_stats['agents_with_failed_collisions']:
+                agent_penalties[agent_id] += self.penalties_cfg["collision"]
+                # Mark these agents for observation refresh since they're now idle
+                agents_becoming_idle.add(agent_id)
+        # If collision detection is disabled, this entire block is skipped
+        # No collision penalties, no rerouting, agents can overlap freely
+        
+        # Update interaction timers and complete interactions
+        # This also returns which agents completed their interactions (became idle)
+        agent_events = update_agent_interactions(self, agent_events, agent_penalties, TICK_DURATION)
+        
+        # Mark agents that just finished interactions as needing new observations
+        # Check which agents are now idle (completed their actions this tick)
+        for agent_id in self.agents:
+            if agent_is_idle(self, agent_id):
+                # Agent is idle - either was already idle, or just finished
+                # They'll need a fresh observation for the next decision
+                agents_becoming_idle.add(agent_id)
+        
+        # Apply busy penalty for agents currently executing actions
+        for agent_id in self.agents:
+            state = self.agent_state[agent_id]
+            if state['current_action'] is not None:
+                agent_penalties[agent_id] += self.penalties_cfg["busy"] * TICK_DURATION
+        
+        # Apply specialization penalty
+        penalty_scale = self.penalties_cfg.get("specialization_penalty_scale", 0.0)
+        if penalty_scale > 0:
+            for agent_id in self.agents:
+                state = self.agent_state[agent_id]
+                agent = self.agent_map[agent_id]
+                action_type = state.get('action_type')
+                
+                if action_type and state['current_action']:
                     walk_speed = getattr(agent, 'walk_speed', 1.0)
                     cut_speed = getattr(agent, 'cut_speed', 1.0)
-                    
-                    # Penalty factor: (1 - ability) * scale * action_time
-                    # When ability = 1.0: no penalty
-                    # When ability < 1.0: penalty increases proportionally
                     
                     # Apply penalty for cutting actions when cut_ability < 1
                     is_cutting_action = (
                         action_type in ["useful_cutting_board", "useful_cutting_board_own", "useful_cutting_board_other"]
                     )
                     if is_cutting_action and cut_speed < 1.0:
-                        cutting_penalty = (1.0 - cut_speed) * penalty_scale * busy_time
+                        cutting_penalty = (1.0 - cut_speed) * penalty_scale * TICK_DURATION
                         agent_penalties[agent_id] += cutting_penalty
                     
                     # Apply penalty for delivery/walking actions when walk_speed < 1
-                    # Consider delivery and movement-heavy actions
                     is_delivery_action = (
                         action_type in ["useful_delivery", "useful_delivery_own", "useful_delivery_other"]
                     )
-                    # For delivery actions, penalize based on walking ability
-                    # The penalty should scale with the movement time component
                     if is_delivery_action and walk_speed < 1.0:
-                        delivery_penalty = (1.0 - walk_speed) * penalty_scale * busy_time
+                        delivery_penalty = (1.0 - walk_speed) * penalty_scale * TICK_DURATION
                         agent_penalties[agent_id] += delivery_penalty
-                
-                agent_penalties[agent_id] += self.penalties_cfg["busy"] * busy_time
-                validated_actions[agent_id] = {"type": "click", "target": tile_index}
-                self.action_info[agent_id] = {
-                    "action_type": action_type,
-                    "tile_index": tile_index,
-                    "action_idx": action_idx
-                }
-                
-                # Track action types immediately when selected (for all actions, including useless ones)
-                self.total_action_types[agent_id][action_type] += 1
-            else:
-                # Agent is busy, ignore the new action and continue with current action
-                pass
-
-        # We need to advance time until at least one agent becomes available for a new action
-        all_busy_times = [t for t in busy_times.values() if t > 0]
-
-        if all_busy_times:
-            # Advance to when the first agent finishes
-            min_delta = min(all_busy_times)
-        else:
-            # All agents are ready, minimal advancement
-            min_delta = 0.01
         
-        next_time = min(self._elapsed_time + min_delta, self._max_seconds_per_episode)
-        advanced_time = next_time - self._elapsed_time
-        self._elapsed_time = next_time
-
-        # Direct game state update instead of calling self.game.step()
-        agent_events = update_agents_directly(self, advanced_time, agent_events, agent_food_type=self.agent_food_type, game_mode=self.game_mode)
-        self.agent_map = {agent_id: self.game.gameObjects[agent_id] for agent_id in self.agents}
-
-        # Update totals for actions that just completed (for logging purposes only)
-        # We should use the events that were already recorded during action selection, not re-evaluate
+        # Update totals for logged events
         for agent_id in self.agents:
             for event_type in agent_events[agent_id]:
                 if agent_events[agent_id][event_type] > 0:
                     self.total_agent_events[agent_id][event_type] += agent_events[agent_id][event_type]
-
-        # Mark agents as available if their busy_until has passed
-        for agent_id, agent in self.agent_map.items():
-            if self.busy_until.get(agent_id) is not None and self._elapsed_time >= self.busy_until[agent_id]:
-                self.busy_until[agent_id] = None
-                self.action_info[agent_id] = None
-                
-                # Clear agent path when action completes
-                if hasattr(agent, 'path'):
-                    agent.path = []
-                if hasattr(agent, 'path_index'):
-                    agent.path_index = 0
-
+        
         # Compute rewards (includes reference-based opportunity cost if enabled)
         self.cumulated_pure_rewards, self.cumulated_modified_rewards = get_rewards(self, agent_events, agent_penalties, self.rewards_cfg)
-
+        
         # Check for episode termination
         should_truncate = self._elapsed_time >= self._max_seconds_per_episode
         if should_truncate:
             self.dones = {agent: True for agent in self.agents}
             self._elapsed_time = 0
             self.write_csv = True
-
+        
         self.infos = {
             agent: {
                 "agent_events": agent_events[agent],
@@ -670,11 +715,22 @@ class GameEnv(ParallelEnv):
             }
             for agent in self.agents
         }
-
-        self.observations = {agent: self.observe(agent) for agent in self.agents}
+        
+        # Update observations ONLY for agents that need them
+        # OPTIMIZATION: Only recalculate expensive pathfinding observations for agents that:
+        # 1. Just finished their action (became idle)
+        # 2. Had their action rejected (inaccessible or not available)
+        # 3. Had their action cancelled due to collision
+        # Busy agents keep their previous observations (they can't act anyway)
+        for agent_id in agents_becoming_idle:
+            self.observations[agent_id] = self.observe(agent_id)
+        
+        # Note: observations for busy agents are unchanged from previous step
+        # They don't need fresh pathfinding data until they can make decisions
+        
         terminations = self.dones
         truncations = {agent: False for agent in self.agents}
-
+        
         # If episode is done, aggregate and log
         if self.write_csv:
             if self.episode_count % 100 == 0:
@@ -689,9 +745,14 @@ class GameEnv(ParallelEnv):
                 row[f"actions_asked_{agent_id}"] = self.total_actions_asked[agent_id]
                 row[f"actions_not_available_{agent_id}"] = self.total_actions_not_available[agent_id]
                 row[f"inaccessible_actions_{agent_id}"] = self.total_actions_inaccessible[agent_id]
+            
+            # Add collision statistics (episode-level, not per-agent)
+            row["collisions_detected"] = self.total_collisions_detected
+            row["collisions_rerouted"] = self.total_collisions_rerouted
+            row["collisions_failed"] = self.total_collisions_failed
 
-                for action_type in get_action_type_list(self.game_mode):
-                    row[f"{action_type}_{agent_id}"] = self.total_action_types[agent_id][action_type]
+            for action_type in get_action_type_list(self.game_mode):
+                row[f"{action_type}_{agent_id}"] = self.total_action_types[agent_id][action_type]
 
             with open(self.csv_path, "a", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=row.keys())
