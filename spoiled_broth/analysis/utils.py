@@ -1249,19 +1249,20 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
     # Custom path setup that includes init_type and synergy in the correct order
     local_path = config.cluster_paths[cluster]
     
-    # Determine which synergy values to analyze (if not explicitly provided)
-    if not synergy_provided and synergy_scaling_factor is None:
-        # Auto-detect available synergy folders
+    # Determine which synergy values to analyze
+    if not synergy_provided:
+        # Auto-detect available synergy folders when synergy was not explicitly provided
         synergy_values_to_analyze = _detect_available_synergy_folders(
             local_path, experiment_type, game_type, init_type, 
             map_name, study_name
         )
         analyze_multiple_synergies = len([s for s in synergy_values_to_analyze if s is not None]) > 1
-        print(f"Detected synergy values: {synergy_values_to_analyze}")
+        print(f"Auto-detected synergy values: {synergy_values_to_analyze}")
     else:
-        # Use provided synergy value or default
-        synergy_values_to_analyze = [synergy_scaling_factor if synergy_scaling_factor is not None else 0.0]
+        # Use provided synergy value
+        synergy_values_to_analyze = [synergy_scaling_factor]
         analyze_multiple_synergies = False
+        print(f"Using provided synergy value: {synergy_scaling_factor}")
     
     # Determine which specialization lambdas to analyze
     if specialization_lambda is None:
@@ -1279,17 +1280,15 @@ def main_analysis_pipeline(experiment_type: str, map_name: str,
     
     for synergy_val in synergy_values_to_analyze:
         # Determine if we're using synergy subfolders for this value
-        current_synergy_provided = (synergy_val is not None) and (not synergy_provided or synergy_val != (synergy_scaling_factor if synergy_scaling_factor is not None else 0.0))
-        if analyze_multiple_synergies and synergy_val is not None:
+        if synergy_provided:
+            # User explicitly provided synergy value
             current_synergy_provided = True
-        elif not analyze_multiple_synergies and synergy_provided:
+        elif not synergy_provided and synergy_val is not None:
+            # Auto-detected synergy folders exist, so treat as provided for path construction
             current_synergy_provided = True
         else:
+            # No synergy subfolders
             current_synergy_provided = False
-        
-        # For auto-detected synergies, always treat as provided
-        if analyze_multiple_synergies and synergy_val is not None:
-            current_synergy_provided = True
         
         # Auto-detect specialization folders for this synergy value if needed
         if spec_folders_to_analyze is None:

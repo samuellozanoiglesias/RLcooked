@@ -98,7 +98,7 @@ def main():
     print(f"Study name: {args.study_name}")
     print(f"Game type: {args.game_type}")
     print(f"Init type: {args.init_type}")
-    print(f"Eta: {args.synergy_scaling_factor}")
+    print(f"Synergy scaling factor: {args.synergy_scaling_factor}")
     
     try:
         # Check if synergy_scaling_factor was explicitly provided

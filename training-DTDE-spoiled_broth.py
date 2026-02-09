@@ -47,8 +47,8 @@ SPECIALIZATION_PENALTY_SCALE = float(sys.argv[14]) if len(sys.argv) > 14 else 0.
 # Decide which agent to train (1 or 2)
 if NUM_AGENTS == 1:
     agent_to_train = 1  # Default to agent 1
-    if len(sys.argv) > 16:  # Updated from 15 to 16 due to new specialization_penalty_scale parameter
-        agent_to_train = int(sys.argv[16])
+    if len(sys.argv) > 15:  # agent_to_train is the 15th argument (sys.argv[15])
+        agent_to_train = int(sys.argv[15])
         if agent_to_train not in [1, 2]:
             raise ValueError("When NUM_AGENTS=1, agent_to_train must be 1 or 2")
 
@@ -89,7 +89,7 @@ TRAIN_BATCH_SIZE = 4000  # Increased for better GPU utilization (NUM_ENVS * roll
 SGD_MINIBATCH_SIZE = 500  # Optimized minibatch size for GPU
 NUM_SGD_ITER = 10  # Number of SGD iterations per training batch
 SHOW_EVERY_N_EPOCHS = 1
-SAVE_EVERY_N_EPOCHS = 20
+SAVE_EVERY_N_EPOCHS = 50
 PAYOFF_MATRIX = [1,1,-2]
 
 # Neural network architecture

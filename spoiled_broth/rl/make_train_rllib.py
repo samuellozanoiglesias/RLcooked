@@ -13,7 +13,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def env_creator(config):
     # Your existing GameEnv class goes here
-    return GameEnv(**config)
+    env = GameEnv(**config)
+    return env
 
 # Define separate policies for each agent
 def policy_mapping_fn(agent_id, episode=None, worker=None, **kwargs):
@@ -195,7 +196,6 @@ def make_train_rllib(config):
 
     # Build algorithm with error handling
     trainer = ppo_config.build_algo()
-    print("Algorithm and environment successfully initialized.")
 
     # Initialize dynamic PPO parameters if configured
     dynamic_ppo_params_cfg = config.get("DYNAMIC_PPO_PARAMS_CFG", None)

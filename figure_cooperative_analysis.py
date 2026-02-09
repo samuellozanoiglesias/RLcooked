@@ -170,6 +170,21 @@ class CooperativeAnalyzer:
         # Fallback: use first word
         return map_name.split('_')[0]
     
+    def _build_data_path(self, *path_parts) -> str:
+        """Build a data path handling empty local_path (cuenca cluster).
+        
+        Args:
+            *path_parts: Path components to join
+            
+        Returns:
+            Properly constructed path
+        """
+        if self.local_path:
+            return os.path.join(self.local_path, *path_parts)
+        else:
+            # For cuenca cluster (empty local_path), use absolute path
+            return os.path.join('/', *path_parts)
+    
     def _detect_available_synergy_values(self) -> List[float]:
         """Detect available synergy values from directory structure.
         
@@ -179,7 +194,7 @@ class CooperativeAnalyzer:
         synergy_values = []
         
         # Build path to check for synergy directories
-        base_path = os.path.join(self.local_path, 'data', 'samuel_lozano', 'cooked', 'classic', self.init_type, f'map_{self.map_name_1}')
+        base_path = self._build_data_path('data', 'samuel_lozano', 'cooked', 'classic', self.init_type, f'map_{self.map_name_1}')
         
         if os.path.exists(base_path):
             try:
@@ -230,7 +245,7 @@ class CooperativeAnalyzer:
         # Build path to check for specialization directories
         # Use 2 decimal places to match actual folder names on disk
         synergy_str = 'synergy_0' if synergy_val == 0.0 else f'synergy_{synergy_val:.2f}'
-        base_path = os.path.join(self.local_path, 'data', 'samuel_lozano', 'cooked', 'classic', self.init_type, f'map_{self.map_name_1}', synergy_str)
+        base_path = self._build_data_path('data', 'samuel_lozano', 'cooked', 'classic', self.init_type, f'map_{self.map_name_1}', synergy_str)
         
         if os.path.exists(base_path):
             try:
@@ -341,15 +356,15 @@ class CooperativeAnalyzer:
                         if self.study_name:
                             # Use study_name folder structure
                             if spec_folder:
-                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/{self.study_name}"
+                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', game_type, self.init_type, f'map_{map_name}', synergy_folder, spec_folder, self.study_name)
                             else:
-                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{synergy_folder}/{self.study_name}"
+                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', game_type, self.init_type, f'map_{map_name}', synergy_folder, self.study_name)
                         else:
                             # Default structure
                             if spec_folder:
-                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{synergy_folder}/{spec_folder}"
+                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', game_type, self.init_type, f'map_{map_name}', synergy_folder, spec_folder)
                             else:
-                                raw_dir = f"{self.local_path}/data/samuel_lozano/cooked/{game_type}/{self.init_type}/map_{map_name}/{synergy_folder}"
+                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', game_type, self.init_type, f'map_{map_name}', synergy_folder)
                         
                         print(f"  Loading from: {raw_dir}")
                     

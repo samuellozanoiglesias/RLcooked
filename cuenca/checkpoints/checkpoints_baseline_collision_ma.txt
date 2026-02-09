@@ -1,0 +1,6 @@
+policy_ai_rl_1
+final
+/data/samuel_lozano/cooked/pretraining/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_0/Training_2026-02-07_03-46-01/
+policy_ai_rl_2
+final
+/data/samuel_lozano/cooked/pretraining/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_0/Training_2026-02-07_03-46-37/

@@ -121,8 +121,10 @@ class PathProcessor:
             if not path_blocked:
                 distance = sum(euclidean_distance(path[i], path[i + 1]) for i in range(len(path) - 1))
                 return distance, path
-        
-        return None, None
+            else:
+                return None, None
+        else:
+            return None, None
     
     def _get_walkable_neighbors_of_target(self, grid, target_xy: Tuple[int, int]) -> List[Tuple[int, int]]:
         """Get all walkable neighbor tiles of a non-walkable target tile.

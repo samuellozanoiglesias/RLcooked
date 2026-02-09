@@ -17,7 +17,7 @@ from spoiled_broth.game import SpoiledBroth, random_game_state
 from spoiled_broth.rl.path_processing import PathProcessor
 from spoiled_broth.rl.tick_based_structure import (
     agent_is_idle, assign_action, cancel_agent_action,
-    advance_agent_movement, detect_and_resolve_collisions, update_agent_interactions
+    advance_agent_movement, resolve_predictive_collisions, update_agent_interactions
 )
 
 # Tick-based simulation constants
@@ -422,7 +422,13 @@ class GameEnv(ParallelEnv):
 
     def step(self, actions):
         """
-        Tick-based simulation step with reactive collision handling.
+        Tick-based simulation step with PREDICTIVE collision handling.
+        
+        NEW PROCESSING ORDER:
+        1. Process new actions ONLY for idle agents
+        2. PREDICTIVE collision detection: predict next tick positions and reroute BEFORE movement
+        3. Execute one tick (all agents move/interact)
+        4. Update observations ONLY for agents that became idle this tick
         
         OPTIMIZATION: Observations are only calculated for agents that CAN take actions.
         - Busy agents: Skip action processing, skip observation calculation
@@ -430,11 +436,6 @@ class GameEnv(ParallelEnv):
         
         This avoids expensive pathfinding calculations (~80% of observation cost)
         when agents are executing actions and cannot make decisions.
-        
-        Flow:
-        1. Process new actions ONLY for idle agents
-        2. Execute one tick (all agents move/interact)
-        3. Update observations ONLY for agents that became idle this tick
         """
         # Initialize agent map and event tracking
         self.agent_map = {agent_id: self.game.gameObjects[agent_id] for agent_id in self.agents}
@@ -460,7 +461,8 @@ class GameEnv(ParallelEnv):
         for agent_id, action_idx in actions.items():
             # CRITICAL: Only process actions for idle agents
             # Busy agents cannot make decisions, so we skip them entirely
-            if not agent_is_idle(self, agent_id):
+            is_idle = agent_is_idle(self, agent_id)
+            if not is_idle:
                 continue
             
             self.total_actions_asked[agent_id] += 1
@@ -503,10 +505,11 @@ class GameEnv(ParallelEnv):
             #    - Penalty: penalties_cfg["not_available"] (default: 2.0) applied immediately
             #    - Note: Only occurs when collision_enabled=True
             #
-            # 3. COLLISION (handled later in step()): Runtime collision during movement, rerouting failed
+            # 3. COLLISION (handled in Phase 2): Predictive collision detected and rerouting failed
             #    - Observation: accessibility=1, availability=1 (was available at observation time)
-            #    - Action: Attempted, collision detected during execution, rerouting fails
-            #    - Penalty: penalties_cfg["collision"] (default: 2.0) applied when rerouting fails
+            #    - Prediction: Agents would collide in next movement tick
+            #    - Action: Attempted, collision predicted before execution, rerouting fails
+            #    - Penalty: penalties_cfg["collision"] (default: 0.5) applied when rerouting fails
             #    - Note: Only occurs when collision_enabled=True
             
             if tile_index is None:
@@ -525,7 +528,7 @@ class GameEnv(ParallelEnv):
             elif tile_index == -1:
                 # CASE 2: NOT_AVAILABLE - Path exists but blocked by other agent's current position
                 # Tile is accessible (path exists ignoring agents) but not currently available
-                # We still ATTEMPT the action (assign it to agent) but apply penalty immediately
+                # We ATTEMPT the action (assign it to agent) and let collision detection handle it
                 # This only happens when collision_enabled=True
                 action_type = "not_available"
                 logging_index = -1
@@ -533,10 +536,10 @@ class GameEnv(ParallelEnv):
                 self.total_actions_not_available[agent_id] += 1
                 self.total_action_types[agent_id][action_type] += 1
                 agent_penalties[agent_id] += self.penalties_cfg["not_available"]
-                # Note: We DO NOT assign the action here - it's blocked, so agent stays idle
-                # The agent will request a new action next step
-                # Mark that this agent needs a fresh observation for next step
-                agents_becoming_idle.add(agent_id)
+                
+                # ASSIGN the action with path that ignores agents - let collision detection handle conflicts
+                # The cached_path should contain the path ignoring agents (fixed in observation_space.py)
+                assign_action(self, agent_id, action_idx, action_name, tile_index, cached_path, action_type)
                 
             else:
                 # CASE 3: VALID ACTION - Tile is both accessible and available
@@ -585,7 +588,27 @@ class GameEnv(ParallelEnv):
                 'y': logging_y
             }
         
-        # --- Phase 2: Execute one tick of simulation ---
+        # --- Phase 2: Predictive Collision Detection and Rerouting ---
+        # CRITICAL: This must happen BEFORE movement to prevent collisions
+        # Instead of detecting collisions after they happen, predict and prevent them
+        if self.path_processor.collision_enabled:
+            collision_stats = resolve_predictive_collisions(self)
+            
+            # Update collision statistics
+            self.total_collisions_detected += collision_stats['collisions_detected']
+            self.total_collisions_rerouted += collision_stats['collisions_rerouted']
+            self.total_collisions_failed += collision_stats['collisions_failed']
+            
+            # Apply penalties to agents whose collisions couldn't be rerouted
+            # These agents had their actions cancelled in resolve_predictive_collisions
+            for agent_id in collision_stats['agents_with_failed_collisions']:
+                agent_penalties[agent_id] += self.penalties_cfg["collision"]
+                # Mark these agents for observation refresh since they're now idle
+                agents_becoming_idle.add(agent_id)
+        # If collision detection is disabled, this entire block is skipped
+        # No collision penalties, no rerouting, agents can overlap freely
+        
+        # --- Phase 3: Execute one tick of simulation ---
         # Advance time by one tick
         self._elapsed_time += TICK_DURATION
         
@@ -620,30 +643,6 @@ class GameEnv(ParallelEnv):
                 state['current_path'] = []
                 state['path_index'] = 0
                 state['movement_progress'] = 0.0
-        
-        # --- Detect and resolve collisions (only if collision detection enabled) ---
-        # CASE 3: COLLISION PENALTY - Runtime collision that cannot be rerouted
-        # This handles collisions that occur during execution (not at action selection time)
-        # When two agents are moving and collide at runtime:
-        #   1. Both agents try to reroute around collision point + other agent's position
-        #   2. If both rerouting attempts fail, apply collision penalty and cancel both actions
-        #   3. Collision statistics tracked: detected, rerouted (success), failed (penalty applied)
-        if self.path_processor.collision_enabled:
-            collision_stats = detect_and_resolve_collisions(self)
-            
-            # Update collision statistics
-            self.total_collisions_detected += collision_stats['collisions_detected']
-            self.total_collisions_rerouted += collision_stats['collisions_rerouted']
-            self.total_collisions_failed += collision_stats['collisions_failed']
-            
-            # Apply penalties to agents whose collisions couldn't be rerouted
-            # These agents had their actions cancelled in detect_and_resolve_collisions
-            for agent_id in collision_stats['agents_with_failed_collisions']:
-                agent_penalties[agent_id] += self.penalties_cfg["collision"]
-                # Mark these agents for observation refresh since they're now idle
-                agents_becoming_idle.add(agent_id)
-        # If collision detection is disabled, this entire block is skipped
-        # No collision penalties, no rerouting, agents can overlap freely
         
         # Update interaction timers and complete interactions
         # This also returns which agents completed their interactions (became idle)
@@ -736,6 +735,12 @@ class GameEnv(ParallelEnv):
             if self.episode_count % 100 == 0:
                 print(f"[Episode {self.episode_count}] Logging episode data to csv")
             row = {"episode": self.episode_count}
+            
+            # Add collision statistics immediately after episode (episode-level, not per-agent)
+            row["collisions_detected"] = self.total_collisions_detected
+            row["collisions_rerouted"] = self.total_collisions_rerouted
+            row["collisions_failed"] = self.total_collisions_failed
+            
             for agent_id in self.agents:
                 row[f"pure_reward_{agent_id}"] = float(self.cumulated_pure_rewards[agent_id])
                 row[f"modified_reward_{agent_id}"] = float(self.cumulated_modified_rewards[agent_id])
@@ -745,14 +750,10 @@ class GameEnv(ParallelEnv):
                 row[f"actions_asked_{agent_id}"] = self.total_actions_asked[agent_id]
                 row[f"actions_not_available_{agent_id}"] = self.total_actions_not_available[agent_id]
                 row[f"inaccessible_actions_{agent_id}"] = self.total_actions_inaccessible[agent_id]
-            
-            # Add collision statistics (episode-level, not per-agent)
-            row["collisions_detected"] = self.total_collisions_detected
-            row["collisions_rerouted"] = self.total_collisions_rerouted
-            row["collisions_failed"] = self.total_collisions_failed
 
-            for action_type in get_action_type_list(self.game_mode):
-                row[f"{action_type}_{agent_id}"] = self.total_action_types[agent_id][action_type]
+                # Add action type columns for this specific agent
+                for action_type in get_action_type_list(self.game_mode):
+                    row[f"{action_type}_{agent_id}"] = self.total_action_types[agent_id][action_type]
 
             with open(self.csv_path, "a", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=row.keys())

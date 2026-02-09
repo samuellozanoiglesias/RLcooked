@@ -529,7 +529,7 @@ def main():
     print(f"Smoothing factor: {args.smoothing_factor}")
     print(f"Study name: {args.study_name}")
     print(f"Game type: {args.game_type}")
-    print(f"Eta: {args.synergy_scaling_factor}")
+    print(f"Synergy scaling factor: {args.synergy_scaling_factor}")
     print(f"Individual trainings: {individual_trainings}")
     
     # Determine which inits to process

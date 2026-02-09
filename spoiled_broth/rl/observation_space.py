@@ -198,7 +198,10 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
                     # Mark tile_index as -1 to indicate "not available" in game_env
                     best_tile_idx = -1
                     final_dist = min_dist_no_agents  # Use distance ignoring agents for observation
-                    final_path = None
+                    # But we DO provide the path ignoring agents for action execution
+                    _, final_path = get_distance_and_path(
+                        path_processor, agent_pos, best_tile_xy, agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True
+                    )
             else:
                 # Collision detection disabled: availability is always 1
                 availability = 1.0
@@ -276,7 +279,10 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
                         availability_closest = 0.0
                         best_closest_idx = -1  # Mark as not available
                         final_dist_closest = min_dist_no_agents
-                        final_path_closest = None
+                        # But provide the path ignoring agents for action execution
+                        _, final_path_closest = get_distance_and_path(
+                            path_processor, agent_pos, best_closest_xy, agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True
+                        )
                 else:
                     # Collision detection disabled
                     availability_closest = 1.0
@@ -703,9 +709,11 @@ def game_to_obs_vector(game, agent_id, game_mode="classic", path_processor=None)
             - action_tiles: dict mapping action_idx to target tile_index
     """
     if game_mode == "classic":
-        return game_to_obs_vector_classic(game, agent_id, path_processor)
+        result = game_to_obs_vector_classic(game, agent_id, path_processor)
     elif game_mode == "competition":
-        return game_to_obs_vector_competition(game, agent_id, path_processor)
+        result = game_to_obs_vector_competition(game, agent_id, path_processor)
     else:
         raise ValueError(f"Unknown game mode: {game_mode}")
+    
+    return result
     
