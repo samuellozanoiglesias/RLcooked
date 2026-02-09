@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=encouraged_collision
+#SBATCH --job-name=full_training-forced
 #SBATCH -t 30-00:00:00
 #SBATCH --partition=gpu
 #SBATCH --qos=qos_gpu_long
@@ -25,16 +25,22 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/cooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NRS=(baseline_division_of_labor_large encouraged_division_of_labor_large)  # List of maps to run
+MAP_NRS=(forced_division_of_labor_large)  # List of maps to run
 LR=3e-4
 GAME_VERSIONS=(classic classic_collision)  # List of game versions to run
 NUM_AGENTS=2
-NUM_EPOCHS=10  # Number of training epochs
+NUM_EPOCHS=100  # Number of training epochs
 SEEDS=(0)  # Different random seeds for runs
 REWARDS_ON_DELIVERY_ONLY=False  # Whether to use rewards on delivery only
 RANDOM_INITIAL_STATE=True  # Whether to randomize initial state
 ABILITY_RISK_ENABLED=False
 AGENTS_TO_TRAIN=("")
+
+# Custom checkpoint directory (optional)
+# If set, this will be used for all simulations instead of auto-generated paths
+# Leave empty to use automatic checkpoint name generation
+CUSTOM_CHECKPOINT_DIR=""  # e.g., "checkpoints/my_custom_checkpoint.txt"
+ACTIVATE_CHECKPOINTS=False  # Set to False to disable checkpoint loading
 
 # Define arrays for angles and seeds
 ANGLE_PAIRS=("0 0")
@@ -47,10 +53,10 @@ SPEED_PAIRS=(
 )
 
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)
-SYNERGY_SCALING_FACTOR_VALUES=(2.0)
+SYNERGY_SCALING_FACTOR_VALUES=(0.0)
 
 # Define specialization penalty scale values
-SPECIALIZATION_PENALTY_SCALE_VALUES=(1.0)
+SPECIALIZATION_PENALTY_SCALE_VALUES=(0.0)
 
 # Maximum number of parallel jobs
 MAX_PARALLEL=10 # Set this to control how many jobs run in parallel
@@ -61,6 +67,13 @@ get_checkpoint_name() {
     local game_version=$2
     local speeds=$3
     
+    # If custom checkpoint directory is set, use it for all simulations
+    if [ -n "$CUSTOM_CHECKPOINT_DIR" ]; then
+        echo "$CUSTOM_CHECKPOINT_DIR"
+        return
+    fi
+    
+    # Otherwise, auto-generate checkpoint path based on parameters
     # Extract first word from map name (e.g., "baseline" from "baseline_division_of_labor_large")
     local map_prefix=$(echo "$map_name" | cut -d'_' -f1)
     
@@ -212,7 +225,11 @@ for job in "${job_list[@]}"; do
 
     # Get checkpoint path based on map and game version
     SPEED_KEY="${CUTTING_SPEED_1},${WALKING_SPEED_1} ${CUTTING_SPEED_2},${WALKING_SPEED_2}"
-    CHECKPOINT_PATHS=$(get_checkpoint_name "$MAP_NR" "$GAME_VERSION" "$SPEED_KEY")
+    if [ "$ACTIVATE_CHECKPOINTS" = "True" ]; then
+        CHECKPOINT_PATHS=$(get_checkpoint_name "$MAP_NR" "$GAME_VERSION" "$SPEED_KEY")
+    else
+        CHECKPOINT_PATHS=none
+    fi
 
     if [ $NUM_AGENTS -eq 1 ]; then
         INPUT_FILE="inputs/input_${ANGLE1}_${ANGLE2}_c${CUTTING_SPEED_1}${CUTTING_SPEED_2}_w${WALKING_SPEED_1}${WALKING_SPEED_2}_synergy${SYNERGY_SCALING_FACTOR}_spec${SPEC_PENALTY_SCALE}_agent${AGENTS}.txt"
@@ -238,4 +255,3 @@ done
 # Wait for all remaining jobs to complete
 echo "Waiting for all jobs to complete..."
 wait
-

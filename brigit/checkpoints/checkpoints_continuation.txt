@@ -1,0 +1,6 @@
+policy_ai_rl_1
+final
+/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_2.00/specialized_1.00/Training_2026-02-09_02-39-18/
+policy_ai_rl_2
+final
+/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_2.00/specialized_1.00/Training_2026-02-09_02-39-18/

@@ -9,11 +9,8 @@ Usage:
 nohup python analysis_pretrained.py <map_name> [options] > analysis_pretrained.log 2>&1 &
 
 Examples:
-nohup python analysis_pretrained.py baseline_division_of_labor_v2 --cluster cuenca --smoothing_factor 15 > analysis_pretrained.log 2>&1 &
-nohup python analysis_pretrained.py baseline_division_of_labor_v2 --cluster cuenca --smoothing_factor 15 --individual_trainings yes > analysis_pretrained.log 2>&1 &
-nohup python analysis_pretrained.py baseline_division_of_labor_v2 --cluster cuenca --init_type random_init > analysis_pretrained.log 2>&1 &
-nohup python analysis_pretrained.py baseline_division_of_labor_v2 --cluster cuenca --smoothing_factor 15 --init_type empty_init --individual_trainings yes > analysis_pretrained.log 2>&1 &
-nohup python analysis_pretrained.py baseline_division_of_labor_v2 --cluster cuenca --game_type classic_collision --init_type random_init > analysis_pretrained.log 2>&1 &
+nohup python analysis_pretrained.py baseline_division_of_labor_large --cluster cuenca --smoothing_factor 15 > analysis_pretrained.log 2>&1 &
+nohup python analysis_pretrained.py baseline_division_of_labor_large --cluster brigit --game_type classic_collision --init_type random_init --individual_trainings yes > analysis_pretrained.log 2>&1 &
 """
 
 import sys

@@ -14,7 +14,7 @@ nohup python analysis_classic.py baseline_division_of_labor_large --study_name s
 nohup python analysis_classic.py baseline_division_of_labor_large --init_type empty_init --game_type classic > analysis_classic_empty_init.log 2>&1 &
 nohup python analysis_classic.py baseline_division_of_labor_large --synergy 0.5 --game_type classic > analysis_classic_synergy_0.5.log 2>&1 &
 nohup python analysis_classic.py baseline_division_of_labor_large --specialization 0 --game_type classic > analysis_classic_lambda_0.log 2>&1 &
-nohup python analysis_classic.py baseline_division_of_labor_large --specialization 5.0 --game_type classic > analysis_classic_lambda_5.log 2>&1 &
+nohup python analysis_classic.py encouraged_division_of_labor_large --game_type classic_collision --individual_training yes --init_type random_init --cluster brigit > analysis_classic.log 2>&1 &
 """
 
 import sys
