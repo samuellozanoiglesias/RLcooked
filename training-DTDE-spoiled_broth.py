@@ -558,7 +558,7 @@ if torch.cuda.is_available():
     print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
     
     # GPU memory optimizations
-    torch.cuda.set_per_process_memory_fraction(0.10)  # Use 85% of GPU memory
+    torch.cuda.set_per_process_memory_fraction(0.85)  # Use 85% of GPU memory
     torch.cuda.empty_cache()  # Clear cache
     
     # Performance optimizations

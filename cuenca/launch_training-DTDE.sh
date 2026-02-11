@@ -5,11 +5,11 @@ LC_NUMERIC=en_US.UTF-8
 
 # Argumentos para el script Python
 cluster=cuenca
-input=input_1.0_1.0
+input=input_0.4_0.2
 input_path=inputs/$input.txt
 map_nr=baseline_division_of_labor_large
 lr=0.0003
-game_version=classic
+game_version=classic_collision
 num_epochs=400
 num_agents=2
 seeds=(0)  # Lista de seeds para ejecutar
