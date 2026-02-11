@@ -290,7 +290,7 @@ class GameEnv(ParallelEnv):
             print(f"[GameEnv] Agent abilities: {self.agent_abilities}")
 
         # --- New observation space---
-        obs_vector, _, _ = game_to_obs_vector(self.game, self.agents[0], game_mode=self.game_mode, path_processor=self.path_processor)
+        obs_vector, _, _, _ = game_to_obs_vector(self.game, self.agents[0], game_mode=self.game_mode, path_processor=self.path_processor)
         obs_size = obs_vector.size
         self.observation_spaces = {
             agent: spaces.Box(low=0.0, high=1.0, shape=(obs_size,), dtype=np.float32)
@@ -308,6 +308,7 @@ class GameEnv(ParallelEnv):
         # Initialize pre-calculated paths storage
         self.agent_action_paths = {agent_id: [] for agent_id in self.agents}
         self.agent_action_tiles = {agent_id: [] for agent_id in self.agents}
+        self.agent_action_interaction_targets = {agent_id: [] for agent_id in self.agents}
         
         # Track which agents need observation refresh (only when they become idle)
         # This avoids recalculating expensive pathfinding when agents are busy
@@ -357,6 +358,7 @@ class GameEnv(ParallelEnv):
         # Clear pre-calculated paths
         self.agent_action_paths = {agent_id: [] for agent_id in self.agents}
         self.agent_action_tiles = {agent_id: [] for agent_id in self.agents}
+        self.agent_action_interaction_targets = {agent_id: [] for agent_id in self.agents}
 
         if self.game_mode == "competition":
             self.total_agent_events = {agent_id: {"deliver_own": 0, "deliver_other": 0, "salad_own": 0, "salad_other": 0, "cut_own": 0, "cut_other": 0, "plate": 0, "raw_food_own": 0, "raw_food_other": 0, "counter": 0} for agent_id in self.agents}
@@ -412,11 +414,12 @@ class GameEnv(ParallelEnv):
                             print(f"  {reward_type}: {initial_val:.3f} -> {current_val:.3f} (ratio: {current_val/initial_val:.3f})")
     
     def observe(self, agent):
-        obs_vector, considered_paths, considered_tiles = game_to_obs_vector(self.game, agent, game_mode=self.game_mode, path_processor=self.path_processor)
+        obs_vector, considered_paths, considered_tiles, considered_interaction_targets = game_to_obs_vector(self.game, agent, game_mode=self.game_mode, path_processor=self.path_processor)
         
-        # Store pre-calculated paths and tiles for this agent
+        # Store pre-calculated paths, tiles, and interaction targets for this agent
         self.agent_action_paths[agent] = considered_paths
         self.agent_action_tiles[agent] = considered_tiles
+        self.agent_action_interaction_targets[agent] = considered_interaction_targets
         obs = obs_vector.flatten().astype(np.float32)
         return obs
 
@@ -424,19 +427,16 @@ class GameEnv(ParallelEnv):
         """
         Tick-based simulation step with PREDICTIVE collision handling.
         
-        NEW PROCESSING ORDER:
-        1. Process new actions ONLY for idle agents
+        PROCESSING ORDER:
+        1. Process new actions ONLY for idle agents (ignore actions from busy agents)
         2. PREDICTIVE collision detection: predict next tick positions and reroute BEFORE movement
         3. Execute one tick (all agents move/interact)
-        4. Update observations ONLY for agents that became idle this tick
-        
-        OPTIMIZATION: Observations are only calculated for agents that CAN take actions.
-        - Busy agents: Skip action processing, skip observation calculation
-        - Idle agents: Process actions, calculate fresh observations for next step
-        
-        This avoids expensive pathfinding calculations (~80% of observation cost)
-        when agents are executing actions and cannot make decisions.
+        4. Update observations ONLY for agents that became idle (for next action decisions)
         """
+        
+        # Identify idle agents (only these can process new actions)
+        idle_agents = {agent_id for agent_id in self.agents if agent_is_idle(self, agent_id)}
+        
         # Initialize agent map and event tracking
         self.agent_map = {agent_id: self.game.gameObjects[agent_id] for agent_id in self.agents}
         agent_penalties = {agent_id: 0.0 for agent_id in self.agents}
@@ -457,14 +457,11 @@ class GameEnv(ParallelEnv):
         self._logging_actions = {}
         
         # --- Phase 1: Process new actions ONLY for idle agents ---
-        # Busy agents are skipped - they already have actions executing
+        # Process actions only from idle agents (ignore actions from busy agents)
         for agent_id, action_idx in actions.items():
-            # CRITICAL: Only process actions for idle agents
-            # Busy agents cannot make decisions, so we skip them entirely
-            is_idle = agent_is_idle(self, agent_id)
-            if not is_idle:
+            # Skip action processing if agent is not idle
+            if agent_id not in idle_agents:
                 continue
-            
             self.total_actions_asked[agent_id] += 1
             agent = self.agent_map[agent_id]
             action_name = get_rl_action_space(self.game_mode)[action_idx]
@@ -487,9 +484,11 @@ class GameEnv(ParallelEnv):
             if agent_id in self.agent_action_tiles:
                 cached_path = self.agent_action_paths[agent_id][action_idx]
                 tile_index = self.agent_action_tiles[agent_id][action_idx]
+                cached_interaction_target = self.agent_action_interaction_targets[agent_id][action_idx]
             else:
                 cached_path = None
                 tile_index = None
+                cached_interaction_target = None
             
             # --- THREE-TIER PENALTY SYSTEM ---
             # Validate action based on observation space indicators:
@@ -539,7 +538,7 @@ class GameEnv(ParallelEnv):
                 
                 # ASSIGN the action with path that ignores agents - let collision detection handle conflicts
                 # The cached_path should contain the path ignoring agents (fixed in observation_space.py)
-                assign_action(self, agent_id, action_idx, action_name, tile_index, cached_path, action_type)
+                assign_action(self, agent_id, action_idx, action_name, tile_index, cached_path, action_type, cached_interaction_target)
                 
             else:
                 # CASE 3: VALID ACTION - Tile is both accessible and available
@@ -555,7 +554,7 @@ class GameEnv(ParallelEnv):
                 logging_y = y
                 
                 # Assign action to agent
-                assign_action(self, agent_id, action_idx, action_name, tile_index, cached_path, action_type)
+                assign_action(self, agent_id, action_idx, action_name, tile_index, cached_path, action_type, cached_interaction_target)
                 
                 # Track action type
                 self.total_action_types[agent_id][action_type] += 1
@@ -623,7 +622,7 @@ class GameEnv(ParallelEnv):
             
             # Advance movement
             reached_next, reached_final, blocked = advance_agent_movement(self, agent_id, TICK_DURATION)
-            
+            agent = self.agent_map[agent_id]
             if reached_final:
                 # Agent reached their destination tile
                 agents_reached_destination.append(agent_id)
@@ -655,7 +654,8 @@ class GameEnv(ParallelEnv):
                 # Agent is idle - either was already idle, or just finished
                 # They'll need a fresh observation for the next decision
                 agents_becoming_idle.add(agent_id)
-        
+            else:
+                state = self.agent_state[agent_id]
         # Apply busy penalty for agents currently executing actions
         for agent_id in self.agents:
             state = self.agent_state[agent_id]
@@ -715,17 +715,12 @@ class GameEnv(ParallelEnv):
             for agent in self.agents
         }
         
-        # Update observations ONLY for agents that need them
-        # OPTIMIZATION: Only recalculate expensive pathfinding observations for agents that:
-        # 1. Just finished their action (became idle)
-        # 2. Had their action rejected (inaccessible or not available)
-        # 3. Had their action cancelled due to collision
-        # Busy agents keep their previous observations (they can't act anyway)
+        # Update observations ONLY for agents that became idle this tick
+        # These are the agents that will be able to process new actions in the next step
         for agent_id in agents_becoming_idle:
             self.observations[agent_id] = self.observe(agent_id)
         
-        # Note: observations for busy agents are unchanged from previous step
-        # They don't need fresh pathfinding data until they can make decisions
+        # Note: Busy agents keep their previous observations since they can't act until they finish their current tasks
         
         terminations = self.dones
         truncations = {agent: False for agent in self.agents}
@@ -765,7 +760,7 @@ class GameEnv(ParallelEnv):
             self.episode_infos_log = {agent: [] for agent in self.agents}
             self.episode_count += 1
             self.write_csv = False
-
+        
         return self.observations, self.modified_rewards, terminations, truncations, self.infos
 
     def render(self):

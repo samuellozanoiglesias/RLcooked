@@ -137,11 +137,13 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
     obs_vector = []
     considered_paths = []
     considered_tiles = []
+    considered_interaction_targets = []  # Store interaction target (x, y) for each action
     
     # Add placeholder for do_nothing action (action index 0)
     # do_nothing doesn't require a tile or path
     considered_paths.append(None)
     considered_tiles.append(-2)  # Use -2 to indicate do_nothing
+    considered_interaction_targets.append(None)  # do_nothing has no interaction target
     
 
     # --- Add times to tile types ---
@@ -180,6 +182,9 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
             # Tile is accessible (path exists ignoring agents)
             accessibility = 1.0
             
+            # Store interaction target coordinates (for tile types, interaction target = destination)
+            interaction_target = best_tile_xy
+            
             # Now check availability (considering agents)
             if path_processor.collision_enabled:
                 # Calculate path considering other agents' positions
@@ -214,6 +219,7 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
             time_to_tile = (final_dist / agent_walking_speed + action_time) / normalization_factor
             considered_paths.append(final_path)
             considered_tiles.append(best_tile_idx)
+            considered_interaction_targets.append(interaction_target)
             obs_vector.append(accessibility)  # 1.0 = tile is accessible
             obs_vector.append(availability)   # 1.0 = tile is available, 0.0 = blocked by agents
             obs_vector.append(time_to_tile)
@@ -221,6 +227,7 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
             # No accessible tile found (no path exists even ignoring agents)
             considered_paths.append(None)
             considered_tiles.append(None)
+            considered_interaction_targets.append(None)
             obs_vector.append(0.0)  # Accessibility: 0 = inaccessible
             obs_vector.append(0.0)  # Availability: 0 = not available (because inaccessible)
             obs_vector.append(1.0)  # Max time (normalized)
@@ -261,6 +268,8 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
             
             # STEP 2: Check availability of closest counter
             if best_closest_xy is not None:
+                # Store interaction target for closest counter (interaction target = counter tile)
+                closest_interaction_target = best_closest_xy
                 # Closest counter is accessible
                 accessibility_closest = 1.0
                 
@@ -294,6 +303,7 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
                 time_to_closest = (final_dist_closest / agent_walking_speed + action_time) / normalization_factor
                 considered_paths.append(final_path_closest)
                 considered_tiles.append(best_closest_idx)
+                considered_interaction_targets.append(closest_interaction_target)
                 obs_vector.append(accessibility_closest)  # 1.0 = accessible
                 obs_vector.append(availability_closest)   # 1.0 = available, 0.0 = blocked by agents
                 obs_vector.append(time_to_closest)
@@ -301,6 +311,7 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
                 # No accessible counter found
                 considered_paths.append(None)
                 considered_tiles.append(None)
+                considered_interaction_targets.append(None)
                 obs_vector.append(0.0)  # Accessibility: not accessible
                 obs_vector.append(0.0)  # Availability: not available
                 obs_vector.append(1.0)  # Max time
@@ -316,6 +327,8 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
             )
             
             if dist_midpoint_no_agents is not None and dist_midpoint_no_agents >= 0:
+                # Store interaction target for midpoint counter
+                midpoint_interaction_target = (bx, by)
                 # Midpoint counter is accessible
                 accessibility_midpoint = 1.0
                 
@@ -348,6 +361,7 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
                 time_to_midpoint = (final_dist_mid / agent_walking_speed + action_time) / normalization_factor
                 considered_tiles.append(final_idx_mid)
                 considered_paths.append(final_path_mid)
+                considered_interaction_targets.append(midpoint_interaction_target)
                 obs_vector.append(accessibility_midpoint)  # 1.0 = accessible
                 obs_vector.append(availability_midpoint)   # 1.0 = available, 0.0 = blocked
                 obs_vector.append(time_to_midpoint)
@@ -355,6 +369,7 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
                 # Midpoint counter not accessible
                 considered_tiles.append(None)
                 considered_paths.append(None)
+                considered_interaction_targets.append(None)
                 obs_vector.append(0.0)  # Accessibility: not accessible
                 obs_vector.append(0.0)  # Availability: not available
                 obs_vector.append(1.0)  # Max time
@@ -373,6 +388,8 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
             considered_paths.append(None)
             considered_tiles.append(None)
             considered_tiles.append(None)
+            considered_interaction_targets.append(None)
+            considered_interaction_targets.append(None)
 
     # Distance to other agent - both Euclidean and pathfinding distances
     # For single agent case, use default values
@@ -410,7 +427,7 @@ def game_to_obs_vector_classic(game, agent_id, path_processor=None):
         other_inventory = np.zeros(len(item_names), dtype=np.float32)
         obs_vector.extend(other_inventory.tolist())
 
-    return np.array(obs_vector, dtype=np.float32), considered_paths, considered_tiles
+    return np.array(obs_vector, dtype=np.float32), considered_paths, considered_tiles, considered_interaction_targets
 
 # ---- Competition mode with ownership awareness ---- #
 def game_to_obs_vector_competition(game, agent_id, path_processor=None):
@@ -458,11 +475,13 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
     obs_vector = []
     considered_paths = []
     considered_tiles = []
+    considered_interaction_targets = []  # Store interaction target (x, y) for each action
     
     # Add placeholder for do_nothing action (action index 0)
     # do_nothing doesn't require a tile or path  
     considered_paths.append(None)
     considered_tiles.append(-2)  # Use -2 to indicate do_nothing
+    considered_interaction_targets.append(None)  # do_nothing has no interaction target
 
     # --- Add times to tile types ---
     # Same three-indicator system as classic mode: [accessibility, availability, time]
@@ -494,6 +513,9 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
         if best_tile_xy is not None:
             accessibility = 1.0
             
+            # Store interaction target coordinates (for tile types, interaction target = destination)
+            interaction_target = best_tile_xy
+            
             if path_processor.collision_enabled:
                 dist_with_agents, path_with_agents = get_distance_and_path(
                     path_processor, agent_pos, best_tile_xy, agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=False
@@ -518,6 +540,7 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
             time_to_tile = (final_dist / agent_walking_speed + action_time) / normalization_factor
             considered_paths.append(final_path)
             considered_tiles.append(best_tile_idx)
+            considered_interaction_targets.append(interaction_target)
             obs_vector.append(accessibility)  # 1.0 = accessible
             obs_vector.append(availability)   # 1.0 = available, 0.0 = blocked by agents
             obs_vector.append(time_to_tile)
@@ -525,6 +548,7 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
             # No accessible tile found
             considered_paths.append(None)
             considered_tiles.append(None)
+            considered_interaction_targets.append(None)
             obs_vector.append(0.0)  # Accessibility: inaccessible
             obs_vector.append(0.0)  # Availability: not available
             obs_vector.append(1.0)  # Max time
@@ -557,6 +581,8 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
             
             # STEP 2: Check availability of closest counter
             if best_closest_xy is not None:
+                # Store interaction target for closest counter (interaction target = counter tile)
+                closest_interaction_target = best_closest_xy
                 accessibility_closest = 1.0
                 
                 if path_processor.collision_enabled:
@@ -583,6 +609,7 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
                 time_to_closest = (final_dist_closest / agent_walking_speed + action_time) / normalization_factor
                 considered_paths.append(final_path_closest)
                 considered_tiles.append(best_closest_idx)
+                considered_interaction_targets.append(closest_interaction_target)
                 obs_vector.append(accessibility_closest)
                 obs_vector.append(availability_closest)
                 obs_vector.append(time_to_closest)
@@ -590,6 +617,7 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
                 # No accessible counter
                 considered_paths.append(None)
                 considered_tiles.append(None)
+                considered_interaction_targets.append(None)
                 obs_vector.append(0.0)  # Accessibility: not accessible
                 obs_vector.append(0.0)  # Availability: not available
                 obs_vector.append(1.0)  # Max time
@@ -603,6 +631,8 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
             )
             
             if dist_midpoint_no_agents is not None and dist_midpoint_no_agents >= 0:
+                # Store interaction target for midpoint counter
+                midpoint_interaction_target = (bx, by)
                 accessibility_midpoint = 1.0
                 
                 if path_processor.collision_enabled:
@@ -631,6 +661,7 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
                 time_to_midpoint = (final_dist_mid / agent_walking_speed + action_time) / normalization_factor
                 considered_tiles.append(final_idx_mid)
                 considered_paths.append(final_path_mid)
+                considered_interaction_targets.append(midpoint_interaction_target)
                 obs_vector.append(accessibility_midpoint)
                 obs_vector.append(availability_midpoint)
                 obs_vector.append(time_to_midpoint)
@@ -656,6 +687,8 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
             considered_paths.append(None)
             considered_tiles.append(None)
             considered_tiles.append(None)
+            considered_interaction_targets.append(None)
+            considered_interaction_targets.append(None)
 
     # Distance to other agent - both Euclidean and pathfinding distances
     if has_other_agent:
@@ -692,7 +725,7 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
         other_inventory = np.zeros(len(item_names), dtype=np.float32)
         obs_vector.extend(other_inventory.tolist())
         
-    return np.array(obs_vector, dtype=np.float32), considered_paths, considered_tiles
+    return np.array(obs_vector, dtype=np.float32), considered_paths, considered_tiles, considered_interaction_targets
 
 # Wrapper to select observation vector function based on game_mode.
 def game_to_obs_vector(game, agent_id, game_mode="classic", path_processor=None):
@@ -703,10 +736,11 @@ def game_to_obs_vector(game, agent_id, game_mode="classic", path_processor=None)
         path_processor: Path processor with pathfinder for distance calculations
         
     Returns:
-        tuple: (obs_vector, action_paths, action_tiles)
+        tuple: (obs_vector, action_paths, action_tiles, action_interaction_targets)
             - obs_vector: numpy array with observation values  
             - action_paths: dict mapping action_idx to path (list of nodes)
             - action_tiles: dict mapping action_idx to target tile_index
+            - action_interaction_targets: dict mapping action_idx to interaction target (x, y)
     """
     if game_mode == "classic":
         result = game_to_obs_vector_classic(game, agent_id, path_processor)
@@ -715,5 +749,4 @@ def game_to_obs_vector(game, agent_id, game_mode="classic", path_processor=None)
     else:
         raise ValueError(f"Unknown game mode: {game_mode}")
     
-    return result
-    
+    return result    

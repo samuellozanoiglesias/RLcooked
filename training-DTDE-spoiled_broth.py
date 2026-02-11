@@ -62,7 +62,7 @@ with open(INPUT_PATH, "r") as f:
         globals()[f"walking_speed_{i+1}"], globals()[f"cutting_speed_{i+1}"] = [round(float(x), 4) for x in lines[2*i + 1].strip().split()]
 
 ##### Cluster config ##################
-NUM_ENV_WORKERS = 8  # Parallel environment workers
+NUM_ENV_WORKERS = 8  # Parallel environment workers for efficient training
 NUM_LEARNER_WORKERS = 1  # GPU learner workers
 if CLUSTER == 'brigit':
     local = '/mnt/lustre/home/samuloza'
@@ -84,7 +84,7 @@ else:
 
 # Hyperparameters - Optimized for parallel training
 NUM_ENVS = NUM_ENV_WORKERS  # Use all environment workers
-INNER_SECONDS = 180 # In seconds
+INNER_SECONDS = 180  # Full episode length for proper learning
 TRAIN_BATCH_SIZE = 4000  # Increased for better GPU utilization (NUM_ENVS * rollout_fragment_length * num_timesteps)
 SGD_MINIBATCH_SIZE = 500  # Optimized minibatch size for GPU
 NUM_SGD_ITER = 10  # Number of SGD iterations per training batch
@@ -558,7 +558,7 @@ if torch.cuda.is_available():
     print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
     
     # GPU memory optimizations
-    torch.cuda.set_per_process_memory_fraction(0.85)  # Use 85% of GPU memory
+    torch.cuda.set_per_process_memory_fraction(0.10)  # Use 85% of GPU memory
     torch.cuda.empty_cache()  # Clear cache
     
     # Performance optimizations

@@ -108,6 +108,7 @@ def complete_agent_action(self, agent_id, agent, action_data, agent_events, own_
             agent_events = log_dispenser_action(agent_id, holding_item, new_holding_item, agent_events, own_food)
         elif tile._type == 2:  # Counter
             holding_item = getattr(agent, "item", None)
+            tile_item_before = getattr(tile, "item", None)
             handle_counter_action(agent, tile)
             new_tile_item = getattr(tile, "item", None)
             new_holding_item = getattr(agent, "item", None)

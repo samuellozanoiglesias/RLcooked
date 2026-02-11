@@ -5,21 +5,21 @@ LC_NUMERIC=en_US.UTF-8
 
 # Argumentos para el script Python
 cluster=cuenca
-input=input_0.4_0.2
+input=input_1.0_1.0
 input_path=inputs/$input.txt
 map_nr=baseline_division_of_labor_large
 lr=0.0003
-game_version=classic_collision
-num_epochs=100
-num_agents=1
+game_version=classic
+num_epochs=400
+num_agents=2
 seeds=(0)  # Lista de seeds para ejecutar
 checkpoint_paths=none
 rewards_only_on_delivery=false
 random_initial_state=true
 ability_risk_enabled=false
 synergy_scaling_factor=0.0  # Team synergy sensitivity: 0=no shaping, >0=shaping enabled
-specialization_penalty_scale=0.0  # Lambda value: 0=no penalty, >0=penalty scale
-agent_to_train=2
+specialization_penalty_scale=1.0  # Lambda value: 0=no penalty, >0=penalty scale
+agent_to_train=""
 
 # Iterar sobre cada seed
 for seed in "${seeds[@]}"; do
