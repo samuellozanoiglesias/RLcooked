@@ -669,6 +669,7 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
                 # Midpoint counter not accessible
                 considered_tiles.append(None)
                 considered_paths.append(None)
+                considered_interaction_targets.append(None)
                 obs_vector.append(0.0)  # Accessibility: not accessible
                 obs_vector.append(0.0)  # Availability: not available
                 obs_vector.append(1.0)  # Max time

@@ -3,80 +3,6 @@ Optimized game step functions for CPU execution.
 These functions handle game state updates efficiently on CPU while
 neural network training happens on GPU in parallel.
 """
-from engine.extensions.topDownGridWorld.a_star import grid_to_world, Node, find_path
-from engine.extensions.topDownGridWorld.a_star import get_neighbors
-import math
-
-def update_agents_directly(self, advanced_time, agent_events, agent_food_type=None, game_mode="classic"):
-    """
-    Directly update game state without going through the engine.
-    Handles agent movement, action completion, and state updates.
-    """
-    
-    # Process each agent
-    for agent_id, agent in self.agent_map.items():
-        # Handle movement if agent has a path
-        if hasattr(agent, 'path') and agent.path and hasattr(agent, 'path_index'):
-            update_agent_movement(self, agent, advanced_time)
-        
-        # Handle action completion if agent was performing an action
-        if agent_id in self.action_info and self.busy_until.get(agent_id) is not None:
-            action_data = self.action_info[agent_id]
-            # Check if action should complete within advanced_time
-            if action_data is not None and self.busy_until[agent_id] is not None and self.busy_until[agent_id] <= self._elapsed_time:
-                if game_mode == "competition":
-                    own_food = agent_food_type.get(agent_id, None)
-                else:
-                    own_food = None
-                agent_events = complete_agent_action(self, agent_id, agent, action_data, agent_events, own_food)
-
-    return agent_events
-
-def update_agent_movement(self, agent, advanced_time):
-    """Update agent position along their path using A* trajectory and walking speed."""
-    if not hasattr(agent, 'path') or not agent.path or not hasattr(agent, 'path_index'):
-        return
-    
-    PHYSICS_STEPS = 100
-    TILE_SNAP_THRESHOLD = 0.2
-    
-    def close(a, b, tolerance=TILE_SNAP_THRESHOLD):
-        return abs(a - b) < tolerance
-    
-    d_t = advanced_time / PHYSICS_STEPS
-    
-    # Track if position changed for path processor update
-    initial_path_index = agent.path_index
-    
-    for i in range(PHYSICS_STEPS):
-        if agent.path_index >= len(agent.path):
-            break  # Finished path
-            
-        next_tile = agent.path[agent.path_index]
-        target_pos = grid_to_world(next_tile, self.game.grid)
-        dx = target_pos['x'] - agent.x
-        dy = target_pos['y'] - agent.y
-        
-        magnitude = math.sqrt(dx ** 2 + dy ** 2)
-        if magnitude > 0:
-            # Use agent's walking speed
-            speed = getattr(agent, 'speed', 30)  # Default speed if not set
-            agent.x += dx / magnitude * speed * d_t
-            agent.y += dy / magnitude * speed * d_t
-        
-        # Check if close enough to snap to tile
-        if close(agent.x, target_pos['x']) and close(agent.y, target_pos['y']):
-            agent.path_index += 1
-            # Note: slot_x and slot_y are calculated automatically from x and y pixel coordinates
-    
-    # Update path processor if agent moved and collision detection is enabled
-    if (hasattr(self, 'path_processor') and self.path_processor.is_enabled() and 
-        agent.path_index != initial_path_index):
-        self.path_processor.update_agent_position(
-            agent_id=agent.id,
-            current_position=(agent.slot_x, agent.slot_y),
-            path_index=agent.path_index
-        )
 
 def complete_agent_action(self, agent_id, agent, action_data, agent_events, own_food):
     """Complete an agent's action by updating game state directly."""
@@ -123,10 +49,6 @@ def complete_agent_action(self, agent_id, agent, action_data, agent_events, own_
             handle_delivery_action(self, agent, tile)
             new_holding_item = getattr(agent, "item", None)
             agent_events = log_delivery_action(agent_id, holding_item, new_holding_item, agent_events, own_food)
-    
-    # Clear the busy state now that the action is complete
-    self.busy_until[agent_id] = None
-    self.action_info[agent_id] = None
     
     # Clear agent's path from collision tracking if enabled
     if hasattr(self, 'path_processor') and self.path_processor.is_enabled():
@@ -278,67 +200,3 @@ def handle_delivery_action(self, agent, tile):
     # Position agent next to delivery (delivery tiles are not walkable)
     agent.path = []
     agent.path_index = 0
-
-def setup_agent_path(self, agent, tile_index):
-    """Set up the agent's movement path to the target tile using cached paths when possible."""
-    
-    # If agent already has a path from the cached calculation, use it
-    if (hasattr(agent, 'path') and agent.path and 
-        hasattr(agent, 'path_index') and agent.path_index == 0):
-        # Path already set up from observation space calculation
-        return
-    
-    # Fallback: calculate path directly (should rarely be needed with new system)
-    # Get target tile coordinates
-    grid_w = self.game.grid.width
-    x = tile_index % grid_w
-    y = tile_index // grid_w
-    target_tile = self.game.grid.tiles[x][y]
-    
-    # Set up pathfinding
-    start_node = Node(agent.slot_x, agent.slot_y)
-    
-    # If target tile is walkable, path directly to it
-    if hasattr(target_tile, 'is_walkable') and target_tile.is_walkable:
-        goal_node = Node(x, y)
-    else:
-        # For non-walkable tiles, find nearest walkable neighbor
-        target_node = Node(x, y)
-        neighbors = get_neighbors(self.game.grid, target_node, include_diagonal=False)
-        
-        if not neighbors:
-            # No valid path
-            agent.path = []
-            agent.path_index = 0
-            return
-            
-        # Find closest walkable neighbor
-        best_distance = float('inf')
-        goal_node = None
-        
-        for neighbor in neighbors:
-            if (0 <= neighbor.x < self.game.grid.width and 
-                0 <= neighbor.y < self.game.grid.height):
-                neighbor_tile = self.game.grid.tiles[neighbor.x][neighbor.y]
-                if hasattr(neighbor_tile, 'is_walkable') and neighbor_tile.is_walkable:
-                    # Calculate distance from agent to this neighbor
-                    dist = ((agent.slot_x - neighbor.x) ** 2 + (agent.slot_y - neighbor.y) ** 2) ** 0.5
-                    if dist < best_distance:
-                        best_distance = dist
-                        goal_node = neighbor
-        
-        if goal_node is None:
-            # No walkable path found
-            agent.path = []
-            agent.path_index = 0
-            return
-    
-    # Calculate path using A* pathfinding
-    path = find_path(self.game.grid, start_node, goal_node)
-    
-    if path:
-        agent.path = path[1:]  # Skip current tile
-        agent.path_index = 0
-    else:
-        agent.path = []
-        agent.path_index = 0

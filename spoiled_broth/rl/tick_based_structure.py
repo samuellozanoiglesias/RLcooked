@@ -8,8 +8,10 @@ This module contains all the helper methods for tick-based simulation including:
 - Interaction timing
 """
 
+import logging
 from engine.extensions.topDownGridWorld.a_star import Node, euclidean_distance, find_path
 
+logger = logging.getLogger(__name__)
 
 def agent_is_idle(env, agent_id):
     """
@@ -43,11 +45,17 @@ def assign_action(env, agent_id, action_idx, action_name, tile_index, cached_pat
         cached_path: Precomputed path to destination
         action_type: Type of action
         interaction_target_tile: (x, y) of tile being interacted with, or None for movement-only actions
+    
+    Returns:
+        int: Path length (number of tiles to traverse), or 0 if no movement needed
     """
     state = env.agent_state[agent_id]
     agent = env.agent_map[agent_id]
     
-    # Handle special case where tile_index == -1 (NOT_AVAILABLE)
+    # Calculate path length for return (used for adaptive cooperation penalty)
+    path_length = len(cached_path) - 1 if cached_path and len(cached_path) > 1 else 0
+    
+    # Handle special case where tile_index == -1 (BLOCKED)
     # In this case, we use the path that ignores agents and derive the target from the final path node
     if tile_index == -1 and cached_path and len(cached_path) > 0:
         # Get actual target tile from the end of the cached path
@@ -60,14 +68,21 @@ def assign_action(env, agent_id, action_idx, action_name, tile_index, cached_pat
         state['target_tile_index'] = actual_tile_index
         state['action_type'] = action_type
         state['interaction_target_tile'] = interaction_target_tile
-        state['current_path'] = cached_path[1:]  # Skip current tile
+        
+        if len(cached_path) > 1:
+            state['current_path'] = cached_path[1:]  # Skip current tile
+        else:
+            # Agent is already at destination, set up for immediate interaction
+            state['current_path'] = []
         state['path_index'] = 0
         state['movement_progress'] = 0.0
-        return
+        # Calculate path length: blocked actions have cached_path with length
+        path_length = len(cached_path) - 1 if cached_path and len(cached_path) > 1 else 0
+        return path_length
     
     # VALIDATE PATH FIRST - don't assign action until we know it's valid
     if cached_path and len(cached_path) > 1:
-        # Valid path from observation computation - assign action and set up path
+        # Valid path with movement required - assign action and set up path
         state['current_action'] = action_name
         state['target_tile_index'] = tile_index
         state['action_type'] = action_type
@@ -75,8 +90,43 @@ def assign_action(env, agent_id, action_idx, action_name, tile_index, cached_pat
         state['current_path'] = cached_path[1:]  # Skip current tile
         state['path_index'] = 0
         state['movement_progress'] = 0.0
+        # Return path length (number of steps to take)
+        return len(cached_path) - 1
+    elif cached_path and len(cached_path) == 1:
+        # Path length is 1 - agent is already adjacent to the non-walkable target
+        # This ONLY happens for non-walkable targets (dispenser, cutting board, counter, delivery)
+        # where the agent is already at an adjacent tile (the destination for interaction)
+        # Note: path_processing returns [start_node] when from_xy is in walkable neighbors
+        current_pos = (agent.slot_x, agent.slot_y)
+        path_pos = (cached_path[0].x, cached_path[0].y)
+        
+        if current_pos == path_pos:
+            # Agent is at the correct position - set up for immediate interaction
+            # IMPORTANT: Must set interaction_timer here since agent won't go through
+            # the movement phase in game_env.py (which normally sets the timer)
+            from spoiled_broth.rl.reward_analysis import get_cutting_time
+            from spoiled_broth.rl.game_env import INTENT_TIME
+            
+            if action_name == "use_cutting_board":
+                interaction_time = get_cutting_time(agent, env.game)
+            else:
+                interaction_time = INTENT_TIME
+            
+            state['current_action'] = action_name
+            state['target_tile_index'] = tile_index
+            state['action_type'] = action_type
+            state['interaction_target_tile'] = interaction_target_tile
+            state['current_path'] = []  # No movement needed
+            state['path_index'] = 0
+            state['movement_progress'] = 0.0
+            state['interaction_timer'] = interaction_time  # Set timer for immediate interaction
+            return 0  # No movement, so path length is 0
+        else:
+            # Path doesn't start at agent's position - invalid
+            logger.debug(f"Path mismatch for {agent_id} action {action_name}: agent at {current_pos}, path starts at {path_pos}")
+            return 0
     else:
-        # No path provided - check if agent is already at target
+        # No valid path - check if agent is already at exact target position
         current_pos = (agent.slot_x, agent.slot_y)
         
         grid_w = env.game.grid.width
@@ -85,7 +135,8 @@ def assign_action(env, agent_id, action_idx, action_name, tile_index, cached_pat
         
         if current_pos == (target_x, target_y):
             # Agent is already at target - assign action and start interaction immediately
-            from spoiled_broth.rl.game_env import INTENT_TIME, get_cutting_time
+            from spoiled_broth.rl.reward_analysis import get_cutting_time
+            from spoiled_broth.rl.game_env import INTENT_TIME
             
             if action_type == 'use_cutting_board':
                 interaction_time = get_cutting_time(agent, env.game)
@@ -105,6 +156,9 @@ def assign_action(env, agent_id, action_idx, action_name, tile_index, cached_pat
             # Agent not at target and no path available - reject action
             # Don't assign anything - leave agent in idle state
             pass
+    
+    # Default return: no movement (action rejected or agent already at position)
+    return 0
 
 
 def cancel_agent_action(env, agent_id):
@@ -164,8 +218,6 @@ def advance_agent_movement(env, agent_id, tick_duration):
     # Add to progress toward next tile
     state['movement_progress'] += movement_distance
     
-
-    
     # Check if we've reached the next tile
     if state['movement_progress'] >= 1.0:
         # Move to next tile
@@ -173,12 +225,11 @@ def advance_agent_movement(env, agent_id, tick_duration):
         old_index = state['path_index']
         state['path_index'] += 1
         
-
-        
         # Check if we've reached the final tile
         if state['path_index'] >= len(state['current_path']):
             # Reached destination - set interaction timer for action completion
-            from spoiled_broth.rl.game_env import INTENT_TIME, get_cutting_time
+            from spoiled_broth.rl.reward_analysis import get_cutting_time
+            from spoiled_broth.rl.game_env import INTENT_TIME
             
             # Determine interaction time based on action type
             action_type = state.get('action_type')
@@ -207,485 +258,6 @@ def advance_agent_movement(env, agent_id, tick_duration):
     
     # Still moving within current tile segment
     return False, False, False
-
-
-
-def predict_next_tile_positions(env):
-    """Predict where each agent will be in the next tick.
-    
-    Returns:
-        tuple: (next_positions, agent_movement_status)
-            - next_positions: dict agent_id -> (next_x, next_y) for ALL agents
-            - agent_movement_status: dict agent_id -> bool (True if agent is moving, False if stationary)
-    """
-    next_positions = {}
-    agent_movement_status = {}
-    
-    for agent_id in env.agents:
-        state = env.agent_state[agent_id]
-        agent = env.agent_map[agent_id]
-        
-        # Check if agent is moving and will reach next tile
-        if (len(state['current_path']) > 0 and 
-            state['path_index'] < len(state['current_path'])):
-            
-            # Get agent's movement speed
-            agent_speed_tiles = (agent.speed / 16.0)  # Convert pixels/sec to tiles/sec
-            movement_distance = agent_speed_tiles * 0.2  # Distance in next tick (TICK_DURATION = 0.2s)
-            
-            # Check if agent will reach next tile in this tick
-            new_progress = state['movement_progress'] + movement_distance
-            
-            if new_progress >= 1.0:
-                # Agent will move to next tile
-                next_node = state['current_path'][state['path_index']]
-                next_positions[agent_id] = (next_node.x, next_node.y)
-                agent_movement_status[agent_id] = True  # Agent is moving
-            else:
-                # Agent won't reach next tile, stays at current position
-                next_positions[agent_id] = (agent.slot_x, agent.slot_y)
-                agent_movement_status[agent_id] = False  # Agent is stationary this tick
-        else:
-            # Agent is not moving, stays at current position
-            next_positions[agent_id] = (agent.slot_x, agent.slot_y)
-            agent_movement_status[agent_id] = False  # Agent is stationary
-    
-    return next_positions, agent_movement_status
-
-
-def detect_predictive_collisions(env):
-    """Detect collisions BEFORE they happen by predicting next tick positions.
-    
-    Smart collision detection rules:
-    1. If Agent A is stationary and Agent B moves toward A's tile: only stop Agent B
-    2. If both agents are moving to same tile: stop both (or try rerouting)
-    3. If agents swap positions (both moving): stop both (or try rerouting)
-    
-    Returns:
-        list: [(agent_to_stop, other_agent_id, collision_tile, collision_type), ...]
-              collision_type: 'moving_into_stationary', 'mutual_collision', 'tile_swap'
-    """
-    if not env.path_processor.is_enabled():
-        return []
-    
-    next_positions, agent_movement_status = predict_next_tile_positions(env)
-    
-
-    
-    collision_events = []
-    
-    # Check for position collisions (agents going to same tile)
-    tile_occupancy = {}  # (x, y) -> [agent_ids]
-    for agent_id, (x, y) in next_positions.items():
-        tile = (x, y)
-        if tile not in tile_occupancy:
-            tile_occupancy[tile] = []
-        tile_occupancy[tile].append(agent_id)
-    
-    # Find collision pairs from position collisions
-    for collision_tile, agents_on_tile in tile_occupancy.items():
-        if len(agents_on_tile) > 1:
-
-            
-            # Determine which agents are moving and which are stationary
-            moving_agents = [aid for aid in agents_on_tile if agent_movement_status[aid]]
-            stationary_agents = [aid for aid in agents_on_tile if not agent_movement_status[aid]]
-            
-            if len(stationary_agents) > 0 and len(moving_agents) > 0:
-                # Case 1: Moving agents trying to enter a tile occupied by stationary agent(s)
-                # Only stop the moving agents, not the stationary ones
-                for moving_agent in moving_agents:
-                    # Pick first stationary agent as reference (could be any)
-                    stationary_agent = stationary_agents[0]
-                    collision_events.append((moving_agent, stationary_agent, collision_tile, 'moving_into_stationary'))
-            
-            elif len(moving_agents) > 1:
-                # Case 2: Multiple moving agents trying to reach same tile
-                # Stop all moving agents (mutual collision)
-                for i in range(len(moving_agents)):
-                    for j in range(i + 1, len(moving_agents)):
-                        collision_events.append((moving_agents[i], moving_agents[j], collision_tile, 'mutual_collision'))
-            
-            # Note: If len(stationary_agents) > 1 and len(moving_agents) == 0, no collision needed
-            # Multiple stationary agents can occupy same tile without issue
-    
-    # Check for tile swapping collisions (agents exchanging positions)
-    current_positions = {agent_id: (env.agent_map[agent_id].slot_x, env.agent_map[agent_id].slot_y) 
-                        for agent_id in next_positions.keys()}
-    
-    agents_list = list(next_positions.keys())
-    for i in range(len(agents_list)):
-        for j in range(i + 1, len(agents_list)):
-            agent1_id = agents_list[i]
-            agent2_id = agents_list[j]
-            
-            agent1_current = current_positions[agent1_id]
-            agent1_next = next_positions[agent1_id]
-            agent2_current = current_positions[agent2_id]
-            agent2_next = next_positions[agent2_id]
-            
-            # Check if agents are swapping positions: A->B and B->A
-            # Both agents must be moving for this to be a true swap collision
-            if (agent1_current == agent2_next and agent2_current == agent1_next and 
-                agent1_current != agent1_next and  # Ensure they're actually moving
-                agent_movement_status[agent1_id] and agent_movement_status[agent2_id]):  # Both must be moving
-                
-                # Use the first agent's next position as the "collision tile" for reporting
-                collision_events.append((agent1_id, agent2_id, agent1_next, 'tile_swap'))
-    
-    return collision_events
-
-
-def find_path_avoiding_obstacles(grid, start, goal, blocked_tiles=None):
-    """Enhanced pathfinding that treats blocked tiles as temporary obstacles.
-    
-    Args:
-        grid: Game grid
-        start: Start Node
-        goal: Goal Node  
-        blocked_tiles: Set of (x, y) tuples that should be treated as obstacles
-        
-    Returns:
-        List[Node] or None: Path if found, None otherwise
-    """
-    if blocked_tiles is None:
-        blocked_tiles = set()
-    
-    # Create a custom grid wrapper that treats blocked tiles as obstacles
-    class GridWithObstacles:
-        def __init__(self, original_grid, blocked_positions):
-            self.original_grid = original_grid
-            self.blocked_positions = blocked_positions
-            # Copy other attributes A* needs
-            self.width = original_grid.width
-            self.height = original_grid.height
-            self.tile_size = getattr(original_grid, 'tile_size', 16)
-            self.tiles = original_grid.tiles
-            
-        def is_tile_walkable(self, x, y):
-            # Check if position is blocked by our temporary obstacles
-            if (x, y) in self.blocked_positions:
-                return False
-            # Check original walkability
-            return self.original_grid.tiles[x][y].is_walkable
-    
-    # Monkey patch the is_obstacle function temporarily
-    from engine.extensions.topDownGridWorld.a_star import is_obstacle
-    original_is_obstacle = is_obstacle
-    
-    def custom_is_obstacle(grid_obj, x, y):
-        if hasattr(grid_obj, 'is_tile_walkable'):
-            return not grid_obj.is_tile_walkable(x, y)
-        else:
-            return original_is_obstacle(grid_obj, x, y)
-    
-    # Temporarily replace the function
-    import engine.extensions.topDownGridWorld.a_star as astar_module
-    astar_module.is_obstacle = custom_is_obstacle
-    
-    try:
-        grid_with_obstacles = GridWithObstacles(grid, blocked_tiles)
-        path = find_path(grid_with_obstacles, start, goal)
-        return path
-    finally:
-        # Restore original function
-        astar_module.is_obstacle = original_is_obstacle
-
-
-def find_predictive_alternative_path(env, agent_id, collision_tile, other_agent_current_pos, other_agent_next_pos):
-    """Try to find an alternative path that avoids both current and predicted positions of other agent.
-    
-    For interaction actions, this implements SMART REROUTING:
-    1. First, try standard rerouting to the same destination using A* with blocked tiles
-    2. If that fails and this is an interaction action, find alternative adjacent positions 
-       that can interact with the same target tile
-    3. Route to the closest alternative interaction position
-    
-    Args:
-        env: GameEnv instance
-        agent_id: ID of agent to reroute
-        collision_tile: Tile coordinates where collision would occur
-        other_agent_current_pos: Current position of other agent
-        other_agent_next_pos: Where other agent will be next tick
-        
-    Returns:
-        List[Node] or None: Alternative path if found, None otherwise
-    """
-    
-    state = env.agent_state[agent_id]
-    agent = env.agent_map[agent_id]
-    
-    # Get current position and destination
-    current_pos = (agent.slot_x, agent.slot_y)
-    target_tile_index = state['target_tile_index']
-    action_name = state.get('current_action', 'unknown')
-    
-    if target_tile_index is None:
-        return None
-    
-    # Calculate target position
-    grid_w = env.game.grid.width
-    target_x = target_tile_index % grid_w
-    target_y = target_tile_index // grid_w
-    target_tile = env.game.grid.tiles[target_x][target_y]
-    
-    # SMARTER OBSTACLE LOGIC:
-    # Only block the other agent's NEXT position (where they're moving to)
-    # Their CURRENT position will become free when they move away
-    # Exception: If this is a tile-swapping collision, we need different logic
-    obstacles = {other_agent_next_pos}
-    
-    # Check if this is a tile swapping scenario
-    current_pos_tuple = (current_pos[0], current_pos[1])
-    if (current_pos_tuple == other_agent_next_pos and 
-        other_agent_current_pos == (target_x, target_y)):
-        # This is tile swapping: we're going where the other agent is, and they're coming here
-        
-        # For tile swapping, block both positions since it's an inherent conflict
-        obstacles = {other_agent_current_pos, other_agent_next_pos}
-    else:
-        # Normal collision: only block where the other agent is going
-        obstacles = {other_agent_next_pos}
-    
-    start_node = Node(current_pos[0], current_pos[1])
-    
-    # PHASE 1: Try standard rerouting to the same destination using A* with blocked obstacles
-    if hasattr(target_tile, 'is_walkable') and target_tile.is_walkable:
-        # Target is walkable - use A* with blocked tiles
-        goal_node = Node(target_x, target_y)
-        alt_path = find_path_avoiding_obstacles(env.game.grid, start_node, goal_node, obstacles)
-        
-        if alt_path and len(alt_path) > 1:
-            return alt_path
-    else:
-        # Target is not walkable - find walkable neighbors and use A* for each
-        neighbors = []
-        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-            nx, ny = target_x + dx, target_y + dy
-            if 0 <= nx < env.game.grid.width and 0 <= ny < env.game.grid.height:
-                neighbor_tile = env.game.grid.tiles[nx][ny]
-                if hasattr(neighbor_tile, 'is_walkable') and neighbor_tile.is_walkable:
-                    neighbors.append((nx, ny))
-        
-        # Try each neighbor using A* with blocked tiles
-        for i, neighbor_pos in enumerate(neighbors):
-            goal_node = Node(neighbor_pos[0], neighbor_pos[1])
-            alt_path = find_path_avoiding_obstacles(env.game.grid, start_node, goal_node, obstacles)
-            
-            if alt_path and len(alt_path) > 1:
-                return alt_path
-    
-    # PHASE 2: SMART INTERACTION REROUTING
-    # If standard rerouting failed and this is an interaction action,
-    # find alternative positions that can interact with the same target tile
-    
-    # Get the stored interaction target tile directly from agent state
-    interaction_target_tile = state.get('interaction_target_tile')
-    
-    if interaction_target_tile is not None:
-        # Find all walkable positions adjacent to the interaction target
-        itx, ity = interaction_target_tile
-        alternative_positions = []
-        
-        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-            nx, ny = itx + dx, ity + dy
-            
-            # Bounds check
-            if not (0 <= nx < env.game.grid.width and 0 <= ny < env.game.grid.height):
-                continue
-            
-            # Skip original destination
-            if (nx, ny) == (target_x, target_y):
-                continue
-                
-            neighbor_tile = env.game.grid.tiles[nx][ny]
-            if hasattr(neighbor_tile, 'is_walkable') and neighbor_tile.is_walkable:
-                # Check if this position is not blocked by obstacles
-                if (nx, ny) not in obstacles:
-                    alternative_positions.append((nx, ny))
-        
-        if not alternative_positions:
-            return None
-        
-        # Try each alternative position, starting with the closest to agent's current position
-        alternative_positions.sort(key=lambda pos: (pos[0] - current_pos[0])**2 + (pos[1] - current_pos[1])**2)
-        
-        for i, (alt_x, alt_y) in enumerate(alternative_positions):
-            goal_node = Node(alt_x, alt_y)
-            alt_path = find_path_avoiding_obstacles(env.game.grid, start_node, goal_node, obstacles)
-            
-            if alt_path and len(alt_path) > 1:
-                
-                # Update the agent's target_tile_index to the new destination
-                new_target_index = alt_y * grid_w + alt_x
-                old_target_index = state['target_tile_index']
-                state['target_tile_index'] = new_target_index
-                
-                return alt_path
-        
-    else:
-        pass
-    
-    return None
-
-def is_tile_matching_action(tile, action_name):
-    """Check if a tile matches the type that the action is trying to interact with.
-    
-    Args:
-        tile: The tile object to check
-        action_name: The action being performed
-        
-    Returns:
-        bool: True if this tile is what the action wants to interact with
-    """
-    if not hasattr(tile, '_type'):
-        return False
-    
-    tile_type = tile._type
-    tile_item = getattr(tile, 'item', None)
-    
-    # Dispenser actions (type 3)
-    if "from_dispenser" in action_name:
-        if tile_type != 3:
-            return False
-        
-        # Check specific dispenser type
-        if "pick_up_tomato_from_dispenser" in action_name:
-            result = tile_item == 'tomato'
-            return result
-        elif "pick_up_pumpkin_from_dispenser" in action_name:
-            result = tile_item == 'pumpkin'
-            return result
-        elif "pick_up_plate_from_dispenser" in action_name:
-            result = tile_item == 'plate'
-            return result
-        return True
-    
-    # Cutting board actions (type 4)
-    elif "use_cutting_board" in action_name:
-        result = tile_type == 4
-        return result
-    
-    # Delivery actions (type 5)
-    elif "use_delivery" in action_name:
-        result = tile_type == 5
-        return result
-    
-    # Counter actions (type 2)
-    elif ("from_counter" in action_name or "on_free_counter" in action_name):
-        result = tile_type == 2
-        return result
-    
-    return False
-
-
-def resolve_predictive_collisions(env):
-    """Detect and resolve collisions BEFORE they happen.
-    
-    This implements the new collision detection strategy:
-    1. Predict where agents will move next tick
-    2. Detect collisions with smart rules:
-       - Only stop moving agent if entering stationary agent's tile
-       - Stop both agents for mutual collisions or tile swaps
-    3. Try to reroute moving agents
-    4. If rerouting fails, cancel actions
-    
-    Returns:
-        dict: Collision statistics including agents_with_failed_collisions
-    """
-    if not env.path_processor.is_enabled():
-        return {
-            'collisions_detected': 0, 
-            'collisions_rerouted': 0, 
-            'collisions_failed': 0,
-            'agents_with_failed_collisions': []
-        }
-    
-    # Detect collision events before they happen
-    collision_events = detect_predictive_collisions(env)
-    
-    collisions_detected = len(collision_events)
-    collisions_rerouted = 0
-    collisions_failed = 0
-    agents_with_failed_collisions = []
-    
-    # Process each collision event
-    for event_idx, (agent_to_stop, other_agent_id, collision_tile, collision_type) in enumerate(collision_events):
-        
-
-        # Get current and predicted positions
-        agent_to_stop_obj = env.agent_map[agent_to_stop]
-        other_agent_obj = env.agent_map[other_agent_id]
-        
-        agent_to_stop_current = (agent_to_stop_obj.slot_x, agent_to_stop_obj.slot_y)
-        other_agent_current = (other_agent_obj.slot_x, other_agent_obj.slot_y)
-        
-        # Get agent states for additional debug info
-        state_to_stop = env.agent_state[agent_to_stop]
-        state_other = env.agent_state[other_agent_id]
-        
-        rerouted = False
-        
-        if collision_type == 'moving_into_stationary':
-            # Only try to reroute the moving agent
-            alt_path = find_predictive_alternative_path(
-                env, agent_to_stop, collision_tile, other_agent_current, collision_tile  # Other agent stays put
-            )
-            
-            if alt_path and len(alt_path) > 1:
-                # Successfully rerouted the moving agent
-                state_to_stop['current_path'] = alt_path[1:]  # Skip current position
-                state_to_stop['path_index'] = 0
-                state_to_stop['movement_progress'] = 0.0
-                rerouted = True
-                collisions_rerouted += 1
-            else:
-                # Could not reroute moving agent - cancel only the moving agent
-                cancel_agent_action(env, agent_to_stop)
-                agents_with_failed_collisions.append(agent_to_stop)
-                collisions_failed += 1
-                
-        elif collision_type in ['mutual_collision', 'tile_swap']:
-            # Try to reroute either agent (mutual collision or tile swap)
-            alt_path1 = find_predictive_alternative_path(
-                env, agent_to_stop, collision_tile, other_agent_current, collision_tile
-            )
-            
-            if alt_path1 and len(alt_path1) > 1:
-                # Successfully rerouted first agent
-                state_to_stop['current_path'] = alt_path1[1:]  # Skip current position
-                state_to_stop['path_index'] = 0
-                state_to_stop['movement_progress'] = 0.0
-                rerouted = True
-                collisions_rerouted += 1
-            else:
-                # Try rerouting the other agent
-                alt_path2 = find_predictive_alternative_path(
-                    env, other_agent_id, collision_tile, agent_to_stop_current, collision_tile
-                )
-                
-                if alt_path2 and len(alt_path2) > 1:
-                    # Successfully rerouted second agent
-                    state_other['current_path'] = alt_path2[1:]  # Skip current position
-                    state_other['path_index'] = 0
-                    state_other['movement_progress'] = 0.0
-                    rerouted = True
-                    collisions_rerouted += 1
-                else:
-                    # Could not find alternative path for either agent - cancel both
-                    cancel_agent_action(env, agent_to_stop)
-                    cancel_agent_action(env, other_agent_id)
-                    agents_with_failed_collisions.extend([agent_to_stop, other_agent_id])
-                    collisions_failed += 1
-        
-    result = {
-        'collisions_detected': collisions_detected,
-        'collisions_rerouted': collisions_rerouted,
-        'collisions_failed': collisions_failed,
-        'agents_with_failed_collisions': agents_with_failed_collisions
-    }
-    
-    return result
 
 
 def update_agent_interactions(env, agent_events, agent_penalties, tick_duration):

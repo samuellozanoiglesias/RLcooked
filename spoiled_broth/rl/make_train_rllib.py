@@ -5,7 +5,6 @@ from ray.rllib.env.wrappers.pettingzoo_env import ParallelPettingZooEnv
 from ray.tune.registry import register_env
 from ray.rllib.core import (COMPONENT_LEARNER, COMPONENT_LEARNER_GROUP, COMPONENT_RL_MODULE)
 from spoiled_broth.rl.game_env import GameEnv
-from spoiled_broth.rl.dynamic_ppo_params import calculate_dynamic_ppo_params
 import warnings
 from datetime import datetime
 import torch  # For direct state loading fallback
@@ -74,9 +73,9 @@ def make_train_rllib(config):
             "cutting_speeds": config.get("CUTTING_SPEEDS", None),
             "penalties_cfg": config.get("PENALTIES_CFG", None),
             "rewards_cfg": config.get("REWARDS_CFG", None),
-            "dynamic_rewards_cfg": config.get("DYNAMIC_REWARDS_CFG", None),
             "reference_reward_cfg": config.get("REFERENCE_REWARD_CFG", None),
             "solo_baselines": config.get("SOLO_BASELINES", None),
+            "allow_blocked": config.get("ALLOW_BLOCKED", False),
         }
         policies[f"policy_{agent_id}"] = (
             None,  # Use default PPO policy
@@ -152,10 +151,10 @@ def make_train_rllib(config):
                 "cutting_speeds": config.get("CUTTING_SPEEDS", None),
                 "penalties_cfg": config.get("PENALTIES_CFG", None),
                 "rewards_cfg": config.get("REWARDS_CFG", None),
-                "dynamic_rewards_cfg": config.get("DYNAMIC_REWARDS_CFG", None),
                 "collision_enabled": config.get("COLLISION_ENABLED", False),
                 "reference_reward_cfg": config.get("REFERENCE_REWARD_CFG", None),
                 "solo_baselines": config.get("SOLO_BASELINES", None),
+                "allow_blocked": config.get("ALLOW_BLOCKED", False),
             },
             clip_actions=True,
         )
@@ -196,17 +195,6 @@ def make_train_rllib(config):
 
     # Build algorithm with error handling
     trainer = ppo_config.build_algo()
-
-    # Initialize dynamic PPO parameters if configured
-    dynamic_ppo_params_cfg = config.get("DYNAMIC_PPO_PARAMS_CFG", None)
-    initial_ppo_params = {
-        "clip_eps": config["CLIP_EPS"],
-        "ent_coef": config["ENT_COEF"]
-    }
-    
-    if dynamic_ppo_params_cfg and dynamic_ppo_params_cfg.get("enabled", False):
-        print(f"Dynamic PPO parameters enabled with config: {dynamic_ppo_params_cfg}")
-        print(f"Initial PPO params: clip_eps={initial_ppo_params['clip_eps']}, ent_coef={initial_ppo_params['ent_coef']}")
 
     # Load pretrained policies individually if specified in config
     if config["CHECKPOINTS"] is not None:        
@@ -294,60 +282,6 @@ def make_train_rllib(config):
     print(f"Initial checkpoint saved at {initial_checkpoint_path} (episode {start_episode})")
 
     for epoch in range(config["NUM_EPOCHS"]):
-        # Update dynamic PPO parameters if configured
-        if dynamic_ppo_params_cfg and dynamic_ppo_params_cfg.get("enabled", False):
-            # Get current episode count from training_stats.csv for parameter updates
-            current_episode = epoch  # fallback to epoch if CSV reading fails
-            stats_csv_path = os.path.join(path, "training_stats.csv")
-            if os.path.exists(stats_csv_path):
-                try:
-                    with open(stats_csv_path, "r") as f:
-                        lines = f.readlines()
-                        if lines:
-                            last_line = lines[-1].strip()
-                            if last_line:
-                                current_episode = int(last_line.split(",")[0])
-                except Exception:
-                    pass  # Use fallback value
-            
-            # Calculate new PPO parameters using the dynamic_ppo_params module
-            updated_ppo_params = calculate_dynamic_ppo_params(
-                current_episode,
-                initial_ppo_params,
-                dynamic_ppo_params_cfg
-            )
-            
-            # Update the algorithm's configuration 
-            # Note: For RLlib, we'll update the config dict and try to apply changes
-            try:
-                if "clip_eps" in updated_ppo_params:
-                    trainer.config["clip_param"] = updated_ppo_params["clip_eps"]
-                if "ent_coef" in updated_ppo_params:
-                    trainer.config["entropy_coeff"] = updated_ppo_params["ent_coef"]
-                
-                # Some RLlib versions might require updating the learner config as well
-                if hasattr(trainer, 'learner_group') and trainer.learner_group:
-                    def update_learner_config(learner):
-                        if "clip_eps" in updated_ppo_params:
-                            learner.config["clip_param"] = updated_ppo_params["clip_eps"]
-                        if "ent_coef" in updated_ppo_params:
-                            learner.config["entropy_coeff"] = updated_ppo_params["ent_coef"]
-                    trainer.learner_group.foreach_learner(update_learner_config)
-                    
-            except Exception as e:
-                # If direct config update fails, log it but continue training
-                print(f"Warning: Could not update PPO parameters dynamically: {e}")
-            
-            # Log parameter changes periodically
-            if current_episode % 100 == 0 and current_episode > 0:
-                affected_params = dynamic_ppo_params_cfg.get("affected_params", [])
-                print(f"[Episode {current_episode}] Updated PPO parameters:")
-                for param_name in affected_params:
-                    if param_name in updated_ppo_params:
-                        initial_val = initial_ppo_params[param_name]
-                        current_val = updated_ppo_params[param_name]
-                        print(f"  {param_name}: {initial_val:.4f} -> {current_val:.4f}")
-
         result = trainer.train()
 
         # Log metrics

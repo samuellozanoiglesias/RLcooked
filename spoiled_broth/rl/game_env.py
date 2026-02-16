@@ -7,21 +7,22 @@ import pandas as pd  # For loading training_stats.csv
 from spoiled_broth.config import *
 from spoiled_broth.maps.accessibility_maps import get_accessibility_map
 import pickle as _pickle
-from spoiled_broth.rl.game_step import update_agents_directly, setup_agent_path
+# Note: game_step.py contains helper functions used by tick_based_structure.py
 from spoiled_broth.rl.action_space import get_rl_action_space
 from spoiled_broth.rl.observation_space import game_to_obs_vector
 from spoiled_broth.rl.classify_action_type import get_action_type, get_action_type_list
-from spoiled_broth.rl.reward_analysis import get_rewards
+from spoiled_broth.rl.reward_analysis import get_rewards, get_cutting_time, apply_adaptive_cooperation_penalty
 from spoiled_broth.rl.dynamic_rewards import calculate_dynamic_rewards
 from spoiled_broth.game import SpoiledBroth, random_game_state
 from spoiled_broth.rl.path_processing import PathProcessor
 from spoiled_broth.rl.tick_based_structure import (
     agent_is_idle, assign_action, cancel_agent_action,
-    advance_agent_movement, resolve_predictive_collisions, update_agent_interactions
+    advance_agent_movement, update_agent_interactions
 )
+from spoiled_broth.rl.tick_based_collision import resolve_predictive_collisions
 
 # Tick-based simulation constants
-TICK_DURATION = 0.2  # Fixed time step in seconds (200ms) - minimum wait time for ANY action
+TICK_DURATION = 0.5  # Fixed time step in seconds (200ms) - minimum wait time for ANY action
 
 # Base intent time for non-cutting actions (1 tick minimum)
 INTENT_TIME = TICK_DURATION  # 0.2s = 1 tick for pickup/delivery/put_down
@@ -29,10 +30,10 @@ INTENT_TIME = TICK_DURATION  # 0.2s = 1 tick for pickup/delivery/put_down
 # TIME MANAGEMENT SUMMARY:
 # =======================
 # 
-# TICK DURATION (0.2s):
+# TICK DURATION:
 #   - Minimum time for ANY action or wait state
 #   - Idle agents wait at least 1 tick before next action
-#   - Rejected actions (inaccessible/not_available) wait 1 tick
+#   - Rejected actions (inaccessible/blocked) wait 1 tick
 #   - All times are multiples of TICK_DURATION
 #
 # MOVEMENT TIME (continuous, based on agent.walk_speed):
@@ -62,47 +63,6 @@ INTENT_TIME = TICK_DURATION  # 0.2s = 1 tick for pickup/delivery/put_down
 #   
 #   When actions are rejected or do_nothing is selected, agents
 #   remain idle and must wait until next tick to request new action.
-
-def get_cutting_time(agent, game):
-    """Calculate actual cutting time based on agent's cutting speed."""
-    cutting_speed = getattr(agent, 'cut_speed', 1.0)
-    base_cutting_time = getattr(game, 'cutting_time', 3.0)
-    # Lower speed = more time (inverse relationship)
-    return base_cutting_time / cutting_speed if cutting_speed > 0 else base_cutting_time
-
-ACTIONS_OBSERVATION_MAPPING_CLASSIC = {
-    # 0: do_nothing - no observation mapping needed
-    # Tile types: [accessibility, time] for each type (indices 0-7)
-    1: 1,  # pick_up_tomato_from_dispenser → tile_types[0] time_value
-    2: 3,  # pick_up_plate_from_dispenser → tile_types[1] time_value
-    3: 5,  # use_cutting_board → tile_types[2] time_value
-    4: 7,  # use_delivery → tile_types[3] time_value
-    # Items on counters: [presence, accessibility_closest, time_closest, accessibility_midpoint, time_midpoint]
-    5: 10, 6: 12,   # put_down_item_on_free_counter → items[0] (None) closest/midpoint time
-    7: 15, 8: 17,   # pick_up_tomato_from_counter → items[1] (tomato) closest/midpoint time
-    9: 20, 10: 22,  # pick_up_plate_from_counter → items[2] (plate) closest/midpoint time
-    11: 25, 12: 27,  # pick_up_tomato_cut_from_counter → items[3] (tomato_cut) closest/midpoint time
-    13: 30, 14: 32,  # pick_up_tomato_salad_from_counter → items[4] (tomato_salad) closest/midpoint time
-}
-
-ACTIONS_OBSERVATION_MAPPING_COMPETITION = {
-    # 0: do_nothing - no observation mapping needed
-    # Tile types: [accessibility, time] for each type (5 types, indices 0-9)
-    1: 1,  # pick_up_tomato_from_dispenser → tile_types[0] time_value
-    2: 3,  # pick_up_pumpkin_from_dispenser → tile_types[1] time_value
-    3: 5,  # pick_up_plate_from_dispenser → tile_types[2] time_value
-    4: 7,  # use_cutting_board → tile_types[3] time_value
-    5: 9,  # use_delivery → tile_types[4] time_value
-    # Items on counters: [presence, accessibility_closest, time_closest, accessibility_midpoint, time_midpoint]
-    6: 12, 7: 14,   # put_down_item_on_free_counter → items[0] (None) closest/midpoint time
-    8: 17, 9: 19,   # pick_up_tomato_from_counter → items[1] (tomato) closest/midpoint time
-    10: 22, 11: 24,  # pick_up_pumpkin_from_counter → items[2] (pumpkin) closest/midpoint time
-    12: 27, 13: 29,  # pick_up_plate_from_counter → items[3] (plate) closest/midpoint time
-    14: 32, 15: 34,  # pick_up_tomato_cut_from_counter → items[4] (tomato_cut) closest/midpoint time
-    16: 37, 17: 39,  # pick_up_pumpkin_cut_from_counter → items[5] (pumpkin_cut) closest/midpoint time
-    18: 42, 19: 44,  # pick_up_tomato_salad_from_counter → items[6] (tomato_salad) closest/midpoint time
-    20: 47, 21: 49,  # pick_up_pumpkin_salad_from_counter → items[7] (pumpkin_salad) closest/midpoint time
-}
 
 def init_game(agents, map_nr=1, grid_size=(8, 8), seed=None, game_mode="classic", walking_speeds=None, cutting_speeds=None):
     num_agents = len(agents)
@@ -145,11 +105,11 @@ class GameEnv(ParallelEnv):
         distance_map=None,
         penalties_cfg=None,
         rewards_cfg=None,
-        dynamic_rewards_cfg=None,
         collision_enabled=False,  # New parameter for collision detection
         random_initial_state=False,  # New parameter to randomize initial game state
         reference_reward_cfg=None,  # Reference-based opportunity cost shaping
-        solo_baselines=None  # Individual solo baselines for reference reward (dict: agent_id -> baseline)
+        solo_baselines=None,  # Individual solo baselines for reference reward (dict: agent_id -> baseline)
+        allow_blocked=False  # Whether to allow blocked actions to be attempted
     ):
         super().__init__()
         self.map_nr = map_nr
@@ -169,13 +129,15 @@ class GameEnv(ParallelEnv):
         	
         # Initialize penalties and rewards
         default_penalties_cfg = {
-            "busy": 0.01,
+            "do_nothing": 1.0,  # Penalty for do_nothing action
             "useless_action": 0.2,
             "destructive_action": 1.0,
-            "not_available": 0.5,
-            "inaccessible_tile": 1.0,
-            "collision": 0.5,  # Penalty when collision cannot be rerouted
+            "blocked": 0.5,  # Penalty when path is blocked (by agents if collision_enabled=True)
+            "collision": 0.0,  # Penalty when a collision occurs (if collision_enabled=True)
+            "inaccessible_tile": 1.0,  # Penalty when no path exists (walls/obstacles/no objects)
             "specialization_penalty_scale": 0.0,  # Specialization penalty scale (lambda): 0=no penalty, >0=penalty scale
+            "adaptive_cooperation_scale": 0.0,  # Path-length penalty for slow walkers: 0=disabled, >0=enabled (multiplied by collision_harshness when collisions enabled)
+            "collision_harshness": 2.0,  # Multiplier for specialization and adaptive cooperation when collisions enabled (1.0=same, 2.0=double)
         }
         default_rewards_cfg = {
             "raw_food": 0.2,
@@ -187,10 +149,12 @@ class GameEnv(ParallelEnv):
         }
         self.penalties_cfg = penalties_cfg if penalties_cfg is not None else default_penalties_cfg
         self.rewards_cfg = rewards_cfg if rewards_cfg is not None else default_rewards_cfg
-        self.initial_rewards_cfg = self.rewards_cfg.copy()  # Store initial rewards for dynamic updates
-        self.dynamic_rewards_cfg = dynamic_rewards_cfg
         self.wait_for_action_completion = wait_for_completion
         self.random_initial_state = random_initial_state  # Store flag for random initial states
+        self.allow_blocked = allow_blocked  # Whether to allow blocked actions to be attempted
+        
+        # Extract collision harshness multiplier for specialization and adaptive cooperation
+        self.collision_harshness = self.penalties_cfg.get("collision_harshness", 2.0)
         
         self.clickable_indices = None  # Initialize clickable indices storage
         
@@ -203,6 +167,9 @@ class GameEnv(ParallelEnv):
                     
         # Initialize path processing system
         self.path_processor = PathProcessor(map_nr, collision_enabled)
+        
+        # Store collision flag for reward calculations
+        self.collision_enabled = collision_enabled
 
         # Determine agent IDs from reward_weights or default to two agents
         if reward_weights is not None:
@@ -219,7 +186,6 @@ class GameEnv(ParallelEnv):
 
         if self.game_mode == "competition":
             self.total_agent_events = {agent_id: {"deliver_own": 0, "deliver_other": 0, "salad_own": 0, "salad_other": 0, "cut_own": 0, "cut_other": 0, "plate": 0, "raw_food_own": 0, "raw_food_other": 0, "counter": 0} for agent_id in self.agents}
-            self.action_obs_mapping = ACTIONS_OBSERVATION_MAPPING_COMPETITION
             # Assign food types dynamically based on actual agents
             food_types = ["tomato", "pumpkin"]
             self.agent_food_type = {
@@ -228,7 +194,6 @@ class GameEnv(ParallelEnv):
             }
         elif self.game_mode == "classic":
             self.total_agent_events = {agent_id: {"deliver": 0, "salad": 0, "cut": 0, "plate": 0, "raw_food": 0, "counter": 0} for agent_id in self.agents}
-            self.action_obs_mapping = ACTIONS_OBSERVATION_MAPPING_CLASSIC
         else:
             raise ValueError(f"Unknown game mode: {self.game_mode}")
         
@@ -237,8 +202,7 @@ class GameEnv(ParallelEnv):
             for agent_id in self.agents
         }
         self.total_actions_asked = {agent_id: 0 for agent_id in self.agents}
-        self.total_action_blocked = {agent_id: 0 for agent_id in self.agents}
-        self.total_actions_not_available = {agent_id: 0 for agent_id in self.agents}
+        self.total_actions_blocked = {agent_id: 0 for agent_id in self.agents}
         self.total_actions_inaccessible = {agent_id: 0 for agent_id in self.agents}
         
         # Collision tracking statistics
@@ -250,7 +214,7 @@ class GameEnv(ParallelEnv):
 
         self.agent_map = {agent_id: self.game.gameObjects[agent_id] for agent_id in self.agents}
         
-        # Tick-based agent state tracking (replaces busy_until)
+        # Tick-based agent state tracking
         self.agent_state = {
             agent_id: {
                 'current_action': None,  # Action name being executed
@@ -263,30 +227,34 @@ class GameEnv(ParallelEnv):
             }
             for agent_id in self.agents
         }
-        
-        # Legacy compatibility (will be removed after refactor complete)
-        self.busy_until = {agent_id: None for agent_id in self.agents}
-        self.action_info = {agent_id: None for agent_id in self.agents}
 
         # Team synergy-based shaping mechanism
         self.reference_reward_cfg = reference_reward_cfg if reference_reward_cfg is not None else {"enabled": False}
         self.solo_baselines = solo_baselines if solo_baselines is not None else {}
         self.solo_baseline_team = sum(self.solo_baselines.values()) if self.solo_baselines else None
         self.reference_reward_enabled = self.reference_reward_cfg.get("enabled", False) and self.solo_baselines
+        
+        # Always initialize kappa (competence transformation parameter)
+        self.kappa = self.reference_reward_cfg.get("kappa", 1.0)
+        
+        # Initialize activate_synergy_positive flag (controls whether positive synergy signals are applied)
+        self.activate_synergy_positive = self.reference_reward_cfg.get("activate_synergy_positive", False)
+        
+        # Initialize agent abilities (needed for both specialization and team synergy)
+        self.agent_abilities = {}
+        for agent_id in self.agents:
+            # Get cutting and walking abilities (kappa values)
+            cut_speed = self.cutting_speeds.get(agent_id, 1.0) if self.cutting_speeds else 1.0
+            walk_speed = self.walking_speeds.get(agent_id, 1.0) if self.walking_speeds else 1.0
+            self.agent_abilities[agent_id] = {
+                'cutting': cut_speed,
+                'walking': walk_speed,
+                'average': (cut_speed + walk_speed) / 2.0
+            }
+        
         if self.reference_reward_enabled:
             self.synergy_scaling_factor = self.reference_reward_cfg.get("synergy_scaling_factor", 0.5)
-            print(f"[GameEnv] Team synergy enabled: synergy_scaling_factor={self.synergy_scaling_factor}, baselines={self.solo_baselines}, team={self.solo_baseline_team}")
-            # Calculate competence using agent abilities (kappa values)
-            self.agent_abilities = {}
-            for agent_id in self.agents:
-                # Get cutting and walking abilities (kappa values)
-                cut_speed = self.cutting_speeds.get(agent_id, 1.0) if self.cutting_speeds else 1.0
-                walk_speed = self.walking_speeds.get(agent_id, 1.0) if self.walking_speeds else 1.0
-                self.agent_abilities[agent_id] = {
-                    'cutting': cut_speed,
-                    'walking': walk_speed,
-                    'average': (cut_speed + walk_speed) / 2.0
-                }
+            print(f"[GameEnv] Team synergy enabled: synergy_scaling_factor={self.synergy_scaling_factor}, kappa={self.kappa}, activate_synergy_positive={self.activate_synergy_positive}, baselines={self.solo_baselines}, team={self.solo_baseline_team}")
             print(f"[GameEnv] Agent abilities: {self.agent_abilities}")
 
         # --- New observation space---
@@ -302,8 +270,6 @@ class GameEnv(ParallelEnv):
         self.dones = {agent: False for agent in self.agents}
         self.infos = {agent: {} for agent in self.agents}
         self._last_score = 0
-
-        self.obs_actions_mapping = {}
         
         # Initialize pre-calculated paths storage
         self.agent_action_paths = {agent_id: [] for agent_id in self.agents}
@@ -333,8 +299,6 @@ class GameEnv(ParallelEnv):
             random_game_state(self.game, game_mode=self.game_mode)
 
         self.agent_map = {agent_id: self.game.gameObjects[agent_id] for agent_id in self.agents}
-        self.busy_until = {agent_id: None for agent_id in self.agents}
-        self.action_info = {agent_id: None for agent_id in self.agents}
 
         # Initialize agent busy states
         for agent_id, agent in self.agent_map.items():
@@ -347,9 +311,6 @@ class GameEnv(ParallelEnv):
         self.cumulated_modified_rewards = {agent: 0.0 for agent in self.agents}
 
         self._elapsed_time = 0.0
-
-        # Update rewards dynamically if configured
-        self._update_dynamic_rewards()
 
         # Clear path processor state for new episode
         if hasattr(self.path_processor, 'active_paths'):
@@ -374,7 +335,7 @@ class GameEnv(ParallelEnv):
             for agent_id in self.agents
         }
         self.total_actions_asked = {agent_id: 0 for agent_id in self.agents}
-        self.total_actions_not_available = {agent_id: 0 for agent_id in self.agents}
+        self.total_actions_blocked = {agent_id: 0 for agent_id in self.agents}
         self.total_actions_inaccessible = {agent_id: 0 for agent_id in self.agents}
         
         # Reset collision statistics
@@ -393,26 +354,6 @@ class GameEnv(ParallelEnv):
 
         return self.observations, self.infos
 
-    def _update_dynamic_rewards(self):
-        """Update rewards configuration based on dynamic rewards settings and current episode."""
-        if self.dynamic_rewards_cfg is not None and self.dynamic_rewards_cfg.get("enabled", False):
-            self.rewards_cfg = calculate_dynamic_rewards(
-                self.episode_count,
-                self.initial_rewards_cfg,
-                self.dynamic_rewards_cfg
-            )
-            
-            # Log reward changes periodically
-            if self.episode_count % 1000 == 0:  # Log every 1000 episodes
-                affected_rewards = self.dynamic_rewards_cfg.get("affected_rewards", [])
-                if affected_rewards:
-                    print(f"[Episode {self.episode_count}] Dynamic rewards updated:")
-                    for reward_type in affected_rewards:
-                        if reward_type in self.rewards_cfg:
-                            initial_val = self.initial_rewards_cfg[reward_type]
-                            current_val = self.rewards_cfg[reward_type]
-                            print(f"  {reward_type}: {initial_val:.3f} -> {current_val:.3f} (ratio: {current_val/initial_val:.3f})")
-    
     def observe(self, agent):
         obs_vector, considered_paths, considered_tiles, considered_interaction_targets = game_to_obs_vector(self.game, agent, game_mode=self.game_mode, path_processor=self.path_processor)
         
@@ -468,6 +409,9 @@ class GameEnv(ParallelEnv):
             
             # Handle do_nothing action
             if action_name == "do_nothing":
+                # Apply do_nothing penalty
+                agent_penalties[agent_id] += self.penalties_cfg.get("do_nothing", 1.0)
+                
                 # Store for logging
                 self._logging_actions[agent_id] = {
                     'elapsed_time': self._elapsed_time,
@@ -478,6 +422,7 @@ class GameEnv(ParallelEnv):
                     'x': -2,
                     'y': -2
                 }
+                self.total_action_types[agent_id]['do_nothing'] += 1
                 continue
             
             # Get cached path and tile from observation
@@ -490,25 +435,19 @@ class GameEnv(ParallelEnv):
                 tile_index = None
                 cached_interaction_target = None
             
-            # --- THREE-TIER PENALTY SYSTEM ---
+            # --- TWO-TIER PENALTY SYSTEM ---
             # Validate action based on observation space indicators:
             # 
-            # 1. INACCESSIBLE (tile_index=None): No path exists ignoring agents
+            # 1. INACCESSIBLE (tile_index=None): No path exists due to walls/obstacles
             #    - Observation: accessibility=0, availability=0
             #    - Action: REJECTED immediately, agent stays idle
-            #    - Penalty: penalties_cfg["inaccessible_tile"] (default: 5.0)
+            #    - Penalty: penalties_cfg["inaccessible_tile"] (default: 1.0)
             #
-            # 2. NOT_AVAILABLE (tile_index=-1): Path exists but blocked by agent's current position
-            #    - Observation: accessibility=1, availability=0
-            #    - Action: ACCEPTED and attempted (action is assigned to agent)
-            #    - Penalty: penalties_cfg["not_available"] (default: 2.0) applied immediately
-            #    - Note: Only occurs when collision_enabled=True
-            #
-            # 3. COLLISION (handled in Phase 2): Predictive collision detected and rerouting failed
-            #    - Observation: accessibility=1, availability=1 (was available at observation time)
-            #    - Prediction: Agents would collide in next movement tick
-            #    - Action: Attempted, collision predicted before execution, rerouting fails
-            #    - Penalty: penalties_cfg["collision"] (default: 0.5) applied when rerouting fails
+            # 2. BLOCKED (tile_index=-1 OR collision during movement): Path blocked by agents
+            #    - Observation: accessibility=1, availability=0 (blocked at observation time)
+            #                   OR accessibility=1, availability=1 (collision during movement)
+            #    - Action: ATTEMPTED, then cancelled if collision cannot be rerouted
+            #    - Penalty: penalties_cfg["blocked"] (default: 0.5) applied when action fails
             #    - Note: Only occurs when collision_enabled=True
             
             if tile_index is None:
@@ -525,25 +464,34 @@ class GameEnv(ParallelEnv):
                 agents_becoming_idle.add(agent_id)
                 
             elif tile_index == -1:
-                # CASE 2: NOT_AVAILABLE - Path exists but blocked by other agent's current position
+                # CASE 2: BLOCKED - Path exists but blocked by other agent's current position
                 # Tile is accessible (path exists ignoring agents) but not currently available
-                # We ATTEMPT the action (assign it to agent) and let collision detection handle it
+                # Behavior controlled by ALLOW_BLOCKED parameter:
+                #   - If True: ATTEMPT the action (assign it) and let collision detection handle it
+                #   - If False: REJECT the action immediately (agent remains idle)
                 # This only happens when collision_enabled=True
-                action_type = "not_available"
+                action_type = "blocked"
                 logging_index = -1
                 logging_x, logging_y = -1, -1
-                self.total_actions_not_available[agent_id] += 1
+                self.total_actions_blocked[agent_id] += 1
                 self.total_action_types[agent_id][action_type] += 1
-                agent_penalties[agent_id] += self.penalties_cfg["not_available"]
                 
-                # ASSIGN the action with path that ignores agents - let collision detection handle conflicts
-                # The cached_path should contain the path ignoring agents (fixed in observation_space.py)
-                assign_action(self, agent_id, action_idx, action_name, tile_index, cached_path, action_type, cached_interaction_target)
+                # Base blocked penalty
+                agent_penalties[agent_id] += self.penalties_cfg["blocked"]
+                
+                # ASSIGN the action only if ALLOW_BLOCKED is enabled
+                if self.allow_blocked:
+                    # ASSIGN the action with path that ignores agents - let collision detection handle conflicts
+                    # The cached_path should contain the path ignoring agents (fixed in observation_space.py)
+                    assign_action(self, agent_id, action_idx, action_name, tile_index, cached_path, action_type, cached_interaction_target)
+                else:
+                    # REJECT the action - agent remains idle and will ask for new action next step
+                    agents_becoming_idle.add(agent_id)
                 
             else:
-                # CASE 3: VALID ACTION - Tile is both accessible and available
+                # CASE 2: VALID ACTION - Tile is both accessible and available
                 # Action is assigned and will be executed
-                # COLLISION penalty may be applied later if runtime collision occurs during movement
+                # BLOCKED penalty may be applied later if runtime collision occurs during movement
                 grid_w = self.game.grid.width
                 x = tile_index % grid_w
                 y = tile_index // grid_w
@@ -554,7 +502,10 @@ class GameEnv(ParallelEnv):
                 logging_y = y
                 
                 # Assign action to agent
-                assign_action(self, agent_id, action_idx, action_name, tile_index, cached_path, action_type, cached_interaction_target)
+                path_length = assign_action(self, agent_id, action_idx, action_name, tile_index, cached_path, action_type, cached_interaction_target)
+                
+                # Apply adaptive cooperation penalty if enabled
+                apply_adaptive_cooperation_penalty(self, agent_id, path_length, agent_penalties)
                 
                 # Track action type
                 self.total_action_types[agent_id][action_type] += 1
@@ -601,7 +552,11 @@ class GameEnv(ParallelEnv):
             # Apply penalties to agents whose collisions couldn't be rerouted
             # These agents had their actions cancelled in resolve_predictive_collisions
             for agent_id in collision_stats['agents_with_failed_collisions']:
+                agent = self.agent_map[agent_id]
+                
+                # Base blocked penalty for all failed collisions
                 agent_penalties[agent_id] += self.penalties_cfg["collision"]
+                
                 # Mark these agents for observation refresh since they're now idle
                 agents_becoming_idle.add(agent_id)
         # If collision detection is disabled, this entire block is skipped
@@ -654,41 +609,6 @@ class GameEnv(ParallelEnv):
                 # Agent is idle - either was already idle, or just finished
                 # They'll need a fresh observation for the next decision
                 agents_becoming_idle.add(agent_id)
-            else:
-                state = self.agent_state[agent_id]
-        # Apply busy penalty for agents currently executing actions
-        for agent_id in self.agents:
-            state = self.agent_state[agent_id]
-            if state['current_action'] is not None:
-                agent_penalties[agent_id] += self.penalties_cfg["busy"] * TICK_DURATION
-        
-        # Apply specialization penalty
-        penalty_scale = self.penalties_cfg.get("specialization_penalty_scale", 0.0)
-        if penalty_scale > 0:
-            for agent_id in self.agents:
-                state = self.agent_state[agent_id]
-                agent = self.agent_map[agent_id]
-                action_type = state.get('action_type')
-                
-                if action_type and state['current_action']:
-                    walk_speed = getattr(agent, 'walk_speed', 1.0)
-                    cut_speed = getattr(agent, 'cut_speed', 1.0)
-                    
-                    # Apply penalty for cutting actions when cut_ability < 1
-                    is_cutting_action = (
-                        action_type in ["useful_cutting_board", "useful_cutting_board_own", "useful_cutting_board_other"]
-                    )
-                    if is_cutting_action and cut_speed < 1.0:
-                        cutting_penalty = (1.0 - cut_speed) * penalty_scale * TICK_DURATION
-                        agent_penalties[agent_id] += cutting_penalty
-                    
-                    # Apply penalty for delivery/walking actions when walk_speed < 1
-                    is_delivery_action = (
-                        action_type in ["useful_delivery", "useful_delivery_own", "useful_delivery_other"]
-                    )
-                    if is_delivery_action and walk_speed < 1.0:
-                        delivery_penalty = (1.0 - walk_speed) * penalty_scale * TICK_DURATION
-                        agent_penalties[agent_id] += delivery_penalty
         
         # Update totals for logged events
         for agent_id in self.agents:
@@ -743,7 +663,7 @@ class GameEnv(ParallelEnv):
                 for result_event in self.total_agent_events[agent_id]:
                     row[f"{result_event}_{agent_id}"] = self.total_agent_events[agent_id][result_event]
                 row[f"actions_asked_{agent_id}"] = self.total_actions_asked[agent_id]
-                row[f"actions_not_available_{agent_id}"] = self.total_actions_not_available[agent_id]
+                row[f"actions_blocked_{agent_id}"] = self.total_actions_blocked[agent_id]
                 row[f"inaccessible_actions_{agent_id}"] = self.total_actions_inaccessible[agent_id]
 
                 # Add action type columns for this specific agent

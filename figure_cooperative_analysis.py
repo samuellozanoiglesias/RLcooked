@@ -17,7 +17,7 @@ Usage:
 Examples:
     # Default (baseline vs encouraged, random_init, both specializations)
     nohup python figure_cooperative_analysis.py --episode_range all --output_dir ./figures > figure_cooperative_analysis_all.log 2>&1 &
-    nohup python figure_cooperative_analysis.py --episode_range final --num_episodes 100 > figure_cooperative_analysis_final.log 2>&1 &
+    nohup python figure_cooperative_analysis.py --episode_range final --num_episodes 10 > figure_cooperative_analysis_final.log 2>&1 &
     
     # Analyze specific lambda data
     nohup python figure_cooperative_analysis.py --episode_range final --specialization 0 --num_episodes 100 > figure_cooperative_analysis_lambda_0.log 2>&1 &

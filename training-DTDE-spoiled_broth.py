@@ -1,9 +1,13 @@
-# USE:   <cluster> <input_path> <map_nr> <lr> <game_version> [<num_agents>] [<num_epochs>] [<seed>] [<checkpoints>] [<rewards_on_delivery_only>] [<random_initial_state>] [<ability_risk_enabled>] [<synergy_scaling_factor>] [<specialization_penalty_scale>] [<agent_to_train>] > log_training.log 2>&1 &
-# Example: nohup python training-DTDE-spoiled_broth.py cuenca ./cuenca/input_0_0.txt baseline_division_of_labor_v2 0.0003 classic 2 1000 0 none true false true 0.5 5.0 > log_training.log 2>&1 &
+# USE:   <cluster> <input_path> <map_nr> <lr> <game_version> [<num_agents>] [<num_epochs>] [<seed>] [<checkpoints>] [<rewards_on_delivery_only>] [<random_initial_state>] [<synergy_scaling_factor>] [<specialization_penalty_scale>] [<collision_penalty>] [<agent_to_train>] [<allow_blocked>] [<kappa>] [<activate_synergy_positive>] [<adaptive_cooperation_scale>] [<collision_harshness>] > log_training.log 2>&1 &
+# Example: nohup python training-DTDE-spoiled_broth.py cuenca ./cuenca/input_0_0.txt baseline_division_of_labor_v2 0.0003 classic 2 1000 0 none true false 0.5 5.0 10.0 false 1.0 true 0.5 2.0 > log_training.log 2>&1 &
 #   synergy_scaling_factor=0: Standard rewards (no team synergy shaping)
 #   synergy_scaling_factor>0: Team synergy-based reward shaping enabled with given sensitivity
 #   specialization_penalty_scale=0: No specialization penalty
 #   specialization_penalty_scale>0: Specialization penalty with given scale
+#   kappa: Competence transformation parameter for team synergy distribution (default=1.0)
+#   activate_synergy_positive: Whether to apply positive synergy signals (true/false, default=false)
+#   adaptive_cooperation_scale: Path-length-dependent cooperation penalty for slow walkers (0=disabled, >0=enabled, multiplied by collision_harshness when collisions enabled)
+#   collision_harshness: Multiplier for specialization and adaptive cooperation when collisions enabled (1.0=same, 2.0=double, default=2.0)
 
 import os
 import sys
@@ -22,13 +26,9 @@ INPUT_PATH = sys.argv[2]
 MAP_NR = str(sys.argv[3]).lower()
 LR = float(sys.argv[4])
 GAME_VERSION = str(sys.argv[5]).lower() ## If game_version = classic, one type of food (tomato); if game_version = competition, two types of food (tomato and pumpkin); if game_version ends with '_collision', enables collision detection
-if len(sys.argv) > 6:
-    NUM_AGENTS = int(sys.argv[6])
-    if NUM_AGENTS not in [1, 2]:
-        raise ValueError("NUM_AGENTS must be 1 or 2")
-else:
-    NUM_AGENTS = 2  # Default to 2 agents for backward compatibility
-
+NUM_AGENTS = int(sys.argv[6])
+if NUM_AGENTS not in [1, 2]:
+    raise ValueError("NUM_AGENTS must be 1 or 2")
 NUM_EPOCHS = int(sys.argv[7]) if len(sys.argv) > 7 else 500
 SEED = int(sys.argv[8]) if len(sys.argv) > 8 else 0
 
@@ -39,16 +39,22 @@ SEED = int(sys.argv[8]) if len(sys.argv) > 8 else 0
 CHECKPOINT_PATHS = str(sys.argv[9]).lower() if len(sys.argv) > 9 else "none"
 REWARDS_ON_DELIVERY_ONLY = str(sys.argv[10]).lower() if len(sys.argv) > 10 else "true"
 RANDOM_INITIAL_STATE = str(sys.argv[11]).lower() if len(sys.argv) > 11 else "false"  # Flag to randomize initial game state (items on counters and in hands)
-ABILITY_RISK_ENABLED = str(sys.argv[12]).lower() if len(sys.argv) > 12 else "false"  # Flag to enable ability-based risk modeling
-SYNERGY_SCALING_FACTOR = float(sys.argv[13]) if len(sys.argv) > 13 else 0.0  # Team synergy sensitivity: 0=no shaping, >0=team synergy-based shaping enabled
-SPECIALIZATION_PENALTY_SCALE = float(sys.argv[14]) if len(sys.argv) > 14 else 0.0  # Specialization penalty scale (lambda): 0=no penalty, >0=penalty scale
+SYNERGY_SCALING_FACTOR = float(sys.argv[12]) if len(sys.argv) > 12 else 0.0  # Team synergy sensitivity: 0=no shaping, >0=team synergy-based shaping enabled
+SPECIALIZATION_PENALTY_SCALE = float(sys.argv[13]) if len(sys.argv) > 13 else 0.0  # Specialization penalty scale (lambda): 0=no penalty, >0=penalty scale
+COUNTER_REWARD = float(sys.argv[14]) if len(sys.argv) > 14 else 0.0  # Penalty for collisions (set to 0 to disable)
+COLLISION_PENALTY = float(sys.argv[15]) if len(sys.argv) > 15 else 0.0  # Penalty for collisions (set to 0 to disable)
+ALLOW_BLOCKED_ARG = str(sys.argv[16]).lower() if len(sys.argv) > 16 else "false"
+KAPPA = float(sys.argv[17]) if len(sys.argv) > 17 else 1.0  # Competence transformation parameter for team synergy distribution
+ACTIVATE_SYNERGY_POSITIVE_ARG = str(sys.argv[18]).lower() if len(sys.argv) > 18 else "false"
+ADAPTIVE_COOPERATION_SCALE = float(sys.argv[19]) if len(sys.argv) > 19 else 0.0  # Path-length-dependent cooperation penalty scale
+COLLISION_HARSHNESS = float(sys.argv[20]) if len(sys.argv) > 20 else 2.0  # Multiplier for specialization and adaptive cooperation when collisions enabled
 
 # Optional when number of agents = 1:
 # Decide which agent to train (1 or 2)
 if NUM_AGENTS == 1:
     agent_to_train = 1  # Default to agent 1
-    if len(sys.argv) > 15:  # agent_to_train is the 15th argument (sys.argv[15])
-        agent_to_train = int(sys.argv[15])
+    if len(sys.argv) > 21:  # agent_to_train is now the 21st argument (sys.argv[21])
+        agent_to_train = int(sys.argv[21])
         if agent_to_train not in [1, 2]:
             raise ValueError("When NUM_AGENTS=1, agent_to_train must be 1 or 2")
 
@@ -96,14 +102,19 @@ PAYOFF_MATRIX = [1,1,-2]
 MLP_LAYERS = [1024, 512, 256]
 
 # Game characteristics
+# Override ALLOW_BLOCKED with command line argument if provided
+ALLOW_BLOCKED = (ALLOW_BLOCKED_ARG == "true")  # Whether to allow agents to attempt blocked actions
+
 PENALTIES_CFG = {
-    "busy": 0.01, # Penalty per second spent busy
+    "do_nothing": 1.0, # Penalty for do_nothing action
     "useless_action": 5.0, # Penalty for useless actions
     "destructive_action": 10.0, # Penalty for destructive actions
     "inaccessible_tile": 10.0, # Penalty for trying to access an inaccessible tile (no path exists)
-    "not_available": 1.0, # Penalty for trying to perform an action that is not available (runtime block)
-    "collision": 5.0, # Penalty when collision cannot be rerouted (only with collision_enabled=True)
+    "blocked": 5.0, # Penalty when path is blocked (by agents or collision)
+    "collision": COLLISION_PENALTY, # Penalty when a collision occurs (if collision_enabled=True)
     "specialization_penalty_scale": SPECIALIZATION_PENALTY_SCALE,  # Specialization penalty scale (lambda): 0=no penalty, >0=penalty scale
+    "adaptive_cooperation_scale": ADAPTIVE_COOPERATION_SCALE,  # Path-length penalty for slow walkers: 0=disabled, >0=enabled (multiplied by collision_harshness when collisions enabled)
+    "collision_harshness": COLLISION_HARSHNESS,  # Multiplier for specialization and adaptive cooperation when collisions enabled (1.0=same, 2.0=double)
 }
 
 if REWARDS_ON_DELIVERY_ONLY == "true":
@@ -117,107 +128,49 @@ if REWARDS_ON_DELIVERY_ONLY == "true":
     }
 else:
     REWARDS_CFG = {
-        "raw_food": 0.0,
-        "plate": 0.0,
-        "counter": 0.0,
-        "cut": 2.0,
+        "raw_food": 1.0,
+        "plate": 1.0,
+        "counter": COUNTER_REWARD,
+        "cut": 4.0,
         "salad": 5.0,
         "deliver": 10.0,
     }
 
-# Dynamic rewards configuration - exponential decay [rewards_cfg = original_rewards_cfg * exp(-decay_rate * (episode - decay_start_episode))]
-DYNAMIC_REWARDS_CFG = {
-    "enabled": False,  # Set to False to disable dynamic rewards
-    "decay_rate": 0.005,  # Decay rate for exponential function (higher = faster decay)
-    "min_reward_multiplier": 0.00,  # Minimum multiplier (e.g., 0.1 = 10% of initial reward)
-    "decay_start_episode": 100,  # Episode to start applying decay (0 = from beginning)
-    "affected_rewards": ["raw_food", "plate", "counter", "cut", "salad"],  # Which reward types to apply decay to
-}
-
-# Dynamic PPO parameters configuration - exponential decay for exploration and policy change control
-# This gradually reduces clip_eps (policy change constraint) and ent_coef (exploration) during training
-# Starting with high values for exploration, then reducing them for more stable exploitation
-DYNAMIC_PPO_PARAMS_CFG = {
-    "enabled": False,  # Set to False to disable dynamic PPO parameters
-    "decay_rate": 0.0001,  # Decay rate for exponential function (higher = faster decay)
-    "min_param_multiplier": 0.1,  # Minimum multiplier (e.g., 0.1 = 10% of initial value)
-    "decay_start_episode": 100,  # Episode to start applying decay (0 = from beginning)
-    "affected_params": ["ent_coef"],  # Which PPO parameters to apply decay to
-}
-
-# Ability-based training dynamics configuration
-# Models "risk of cooperation" through learning stability and exploration
-# Hyperparameters scale continuously with collective ability (sum of all agents' abilities)
-# Low collective ability = stable, conservative learning (cooperation safer)
-# High collective ability = risky, exploratory learning (independence viable)
-ABILITY_RISK_CFG = {
-    "enabled": ABILITY_RISK_ENABLED == "true",
-    
-    # Reference ability values for scaling (collective ability = sum of all agents' walking_speed + cutting_speed)
-    "reference_low_ability": 2.0,   # Reference point for low ability teams
-    "reference_high_ability": 4.0,  # Reference point for high ability teams
-    
-    # Learning rate scaling (low ability = more stable gradients)
-    "low_ability_lr_multiplier": 1.0,    # Conservative learning for weak teams (lower)
-    "high_ability_lr_multiplier": 1.0,   # Aggressive learning for strong teams (higher)
-    
-    # Entropy coefficient (exploration vs exploitation)
-    # Low ability agents: low entropy = stick to working strategies (cooperation)
-    # High ability agents: high entropy = explore independence
-    "low_ability_ent_multiplier": 4.0,   # Low exploration, find cooperation quickly (lower)
-    "high_ability_ent_multiplier": 0.2,  # High exploration, find solo strategies (higher)
-    
-    # Value function coefficient (how much to trust value estimates)
-    # Low ability: high VF weight = trust learned cooperation value
-    # High ability: low VF weight = explore beyond current value estimates
-    "low_ability_vf_multiplier": 1.0,    # Trust cooperation values (higher)
-    "high_ability_vf_multiplier": 1.0,   # Question cooperation necessity (lower)
-    
-    # GAE Lambda (temporal credit assignment)
-    # Low ability: high lambda = long-term thinking (cooperation pays off later)
-    # High ability: low lambda = short-term rewards (solo actions pay immediately)
-    "low_ability_gae_multiplier": 1.0,   # Value long-term cooperation (higher)
-    "high_ability_gae_multiplier": 1.0,  # Value immediate solo rewards (lower)
-    
-    # Gradient clipping (training stability)
-    # Low ability: aggressive clipping = avoid destabilizing updates
-    # High ability: loose clipping = allow big policy shifts
-    "low_ability_grad_clip": 1.0,    # Stable learning for weak teams (lower)
-    "high_ability_grad_clip": 1.0,  # Flexible learning for strong teams (higher)
-}
-
 # Team Synergy-Based Reward Shaping
-# Models cooperation through bounded synergy signals relative to individual pre-trained performance
-# Enabled automatically when pretrained agents are provided AND eta > 0
-# Solo baselines are loaded from training_stats.csv of pretrained checkpoints (no re-evaluation)
-# Uses hyperbolic tangent to provide bounded, stable reward signals
-# High-ability agents get smaller cooperation incentives, larger risk aversion penalties
-# Low-ability agents get larger cooperation incentives, smaller risk aversion penalties
-# 
-# Implementation notes:
-# 1. Solo baselines (R_solo_1, R_solo_2) are loaded from last episode of pretraining (training_stats.csv)
+# 1. Solo baselines are looked up from BASELINE_LOOKUP based on map and agent competences
 # 2. Team Synergy: S(τ) = tanh(R^cum_team(τ) - τ * R̄^solo_team) where τ is episode progress
 # 3. Asymmetric distribution: Ψ_i(τ) = S(τ) * ρ_i (if S<0) or S(τ) * (1-ρ_i) (if S≥0)
 # 4. Final reward: R^ref_i = R^env_i - P^spec_i + η * Ψ_i(τ)
 REFERENCE_REWARD_CFG = {
-    "enabled": (CHECKPOINT_PATHS != "none" and SYNERGY_SCALING_FACTOR > 0),
-    
-    # Opportunity cost sensitivity parameter η ∈ [0,∞)
-    # Controls how much agents are penalized for underperforming solo baseline
-    # η=0: No penalty (standard reward)
-    # η>0: Reference-based shaping enabled
-    "eta": SYNERGY_SCALING_FACTOR,
-    
-    # Solo baselines loaded from training_stats.csv (not re-evaluated)
-    "load_from_training_stats": True,
+    "enabled": (SYNERGY_SCALING_FACTOR > 0),
+    "synergy_scaling_factor": SYNERGY_SCALING_FACTOR,  # Fixed: was "eta", must match key used in game_env.py
+    "kappa": KAPPA,  # Competence transformation parameter for team synergy distribution
+    "activate_synergy_positive": (ACTIVATE_SYNERGY_POSITIVE_ARG == "true"),  # Whether to apply positive synergy signals
 }
 
 WAIT_FOR_ACTION_COMPLETION = True  # Flag to ensure actions complete before next step
 
+# Solo Baseline Lookup Dictionary
+# To add new baselines:
+# 1. Add map name as key if not already present
+# 2. Add speed configuration tuple (walk1, cut1, walk2, cut2) with number of deliveries
+BASELINE_LOOKUP = {
+    "baseline_division_of_labor_large": {
+        # High abilities (1.0, 1.0) for both agents
+        (1.0, 1.0, 1.0, 1.0): 14.0,
+        # Mixed abilities: Agent1 slow walker/fast cutter, Agent2 fast walker/slow cutter
+        (0.4, 1.0, 1.0, 0.2): 5.0, 
+    },
+    "encouraged_division_of_labor_large": {
+        # High abilities (1.0, 1.0) for both agents
+        (1.0, 1.0, 1.0, 1.0): 9.0,
+        # Mixed abilities: Agent1 slow walker/fast cutter, Agent2 fast walker/slow cutter
+        (0.4, 1.0, 1.0, 0.2): 2.0, 
+    },
+}
+
 # Validate reference reward configuration
 if SYNERGY_SCALING_FACTOR > 0:
-    if CHECKPOINT_PATHS == "none":
-        raise ValueError(f"Reference-based reward shaping (synergy_scaling_factor={SYNERGY_SCALING_FACTOR}) requires pretrained agents. Please provide checkpoint paths or set synergy_scaling_factor=0.")
     if NUM_AGENTS != 2:
         raise ValueError("Reference-based reward shaping is currently only supported for 2-agent teams.")
 
@@ -291,97 +244,6 @@ else:
 
 os.makedirs(save_dir, exist_ok=True)
 
-# Helper functions for ability-based parameter scaling
-def calculate_collective_ability(walking_speeds, cutting_speeds):
-    """
-    Calculate collective ability as sum of all agents' abilities.
-    Each agent's ability = walking_speed + cutting_speed
-    """
-    total_ability = 0.0
-    for agent_id in walking_speeds.keys():
-        agent_ability = walking_speeds[agent_id] + cutting_speeds[agent_id]
-        total_ability += agent_ability
-    return total_ability
-
-def linear_interpolate(value, low_ref, high_ref, low_mult, high_mult):
-    """
-    Linearly interpolate multiplier based on value between low and high references.
-    If value < low_ref, return low_mult.
-    If value > high_ref, return high_mult.
-    Otherwise, interpolate linearly between low_mult and high_mult.
-    """
-    if value <= low_ref:
-        return low_mult
-    elif value >= high_ref:
-        return high_mult
-    else:
-        # Linear interpolation
-        ratio = (value - low_ref) / (high_ref - low_ref)
-        return low_mult + ratio * (high_mult - low_mult)
-
-def get_ability_based_params(walking_speeds, cutting_speeds, risk_cfg, base_lr, base_ent, base_vf, base_gae):
-    """
-    Calculate training parameters based on collective ability.
-    Scales parameters continuously (no thresholds) proportional to total team ability.
-    Returns dict with scaled parameters that model cooperation risk.
-    """
-    if not risk_cfg["enabled"]:
-        return {
-            "lr": base_lr,
-            "ent_coef": base_ent,
-            "vf_coef": base_vf,
-            "gae_lambda": base_gae,
-            "grad_clip": 0.5,
-        }
-    
-    # Calculate collective ability (sum of all agents' abilities)
-    collective_ability = calculate_collective_ability(walking_speeds, cutting_speeds)
-    
-    # Get reference points
-    low_ref = risk_cfg["reference_low_ability"]
-    high_ref = risk_cfg["reference_high_ability"]
-    
-    # Interpolate multipliers based on collective ability
-    lr_mult = linear_interpolate(
-        collective_ability, low_ref, high_ref,
-        risk_cfg["low_ability_lr_multiplier"],
-        risk_cfg["high_ability_lr_multiplier"]
-    )
-    
-    ent_mult = linear_interpolate(
-        collective_ability, low_ref, high_ref,
-        risk_cfg["low_ability_ent_multiplier"],
-        risk_cfg["high_ability_ent_multiplier"]
-    )
-    
-    vf_mult = linear_interpolate(
-        collective_ability, low_ref, high_ref,
-        risk_cfg["low_ability_vf_multiplier"],
-        risk_cfg["high_ability_vf_multiplier"]
-    )
-    
-    gae_mult = linear_interpolate(
-        collective_ability, low_ref, high_ref,
-        risk_cfg["low_ability_gae_multiplier"],
-        risk_cfg["high_ability_gae_multiplier"]
-    )
-    
-    grad_clip = linear_interpolate(
-        collective_ability, low_ref, high_ref,
-        risk_cfg["low_ability_grad_clip"],
-        risk_cfg["high_ability_grad_clip"]
-    )
-    
-    # Apply multipliers to base parameters
-    return {
-        "lr": base_lr * lr_mult,
-        "ent_coef": base_ent * ent_mult,
-        "vf_coef": base_vf * vf_mult,
-        "gae_lambda": base_gae * gae_mult,
-        "grad_clip": grad_clip,
-        "collective_ability": collective_ability,  # For logging
-    }
-
 # Determine grid size from map file (text format)
 map_txt_path = os.path.join(os.path.dirname(__file__), 'spoiled_broth', 'maps', f'{MAP_NR}.txt')
 if not os.path.exists(map_txt_path):
@@ -394,88 +256,118 @@ if rows != cols:
     print(f"WARNING: Map is not square, this could cause errors in the future (got {rows} rows and {cols} columns).")
 GRID_SIZE = (cols, rows)
 
-# Calculate ability-based parameters
-ability_params = get_ability_based_params(
-    walking_speeds, 
-    cutting_speeds, 
-    ABILITY_RISK_CFG,
-    base_lr=LR,
-    base_ent=0.01,
-    base_vf=1.0,
-    base_gae=0.95
-)
+# Function to lookup solo baseline from predefined dictionary
+def lookup_solo_baseline(map_nr, walking_speeds, cutting_speeds, delivery_reward, num_agents=2):
+    """
+    Look up team baseline performance from BASELINE_LOOKUP dictionary.
+    
+    Args:
+        map_nr: Map identifier (e.g., 'baseline_division_of_labor_v2')
+        walking_speeds: Dict of {agent_id: walk_speed}
+        cutting_speeds: Dict of {agent_id: cut_speed}
+        delivery_reward: Reward per delivery (from REWARDS_CFG["deliver"])
+        num_agents: Number of agents
+    
+    Returns:
+        tuple: (solo_baselines_dict, team_baseline)
+            solo_baselines_dict: {agent_id: individual_baseline_reward}
+            team_baseline: sum of individual baseline rewards
+    """
+    if num_agents != 2:
+        raise ValueError("Baseline lookup currently only supports 2 agents")
+    
+    # Extract agent speeds in sorted order
+    agent_ids = sorted(walking_speeds.keys())
+    speeds_tuple = tuple([
+        walking_speeds[agent_ids[0]],
+        cutting_speeds[agent_ids[0]],
+        walking_speeds[agent_ids[1]],
+        cutting_speeds[agent_ids[1]]
+    ])
+    
+    # Round speeds to avoid floating point precision issues
+    speeds_tuple = tuple(round(s, 2) for s in speeds_tuple)
+    
+    # Lookup baseline
+    if map_nr not in BASELINE_LOOKUP:
+        raise KeyError(f"Map '{map_nr}' not found in BASELINE_LOOKUP. Available maps: {list(BASELINE_LOOKUP.keys())}")
+    
+    map_baselines = BASELINE_LOOKUP[map_nr]
+    if speeds_tuple not in map_baselines:
+        raise KeyError(
+            f"Speed configuration {speeds_tuple} not found for map '{map_nr}'.\n"
+            f"Available configurations: {list(map_baselines.keys())}"
+        )
+    
+    # Get number of deliveries and convert to reward
+    team_deliveries = map_baselines[speeds_tuple]
+    team_baseline = team_deliveries * delivery_reward
+    
+    # Split baseline among agents proportionally to their competence
+    # Competence = average of walking and cutting speed
+    competences = {}
+    total_competence = 0.0
+    for agent_id in agent_ids:
+        comp = (walking_speeds[agent_id] + cutting_speeds[agent_id]) / 2.0
+        competences[agent_id] = comp
+        total_competence += comp
+    
+    # Distribute team baseline proportionally
+    solo_baselines = {}
+    if total_competence > 0:
+        for agent_id in agent_ids:
+            solo_baselines[agent_id] = team_baseline * (competences[agent_id] / total_competence)
+    else:
+        # Equal split if all competences are zero (shouldn't happen)
+        for agent_id in agent_ids:
+            solo_baselines[agent_id] = team_baseline / num_agents
+    
+    return solo_baselines, team_baseline
 
-# Print ability-based scaling info
-if ABILITY_RISK_CFG["enabled"]:
-    print(f"\n=== Ability-Based Risk Modeling ===")
-    print(f"Collective ability: {ability_params['collective_ability']:.3f}")
-    print(f"Scaled learning rate: {ability_params['lr']:.6f} (base: {LR:.6f})")
-    print(f"Scaled entropy coef: {ability_params['ent_coef']:.4f} (base: 0.01)")
-    print(f"Scaled value coef: {ability_params['vf_coef']:.3f} (base: 1.0)")
-    print(f"Scaled GAE lambda: {ability_params['gae_lambda']:.3f} (base: 0.95)")
-    print(f"Gradient clip: {ability_params['grad_clip']:.3f}")
-    print(f"===================================\n")
-
-# Load solo baseline for reference-based reward shaping from training_stats.csv
+# Load solo baseline for reference-based reward shaping from BASELINE_LOOKUP
 solo_baselines = None
 if REFERENCE_REWARD_CFG["enabled"]:
     print(f"\n=== Reference-Based Opportunity Cost Shaping ===")
     print(f"Synergy scaling factor (opportunity cost sensitivity): {SYNERGY_SCALING_FACTOR}")
-    print(f"Loading solo baselines from pretrained checkpoints...")
+    print(f"Loading solo baselines from BASELINE_LOOKUP dictionary...")
     
-    # Load solo baselines from training_stats.csv of each pretrained agent
-    solo_baselines = {}
+    # First, populate walking_speeds and cutting_speeds (needed for lookup)
+    if NUM_AGENTS == 1:
+        walking_speeds_temp = {f"ai_rl_{agent_to_train}": globals()[f"walking_speed_{agent_to_train}"]}
+        cutting_speeds_temp = {f"ai_rl_{agent_to_train}": globals()[f"cutting_speed_{agent_to_train}"]}
+    else:
+        walking_speeds_temp = {f"ai_rl_{i}": globals()[f"walking_speed_{i}"] for i in range(1, NUM_AGENTS + 1)}
+        cutting_speeds_temp = {f"ai_rl_{i}": globals()[f"cutting_speed_{i}"] for i in range(1, NUM_AGENTS + 1)}
     
-    for i in range(1, NUM_AGENTS + 1):
-        agent_id = f"ai_rl_{i}"
-        checkpoint_info = pretrained_policies.get(agent_id)
+    # Lookup baseline from dictionary
+    try:
+        solo_baselines, solo_baseline_team = lookup_solo_baseline(
+            MAP_NR,
+            walking_speeds_temp,
+            cutting_speeds_temp,
+            REWARDS_CFG["deliver"],  # Pass delivery reward for conversion
+            NUM_AGENTS
+        )
         
-        if checkpoint_info is None:
-            raise ValueError(f"No pretrained checkpoint for {agent_id}")
+        print(f"  Map: {MAP_NR}")
+        print(f"  Delivery reward: {REWARDS_CFG['deliver']:.1f}")
+        print(f"  Team deliveries: {solo_baseline_team / REWARDS_CFG['deliver']:.2f}")
+        print(f"  Team baseline reward: {solo_baseline_team:.2f}")
+        print(f"  Agent speeds and baselines:")
+        for agent_id in sorted(solo_baselines.keys()):
+            walk = walking_speeds_temp[agent_id]
+            cut = cutting_speeds_temp[agent_id]
+            baseline = solo_baselines[agent_id]
+            deliveries = baseline / REWARDS_CFG['deliver']
+            print(f"    {agent_id}: walk={walk:.2f}, cut={cut:.2f} → {deliveries:.2f} deliveries → baseline={baseline:.2f}")
         
-        # Extract checkpoint directory from path
-        checkpoint_path = checkpoint_info["path"]
-        checkpoint_dir = os.path.dirname(checkpoint_path)
-        
-        # Look for training_stats.csv in checkpoint directory or parent Training_* directory
-        training_dir = checkpoint_dir
-        while not os.path.exists(os.path.join(training_dir, "training_stats.csv")):
-            parent = os.path.dirname(training_dir)
-            if parent == training_dir:  # Reached root
-                raise FileNotFoundError(f"Could not find training_stats.csv for {agent_id} starting from {checkpoint_path}")
-            training_dir = parent
-        
-        stats_file = os.path.join(training_dir, "training_stats.csv")
-        print(f"  Loading {agent_id} from: {stats_file}")
-        
-        # Read training stats and get pure reward from last episode
-        df = pd.read_csv(stats_file)
-        if df.empty:
-            raise ValueError(f"Empty training_stats.csv for {agent_id}")
-        
-        # Remove duplicate header rows (where 'episode' column contains the string 'episode')
-        df = df[df['episode'] != 'episode']
-        
-        # Convert episode column to numeric (it may have been read as string due to duplicate headers)
-        df['episode'] = pd.to_numeric(df['episode'], errors='coerce')
-        df = df.dropna(subset=['episode'])  # Remove any rows where episode couldn't be converted
-        
-        # Get pure reward from last episode - use agent-specific column
-        # Average across all environments in the last episode
-        last_episode = df['episode'].max()
-        last_episode_rows = df[df['episode'] == last_episode].copy()
-        
-        pure_reward_col = f'pure_reward_{agent_id}'
-        if pure_reward_col not in df.columns:
-            raise KeyError(f"Column '{pure_reward_col}' not found in {stats_file}. Available columns: {list(df.columns)}")
-        
-        # Convert pure reward column to numeric
-        last_episode_rows.loc[:, pure_reward_col] = pd.to_numeric(last_episode_rows[pure_reward_col], errors='coerce')
-        
-        R_solo = last_episode_rows[pure_reward_col].mean()
-        solo_baselines[agent_id] = R_solo
-            
-    solo_baseline_team = sum(solo_baselines.values())
+    except (KeyError, ValueError) as e:
+        print(f"  WARNING: {e}")
+        print(f"  Baseline lookup failed. Setting baselines to None (synergy shaping disabled).")
+        solo_baselines = None
+        REFERENCE_REWARD_CFG["enabled"] = False
+    
+    print(f"===================================\n")
 
 # RLlib specific configuration - Optimized for GPU training
 config = {
@@ -489,7 +381,7 @@ config = {
     "AGENT_TO_TRAIN": agent_to_train if NUM_AGENTS == 1 else None,
     "SHOW_EVERY_N_EPOCHS": SHOW_EVERY_N_EPOCHS,
     "SAVE_EVERY_N_EPOCHS": SAVE_EVERY_N_EPOCHS,
-    "LR": ability_params["lr"],  # Ability-based learning rate
+    "LR": LR,
     "MAP_NR": MAP_NR,
     "REWARD_WEIGHTS": reward_weights,
     "GAME_VERSION": BASE_GAME_VERSION,  # Use base version without collision suffix
@@ -506,19 +398,17 @@ config = {
     # Reward and penalty configurations
     "PENALTIES_CFG": PENALTIES_CFG,
     "REWARDS_CFG": REWARDS_CFG,
-    "DYNAMIC_REWARDS_CFG": DYNAMIC_REWARDS_CFG,
-    "DYNAMIC_PPO_PARAMS_CFG": DYNAMIC_PPO_PARAMS_CFG,
-    "ABILITY_RISK_CFG": ABILITY_RISK_CFG,  # Ability-based risk modeling config
     "REFERENCE_REWARD_CFG": REFERENCE_REWARD_CFG,  # Reference-based opportunity cost shaping
     "SOLO_BASELINES": solo_baselines,  # Individual solo baselines for reference reward (dict: agent_id -> baseline)
-    # Hyperparameters - Ability-dependent
+    "ALLOW_BLOCKED": ALLOW_BLOCKED,  # Whether to allow blocked actions to be attempted
+    # Hyperparameters
     "NUM_UPDATES": NUM_SGD_ITER,  # Number of SGD iterations per batch
     "GAMMA": 0.9,     # Discount factor for future rewards (close to 1 = long-term, lower = short-term)
-    "GAE_LAMBDA": ability_params["gae_lambda"],  # Ability-based GAE lambda
-    "ENT_COEF": ability_params["ent_coef"],      # Ability-based entropy coefficient
-    "CLIP_EPS": 0.3,    # PPO clip parameter (limits how much the policy can change at each update; stabilizes training)
-    "VF_COEF": ability_params["vf_coef"],        # Ability-based value function coefficient
-    "GRAD_CLIP": ability_params["grad_clip"],    # Ability-based gradient clipping
+    "GAE_LAMBDA": 0.95,  # GAE lambda for advantage estimation
+    "ENT_COEF": 0.01,    # Entropy coefficient for exploration
+    "CLIP_EPS": 0.3,     # PPO clip parameter (limits how much the policy can change at each update; stabilizes training)
+    "VF_COEF": 1.0,      # Value function coefficient
+    "GRAD_CLIP": 0.5,    # Gradient clipping threshold
     "FCNET_HIDDENS": MLP_LAYERS,  # Hidden layer sizes for MLP
     "FCNET_ACTIVATION": "tanh",  # Activation function for MLP ("tanh", "relu", etc.)
     # Resource allocation
