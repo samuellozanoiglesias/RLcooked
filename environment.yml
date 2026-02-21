@@ -2,6 +2,8 @@ name: cooked
 channels:
   - conda-forge
   - defaults
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
 dependencies:
   - _libgcc_mutex=0.1=main
   - _openmp_mutex=5.1=1_gnu
@@ -170,4 +172,3 @@ dependencies:
       - wrapt==1.17.2
       - wsproto==1.2.0
       - yarg==0.1.10
-prefix: /data/samuel_lozano/anaconda3/envs/cooked

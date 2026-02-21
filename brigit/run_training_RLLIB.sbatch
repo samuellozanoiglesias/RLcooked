@@ -25,9 +25,9 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/cooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NRS=(baseline_division_of_labor_large)  # List of maps to run
+MAP_NRS=(2-semiencouraged_division_of_labor_large)  # List of maps to run
 LR=3e-4
-GAME_VERSIONS=(classic)  # List of game versions to run
+GAME_VERSIONS=(classic_collision)  # List of game versions to run
 NUM_AGENTS=2
 NUM_EPOCHS=500  # Number of training epochs
 SEEDS=(0)  # Different random seeds for runs
@@ -42,7 +42,7 @@ ALLOW_BLOCKED=False  # Whether to allow agents to attempt blocked actions
 # If set, this will be used for all simulations instead of auto-generated paths
 # Leave empty to use automatic checkpoint name generation
 CUSTOM_CHECKPOINT_DIR="checkpoints/checkpoints_baseline_stars.txt"  # e.g., "checkpoints/my_custom_checkpoint.txt"
-ACTIVATE_CHECKPOINTS=True  # Set to False to disable checkpoint loading
+ACTIVATE_CHECKPOINTS=False  # Set to False to disable checkpoint loading
 
 # Define arrays for angles and seeds
 ANGLE_PAIRS=("0 0")
@@ -50,8 +50,11 @@ ANGLE_PAIRS=("0 0")
 # Define specific speed pairs
 # Format: "cut_speed1,walk_speed1 cut_speed2,walk_speed2"
 SPEED_PAIRS=(
-    "1.0,0.4 0.2,1.0"
     "1.0,1.0 1.0,1.0"
+    "1.0,0.8 0.8,1.0"
+    "1.0,0.6 0.6,1.0"
+    "1.0,0.4 0.4,1.0"
+    "1.0,0.2 0.2,1.0"
 )
 
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)
@@ -61,14 +64,14 @@ SYNERGY_SCALING_FACTOR_VALUES=(0.0 2.0)
 SPECIALIZATION_PENALTY_SCALE_VALUES=(0.0 0.1)
 
 # Define kappa values (competence transformation parameter for team synergy distribution)
-KAPPA_VALUES=(5.0 30.0)
+KAPPA_VALUES=(30.0)
 
 # Define activate_synergy_positive values (whether to activate positive synergy signals)
 ACTIVATE_SYNERGY_POSITIVE_VALUES=(False)
 
 # Define adaptive cooperation scale values (path-length penalty for slow walkers)
 # 0.0 = disabled, >0.0 = enabled (e.g., 0.5)
-ADAPTIVE_COOPERATION_SCALE_VALUES=(0.0 0.1)
+ADAPTIVE_COOPERATION_SCALE_VALUES=(0.0)
 
 # Define collision harshness values (multiplier when collisions enabled)
 # Controls how much stronger specialization and adaptive cooperation become in collision scenarios
@@ -76,7 +79,7 @@ ADAPTIVE_COOPERATION_SCALE_VALUES=(0.0 0.1)
 COLLISION_HARSHNESS_VALUES=(10.0)
 
 # Maximum number of parallel jobs
-MAX_PARALLEL=8 # Set this to control how many jobs run in parallel
+MAX_PARALLEL=6 # Set this to control how many jobs run in parallel
 
 # Function to get checkpoint name based on map and game version
 get_checkpoint_name() {
