@@ -1145,11 +1145,10 @@ class ColorGridPlotter:
         is_specialization = 'Specialization' in metric_label
         
         if is_specialization:
-            # For specialization: use white-to-green colormap (0 to max_value)
-            max_value = np.max(grid)
-            min_value = 0.0  # Specialization is always >= 0
-            cmap = plt.cm.Greens  # White (0) to Green (high values)
-            vmin, vmax = min_value, max_value
+            # For specialization differences: use orange-white-green colormap (symmetric around 0)
+            max_abs_diff = np.max(np.abs(grid))
+            cmap = plt.cm.RdYlGn  # Orange for negative (lower specialization), Green for positive (higher specialization)
+            vmin, vmax = -max_abs_diff, max_abs_diff
         else:
             # For performance differences: use red-white-blue colormap (symmetric around 0)
             max_abs_diff = np.max(np.abs(grid))
@@ -1180,12 +1179,12 @@ class ColorGridPlotter:
                 value = grid[i, j]
                 
                 if is_specialization:
-                    # For specialization: white text on dark green, black text on light green/white
-                    normalized_value = value / max_value if max_value > 0 else 0
+                    # For specialization differences: white text on dark colors, black text on light colors
+                    normalized_value = abs(value) / max_abs_diff if max_abs_diff > 0 else 0
                     color = 'white' if normalized_value > 0.5 else 'black'
                     text_val = f'{value:.3f}'
                 else:
-                    # For performance: white text on dark colors, black text on light colors
+                    # For performance differences: white text on dark colors, black text on light colors
                     normalized_value = abs(value) / max_abs_diff if max_abs_diff > 0 else 0
                     color = 'white' if normalized_value > 0.5 else 'black'
                     text_val = f'{value:.1f}'
@@ -1434,9 +1433,20 @@ def main():
                 for comparison_type, type_name in comparison_types:
                     print(f"\\nGenerating {type_name} comparison plots...")
                     
+                    # Determine subfolder based on comparison type
+                    if comparison_type == 'row':
+                        subfolder = output_dir / 'grid_per_row'
+                    elif comparison_type == 'column':
+                        subfolder = output_dir / 'grid_per_column'
+                    else:  # global
+                        subfolder = output_dir
+                    
+                    # Create subfolder if it doesn't exist
+                    subfolder.mkdir(parents=True, exist_ok=True)
+                    
                     # Create filename for this comparison type
                     filename = f"{base_filename}_{comparison_type}.png"
-                    output_path = output_dir / filename
+                    output_path = subfolder / filename
                     
                     # Generate the figure
                     fig = plotter.create_color_grid_figure(prepared_data, comparison_type, str(output_path))
@@ -1516,9 +1526,20 @@ def main():
             for comparison_type, type_name in comparison_types:
                 print(f"\\nGenerating {type_name} comparison plots...")
                 
+                # Determine subfolder based on comparison type
+                if comparison_type == 'row':
+                    subfolder = output_dir / 'grid_per_row'
+                elif comparison_type == 'column':
+                    subfolder = output_dir / 'grid_per_column'
+                else:  # global
+                    subfolder = output_dir
+                
+                # Create subfolder if it doesn't exist
+                subfolder.mkdir(parents=True, exist_ok=True)
+                
                 # Create filename for this comparison type
                 filename = f"{base_filename}_{comparison_type}.png"
-                output_path = output_dir / filename
+                output_path = subfolder / filename
                 
                 # Generate the figure
                 fig = plotter.create_color_grid_figure(prepared_data, comparison_type, str(output_path))

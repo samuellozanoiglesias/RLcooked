@@ -22,20 +22,20 @@ The script now supports different initialization types (random_init, empty_init)
 are located in subdirectories under the main experiment path.
 
 Usage:
-    python grid_cooperative_analysis.py [options]
+    python grid_ability_cooperative_analysis.py [options]
 
 Examples:
     # Default analysis
-    nohup python grid_cooperative_analysis.py --episode_range final --num_episodes 100 > grid_ability_analysis.log 2>&1 &
+    nohup python grid_ability_cooperative_analysis.py --episode_range final --num_episodes 100 > grid_ability_analysis.log 2>&1 &
     
     # Analyze specific lambda data
-    nohup python grid_cooperative_analysis.py --episode_range final --specialization 0 --num_episodes 100 > ability_grid_lambda_0.log 2>&1 &
+    nohup python grid_ability_cooperative_analysis.py --episode_range final --specialization 0 --num_episodes 100 > grid_ability_lambda_0.log 2>&1 &
     
     # Analyze empty_init data
-    nohup python grid_cooperative_analysis.py --episode_range final --init_type empty_init --num_episodes 100 > ability_grid_empty_init.log 2>&1 &
+    nohup python grid_ability_cooperative_analysis.py --episode_range final --init_type empty_init --num_episodes 100 > grid_ability_empty_init.log 2>&1 &
     
     # Analyze with synergy parameter
-    nohup python grid_cooperative_analysis.py --episode_range final --init_type random_init --synergy 0.5 --num_episodes 100 > ability_grid_synergy_0.5.log 2>&1 &
+    nohup python grid_ability_cooperative_analysis.py --episode_range final --init_type random_init --synergy 0.5 --num_episodes 100 > grid_ability_synergy_0.5.log 2>&1 &
 """
 
 import sys

@@ -212,11 +212,11 @@ def _get_specialized_reward_for_event(self, agent_id, event_type, event_count, b
         # Cutting action - requires cut_speed = 1
         if cut_speed >= 1.0:
             if walk_speed < 1.0:
-                reward = base_reward * event_count  # Full reward for specialist
+                reward = base_reward * event_count * specialization_scale  # Full reward for specialist
                 return reward
             else:
-                # Both speeds are >= 1.0
-                reward = 0
+                # Both speeds are >= 1.0 (balanced agent)
+                reward = base_reward * event_count  # Normal reward for balanced agent
                 return reward
         else:
             penalty = base_reward * (1.0 - cut_speed) * specialization_scale * event_count
@@ -229,8 +229,8 @@ def _get_specialized_reward_for_event(self, agent_id, event_type, event_count, b
                 reward = base_reward * event_count * specialization_scale  # Full reward for specialist
                 return reward
             else:
-                # Both speeds are >= 1.0
-                reward = 0
+                # Both speeds are >= 1.0 (balanced agent)
+                reward = base_reward * event_count  # Normal reward for balanced agent
                 return reward
         else:
             penalty = base_reward * (1.0 - walk_speed) * specialization_scale * event_count

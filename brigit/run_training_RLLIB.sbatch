@@ -25,7 +25,7 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/cooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NRS=(2-semiencouraged_division_of_labor_large)  # List of maps to run
+MAP_NRS=(3-encouraged_division_of_labor_large)  # List of maps to run
 LR=3e-4
 GAME_VERSIONS=(classic_collision)  # List of game versions to run
 NUM_AGENTS=2
@@ -58,7 +58,7 @@ SPEED_PAIRS=(
 )
 
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)
-SYNERGY_SCALING_FACTOR_VALUES=(0.0 2.0)
+SYNERGY_SCALING_FACTOR_VALUES=(2.0)
 
 # Define specialization penalty scale values
 SPECIALIZATION_PENALTY_SCALE_VALUES=(0.0 0.1)
@@ -79,7 +79,7 @@ ADAPTIVE_COOPERATION_SCALE_VALUES=(0.0)
 COLLISION_HARSHNESS_VALUES=(10.0)
 
 # Maximum number of parallel jobs
-MAX_PARALLEL=6 # Set this to control how many jobs run in parallel
+MAX_PARALLEL=5 # Set this to control how many jobs run in parallel
 
 # Function to get checkpoint name based on map and game version
 get_checkpoint_name() {
@@ -311,7 +311,7 @@ for job in "${job_list[@]}"; do
         python "$TRAIN_SCRIPT" "$CLUSTER" "$INPUT_FILE" "$MAP_NR" "$LR" "$GAME_VERSION" "$NUM_AGENTS" "$NUM_EPOCHS" "$SEED" "$CHECKPOINT_PATHS" "$REWARDS_ON_DELIVERY_ONLY" "$RANDOM_INITIAL_STATE" "$SYNERGY_SCALING_FACTOR" "$SPEC_PENALTY_SCALE" "$COUNTER_REWARD_VALUE" "$COLLISION_PENALTY_VALUE" "$ALLOW_BLOCKED" "$KAPPA" "$ACTIVATE_SYNERGY_POSITIVE" "$ADAPTIVE_COOPERATION_SCALE" "$COLLISION_HARSHNESS" > "$LOG_FILE" 2>&1 &
     fi
     
-    sleep 45  # Delay between job starts
+    sleep 100  # Delay between job starts
 done
 
 # Wait for all remaining jobs to complete
