@@ -12,7 +12,6 @@ from spoiled_broth.rl.action_space import get_rl_action_space
 from spoiled_broth.rl.observation_space import game_to_obs_vector
 from spoiled_broth.rl.classify_action_type import get_action_type, get_action_type_list
 from spoiled_broth.rl.reward_analysis import get_rewards, get_cutting_time, apply_adaptive_cooperation_penalty
-from spoiled_broth.rl.dynamic_rewards import calculate_dynamic_rewards
 from spoiled_broth.game import SpoiledBroth, random_game_state
 from spoiled_broth.rl.path_processing import PathProcessor
 from spoiled_broth.rl.tick_based_structure import (
@@ -105,6 +104,7 @@ class GameEnv(ParallelEnv):
         distance_map=None,
         penalties_cfg=None,
         rewards_cfg=None,
+        intermediate_reward_decay_cfg=None,  # Configuration for intermediate reward decay
         collision_enabled=False,  # New parameter for collision detection
         random_initial_state=False,  # New parameter to randomize initial game state
         reference_reward_cfg=None,  # Reference-based opportunity cost shaping
@@ -149,6 +149,12 @@ class GameEnv(ParallelEnv):
         }
         self.penalties_cfg = penalties_cfg if penalties_cfg is not None else default_penalties_cfg
         self.rewards_cfg = rewards_cfg if rewards_cfg is not None else default_rewards_cfg
+        
+        # Initialize intermediate reward decay configuration
+        from training_configuration.reward_penalties import get_intermediate_reward_decay_config
+        default_intermediate_reward_decay_cfg = get_intermediate_reward_decay_config()
+        self.intermediate_reward_decay_cfg = intermediate_reward_decay_cfg if intermediate_reward_decay_cfg is not None else default_intermediate_reward_decay_cfg
+        
         self.wait_for_action_completion = wait_for_completion
         self.random_initial_state = random_initial_state  # Store flag for random initial states
         self.allow_blocked = allow_blocked  # Whether to allow blocked actions to be attempted
@@ -257,11 +263,19 @@ class GameEnv(ParallelEnv):
             print(f"[GameEnv] Team synergy enabled: synergy_scaling_factor={self.synergy_scaling_factor}, kappa={self.kappa}, activate_synergy_positive={self.activate_synergy_positive}, baselines={self.solo_baselines}, team={self.solo_baseline_team}")
             print(f"[GameEnv] Agent abilities: {self.agent_abilities}")
 
-        # --- New observation space---
+        # --- Initialize action history tracking (last 5 actions) ---
+        self.action_history_length = 5
+        # Initialize action history for each agent with -1 (no action taken yet)
+        self.action_history = {
+            agent: [-1] * self.action_history_length for agent in self.agents
+        }
+        
+        # --- New observation space (includes action history) ---
         obs_vector, _, _, _ = game_to_obs_vector(self.game, self.agents[0], game_mode=self.game_mode, path_processor=self.path_processor)
-        obs_size = obs_vector.size
+        # Add space for action history (5 additional values)
+        obs_size = obs_vector.size + self.action_history_length
         self.observation_spaces = {
-            agent: spaces.Box(low=0.0, high=1.0, shape=(obs_size,), dtype=np.float32)
+            agent: spaces.Box(low=-1.0, high=1.0, shape=(obs_size,), dtype=np.float32)
             for agent in self.agents
         }
 
@@ -349,6 +363,11 @@ class GameEnv(ParallelEnv):
         self.infos = {agent: {} for agent in self.agents}
         self._last_score = 0
         
+        # Reset action history for all agents
+        self.action_history = {
+            agent: [-1] * self.action_history_length for agent in self.agents
+        }
+        
         # All agents start idle, so they all need observations
         self.agents_need_observation = {agent_id: True for agent_id in self.agents}
 
@@ -361,7 +380,20 @@ class GameEnv(ParallelEnv):
         self.agent_action_paths[agent] = considered_paths
         self.agent_action_tiles[agent] = considered_tiles
         self.agent_action_interaction_targets[agent] = considered_interaction_targets
-        obs = obs_vector.flatten().astype(np.float32)
+        
+        # Add action history to observation (last 5 actions as normalized values)
+        # Normalize action indices to [0, 1] range. -1 (no action) becomes -1.0
+        action_space_size = len(get_rl_action_space(self.game_mode))
+        normalized_history = []
+        for action_idx in self.action_history[agent]:
+            if action_idx == -1:
+                normalized_history.append(-1.0)  # No action taken yet
+            else:
+                normalized_history.append(float(action_idx) / max(1, action_space_size - 1))  # Normalize to [0, 1]
+        
+        # Combine original observation with action history
+        obs_with_history = np.concatenate([obs_vector.flatten(), normalized_history])
+        obs = obs_with_history.astype(np.float32)
         return obs
 
     def step(self, actions):
@@ -411,6 +443,9 @@ class GameEnv(ParallelEnv):
             if action_name == "do_nothing":
                 # Apply do_nothing penalty
                 agent_penalties[agent_id] += self.penalties_cfg.get("do_nothing", 1.0)
+                
+                # Update action history for do_nothing action
+                self.action_history[agent_id] = self.action_history[agent_id][1:] + [action_idx]
                 
                 # Store for logging
                 self._logging_actions[agent_id] = {
@@ -509,6 +544,9 @@ class GameEnv(ParallelEnv):
                 
                 # Track action type
                 self.total_action_types[agent_id][action_type] += 1
+                
+                # Update action history (shift left and add new action)
+                self.action_history[agent_id] = self.action_history[agent_id][1:] + [action_idx]
                 
                 # Apply immediate penalties for useless/destructive actions
                 if action_type.startswith("useless_"):
@@ -617,7 +655,7 @@ class GameEnv(ParallelEnv):
                     self.total_agent_events[agent_id][event_type] += agent_events[agent_id][event_type]
         
         # Compute rewards (includes reference-based opportunity cost if enabled)
-        self.cumulated_pure_rewards, self.cumulated_modified_rewards = get_rewards(self, agent_events, agent_penalties, self.rewards_cfg)
+        self.cumulated_pure_rewards, self.cumulated_modified_rewards = get_rewards(self, agent_events, agent_penalties, self.rewards_cfg, self.intermediate_reward_decay_cfg, self.episode_count)
         
         # Check for episode termination
         should_truncate = self._elapsed_time >= self._max_seconds_per_episode

@@ -1,395 +1,154 @@
-# USE:   <cluster> <input_path> <map_nr> <lr> <game_version> [<num_agents>] [<num_epochs>] [<seed>] [<checkpoints>] [<rewards_on_delivery_only>] [<random_initial_state>] [<synergy_scaling_factor>] [<specialization_penalty_scale>] [<collision_penalty>] [<agent_to_train>] [<allow_blocked>] [<kappa>] [<activate_synergy_positive>] [<adaptive_cooperation_scale>] [<collision_harshness>] > log_training.log 2>&1 &
-# Example: nohup python training-DTDE-spoiled_broth.py cuenca ./cuenca/input_0_0.txt baseline_division_of_labor_v2 0.0003 classic 2 1000 0 none true false 0.5 5.0 10.0 false 1.0 true 0.5 2.0 > log_training.log 2>&1 &
+# USE:   <cluster> <input_path> <map_nr> <lr> <game_version> [<num_agents>] [<num_epochs>] [<seed>] [<checkpoints>] [<rewards_on_delivery_only>] [<random_initial_state>] [<synergy_scaling_factor>] [<specialization_penalty_scale>] [<collision_penalty>] [<agent_to_train>] [<allow_blocked>] [<kappa>] [<activate_synergy_positive>] [<enable_reward_decay>] [<collision_harshness>] > log_training.log 2>&1 &
+# Example: nohup python training-DTDE-spoiled_broth.py cuenca ./cuenca/input_0_0.txt baseline_division_of_labor_v2 0.0003 classic 2 1000 0 none true false 0.5 5.0 10.0 false 1.0 true false true 2.0 > log_training.log 2>&1 &
 #   synergy_scaling_factor=0: Standard rewards (no team synergy shaping)
 #   synergy_scaling_factor>0: Team synergy-based reward shaping enabled with given sensitivity
 #   specialization_penalty_scale=0: No specialization penalty
 #   specialization_penalty_scale>0: Specialization penalty with given scale
 #   kappa: Competence transformation parameter for team synergy distribution (default=1.0)
 #   activate_synergy_positive: Whether to apply positive synergy signals (true/false, default=false)
-#   adaptive_cooperation_scale: Path-length-dependent cooperation penalty for slow walkers (0=disabled, >0=enabled, multiplied by collision_harshness when collisions enabled)
-#   collision_harshness: Multiplier for specialization and adaptive cooperation when collisions enabled (1.0=same, 2.0=double, default=2.0)
+#   enable_reward_decay: Exponentially decay intermediate rewards after episode 200 (true/false, default=false)
+#   collision_harshness: Multiplier for specialization penalty when collisions enabled (1.0=same, 2.0=double, default=2.0)
 
 import os
 import sys
 from spoiled_broth.rl.make_train_rllib import make_train_rllib
 import ray
 import torch
-import pandas as pd
+
+# Import training configuration modules
+from training_configuration.config_utils import (
+    parse_input_file, setup_agent_configurations, parse_pretrained_policies,
+    parse_game_version, get_hyperparameters, validate_configuration
+)
+from training_configuration.cluster_config import get_cluster_config
+from training_configuration.reward_penalties import (
+    get_penalties_config, get_rewards_config, get_reference_reward_config,
+    get_intermediate_reward_decay_config
+)
+from training_configuration.path_utils import generate_save_directory, get_map_grid_size
+from training_configuration.cooperation_factor import get_cooperation_factor
+from training_configuration.baseline_lookup import lookup_solo_baseline
 
 # PyTorch, NumPy, MKL, etc. not creating more threads
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 
-# Read input file
+# Parse command line arguments
 CLUSTER = str(sys.argv[1]).lower()
 INPUT_PATH = sys.argv[2]
 MAP_NR = str(sys.argv[3]).lower()
 LR = float(sys.argv[4])
-GAME_VERSION = str(sys.argv[5]).lower() ## If game_version = classic, one type of food (tomato); if game_version = competition, two types of food (tomato and pumpkin); if game_version ends with '_collision', enables collision detection
+GAME_VERSION = str(sys.argv[5]).lower()
 NUM_AGENTS = int(sys.argv[6])
-if NUM_AGENTS not in [1, 2]:
-    raise ValueError("NUM_AGENTS must be 1 or 2")
 NUM_EPOCHS = int(sys.argv[7]) if len(sys.argv) > 7 else 500
 SEED = int(sys.argv[8]) if len(sys.argv) > 8 else 0
-
-# Optional checkpoint paths for loading pretrained policies (CHECKPOINT_PATHS should be a file with three lines per agent)
-# Line 1: policy_id_to_be_loaded (policy_ai_rl_1, policy_ai_rl_2, etc.)
-# Line 2: checkpoint_number
-# Line 3: path_to_checkpoint
 CHECKPOINT_PATHS = str(sys.argv[9]).lower() if len(sys.argv) > 9 else "none"
 REWARDS_ON_DELIVERY_ONLY = str(sys.argv[10]).lower() if len(sys.argv) > 10 else "true"
-RANDOM_INITIAL_STATE = str(sys.argv[11]).lower() if len(sys.argv) > 11 else "false"  # Flag to randomize initial game state (items on counters and in hands)
-SYNERGY_SCALING_FACTOR = float(sys.argv[12]) if len(sys.argv) > 12 else 0.0  # Team synergy sensitivity: 0=no shaping, >0=team synergy-based shaping enabled
-SPECIALIZATION_PENALTY_SCALE = float(sys.argv[13]) if len(sys.argv) > 13 else 0.0  # Specialization penalty scale (lambda): 0=no penalty, >0=penalty scale
-COUNTER_REWARD = float(sys.argv[14]) if len(sys.argv) > 14 else 0.0  # Penalty for collisions (set to 0 to disable)
-COLLISION_PENALTY = float(sys.argv[15]) if len(sys.argv) > 15 else 0.0  # Penalty for collisions (set to 0 to disable)
+RANDOM_INITIAL_STATE = str(sys.argv[11]).lower() if len(sys.argv) > 11 else "false"
+SYNERGY_SCALING_FACTOR = float(sys.argv[12]) if len(sys.argv) > 12 else 0.0
+SPECIALIZATION_PENALTY_SCALE = float(sys.argv[13]) if len(sys.argv) > 13 else 0.0
+COUNTER_REWARD = float(sys.argv[14]) if len(sys.argv) > 14 else 0.0
+COLLISION_PENALTY = float(sys.argv[15]) if len(sys.argv) > 15 else 0.0
 ALLOW_BLOCKED_ARG = str(sys.argv[16]).lower() if len(sys.argv) > 16 else "false"
-KAPPA = float(sys.argv[17]) if len(sys.argv) > 17 else 1.0  # Competence transformation parameter for team synergy distribution
+KAPPA = float(sys.argv[17]) if len(sys.argv) > 17 else 1.0
 ACTIVATE_SYNERGY_POSITIVE_ARG = str(sys.argv[18]).lower() if len(sys.argv) > 18 else "false"
-ADAPTIVE_COOPERATION_SCALE = float(sys.argv[19]) if len(sys.argv) > 19 else 0.0  # Path-length-dependent cooperation penalty scale
-COLLISION_HARSHNESS = float(sys.argv[20]) if len(sys.argv) > 20 else 2.0  # Multiplier for specialization and adaptive cooperation when collisions enabled
+ENABLE_REWARD_DECAY_ARG = str(sys.argv[19]).lower() if len(sys.argv) > 19 else "false"
+COLLISION_HARSHNESS = float(sys.argv[20]) if len(sys.argv) > 20 else 2.0
 
-# Optional when number of agents = 1:
-# Decide which agent to train (1 or 2)
-if NUM_AGENTS == 1:
-    agent_to_train = 1  # Default to agent 1
-    if len(sys.argv) > 21:  # agent_to_train is now the 21st argument (sys.argv[21])
-        agent_to_train = int(sys.argv[21])
-        if agent_to_train not in [1, 2]:
-            raise ValueError("When NUM_AGENTS=1, agent_to_train must be 1 or 2")
+# Handle single agent training
+agent_to_train = 1
+if NUM_AGENTS == 1 and len(sys.argv) > 21:
+    agent_to_train = int(sys.argv[21])
 
 ######### ----------------------------------------------------------------- #########
-######### -------------- Code below this line is automatic ---------------- #########
+######### -------------- Configuration Processing ------------------------- #########
 
-with open(INPUT_PATH, "r") as f:
-    lines = f.readlines()
-    for i in range(lines.__len__() // 2):
-        globals()[f"alpha_{i+1}"], globals()[f"beta_{i+1}"] = [round(float(x), 4) for x in lines[2*i].strip().split()]
-        globals()[f"walking_speed_{i+1}"], globals()[f"cutting_speed_{i+1}"] = [round(float(x), 4) for x in lines[2*i + 1].strip().split()]
+# Validate configuration
+validate_configuration(NUM_AGENTS, SYNERGY_SCALING_FACTOR, agent_to_train)
 
-##### Cluster config ##################
-NUM_ENV_WORKERS = 8  # Parallel environment workers for efficient training
-NUM_LEARNER_WORKERS = 1  # GPU learner workers
-if CLUSTER == 'brigit':
-    local = '/mnt/lustre/home/samuloza'
-    # Resource allocation optimized for RL training
-    NUM_GPUS = 1.0  # Full GPU for neural network training
-    NUM_CPUS = 24   # Increased CPU cores for parallel environments
-elif CLUSTER == 'cuenca':
-    local = ''
-    # Resource allocation optimized for RL training
-    NUM_GPUS = 0.1  # Full GPU for neural network training
-    NUM_CPUS = 12   # Increased CPU cores for parallel environments
-elif CLUSTER == 'local':
-    local = 'D:/OneDrive - Universidad Complutense de Madrid (UCM)/Doctorado'
-    # Resource allocation optimized for RL training
-    NUM_GPUS = 0.0  # Full GPU for neural network training
-    NUM_CPUS = 1   # Increased CPU cores for parallel environments
-else:
-    raise ValueError("Invalid cluster specified. Choose from 'brigit', 'cuenca', or 'local'.")
+# Parse input file for agent parameters
+agent_params = parse_input_file(INPUT_PATH)
 
-# Hyperparameters - Optimized for parallel training
-NUM_ENVS = NUM_ENV_WORKERS  # Use all environment workers
-INNER_SECONDS = 180  # Full episode length for proper learning
-TRAIN_BATCH_SIZE = 4000  # Increased for better GPU utilization (NUM_ENVS * rollout_fragment_length * num_timesteps)
-SGD_MINIBATCH_SIZE = 500  # Optimized minibatch size for GPU
-NUM_SGD_ITER = 10  # Number of SGD iterations per training batch
-SHOW_EVERY_N_EPOCHS = 1
-SAVE_EVERY_N_EPOCHS = 1000
-PAYOFF_MATRIX = [1,1,-2]
+# Get cluster configuration
+cluster_config = get_cluster_config(CLUSTER)
 
-# Neural network architecture
-MLP_LAYERS = [1024, 512, 256]
+# Parse game version
+BASE_GAME_VERSION, COLLISION_ENABLED = parse_game_version(GAME_VERSION)
 
-# Game characteristics
-# Override ALLOW_BLOCKED with command line argument if provided
-ALLOW_BLOCKED = (ALLOW_BLOCKED_ARG == "true")  # Whether to allow agents to attempt blocked actions
+# Setup boolean flags
+ALLOW_BLOCKED = (ALLOW_BLOCKED_ARG == "true")
+ACTIVATE_SYNERGY_POSITIVE = (ACTIVATE_SYNERGY_POSITIVE_ARG == "true")
+REWARDS_ON_DELIVERY = (REWARDS_ON_DELIVERY_ONLY == "true")
+ENABLE_REWARD_DECAY = (ENABLE_REWARD_DECAY_ARG == "true")
 
-PENALTIES_CFG = {
-    "do_nothing": 1.0, # Penalty for do_nothing action
-    "useless_action": 5.0, # Penalty for useless actions
-    "destructive_action": 10.0, # Penalty for destructive actions
-    "inaccessible_tile": 10.0, # Penalty for trying to access an inaccessible tile (no path exists)
-    "blocked": 5.0, # Penalty when path is blocked (by agents or collision)
-    "collision": COLLISION_PENALTY, # Penalty when a collision occurs (if collision_enabled=True)
-    "specialization_penalty_scale": SPECIALIZATION_PENALTY_SCALE,  # Specialization penalty scale (lambda): 0=no penalty, >0=penalty scale
-    "adaptive_cooperation_scale": ADAPTIVE_COOPERATION_SCALE,  # Path-length penalty for slow walkers: 0=disabled, >0=enabled (multiplied by collision_harshness when collisions enabled)
-    "collision_harshness": COLLISION_HARSHNESS,  # Multiplier for specialization and adaptive cooperation when collisions enabled (1.0=same, 2.0=double)
-}
+# Get hyperparameters
+hyperparams = get_hyperparameters()
 
-if REWARDS_ON_DELIVERY_ONLY == "true":
-    REWARDS_CFG = {
-        "raw_food": 0.0,
-        "plate": 0.0,
-        "counter": 0.0,
-        "cut": 0.0,
-        "salad": 0.0,
-        "deliver": 10.0,
-    }
-else:
-    REWARDS_CFG = {
-        "raw_food": 1.0,
-        "plate": 1.0,
-        "counter": COUNTER_REWARD,
-        "cut": 4.0,
-        "salad": 5.0,
-        "deliver": 10.0,
-    }
+# Setup agent configurations
+reward_weights, walking_speeds, cutting_speeds = setup_agent_configurations(
+    agent_params, NUM_AGENTS, agent_to_train
+)
 
-# Team Synergy-Based Reward Shaping
-# 1. Solo baselines are looked up from BASELINE_LOOKUP based on map and agent competences
-# 2. Team Synergy: S(τ) = tanh(R^cum_team(τ) - τ * R̄^solo_team) where τ is episode progress
-# 3. Asymmetric distribution: Ψ_i(τ) = S(τ) * ρ_i (if S<0) or S(τ) * (1-ρ_i) (if S≥0)
-# 4. Final reward: R^ref_i = R^env_i - P^spec_i + η * Ψ_i(τ)
-REFERENCE_REWARD_CFG = {
-    "enabled": (SYNERGY_SCALING_FACTOR > 0),
-    "synergy_scaling_factor": SYNERGY_SCALING_FACTOR,  # Fixed: was "eta", must match key used in game_env.py
-    "kappa": KAPPA,  # Competence transformation parameter for team synergy distribution
-    "activate_synergy_positive": (ACTIVATE_SYNERGY_POSITIVE_ARG == "true"),  # Whether to apply positive synergy signals
-}
+# Parse pretrained policies
+pretrained_policies = parse_pretrained_policies(CHECKPOINT_PATHS, NUM_AGENTS, agent_to_train)
 
-WAIT_FOR_ACTION_COMPLETION = True  # Flag to ensure actions complete before next step
+# Get map grid size
+GRID_SIZE = get_map_grid_size(MAP_NR)
 
-# Solo Baseline Lookup Dictionary
-# To add new baselines:
-# 1. Add map name as key if not already present
-# 2. Add speed configuration tuple (walk1, cut1, walk2, cut2) with number of deliveries
-BASELINE_LOOKUP = {
-    "baseline_division_of_labor_large": {
-        (1.0, 1.0, 1.0, 1.0): 14.0,
-        (0.8, 1.0, 1.0, 0.8): 12.0,
-        (0.6, 1.0, 1.0, 0.6): 8.0,
-        (0.4, 1.0, 1.0, 0.4): 5.0,
-        (0.4, 1.0, 1.0, 0.2): 4.0,
-        (0.2, 1.0, 1.0, 0.2): 2.0,
-    },
-    "semiencouraged_division_of_labor_large": {
-        (1.0, 1.0, 1.0, 1.0): 10.0,
-        (0.8, 1.0, 1.0, 0.8): 8.0,
-        (0.6, 1.0, 1.0, 0.6): 6.0,
-        (0.4, 1.0, 1.0, 0.4): 4.0,
-        (0.4, 1.0, 1.0, 0.2): 3.0,
-        (0.2, 1.0, 1.0, 0.2): 2.0,
-    },
-    "1-semiencouraged_division_of_labor_large": {
-        (1.0, 1.0, 1.0, 1.0): 10.0,
-        (0.8, 1.0, 1.0, 0.8): 8.0,
-        (0.6, 1.0, 1.0, 0.6): 6.0,
-        (0.4, 1.0, 1.0, 0.4): 4.0,
-        (0.4, 1.0, 1.0, 0.2): 3.0,
-        (0.2, 1.0, 1.0, 0.2): 2.0,
-    },
-    "2-semiencouraged_division_of_labor_large": {
-        (1.0, 1.0, 1.0, 1.0): 10.0,
-        (0.8, 1.0, 1.0, 0.8): 8.0,
-        (0.6, 1.0, 1.0, 0.6): 6.0,
-        (0.4, 1.0, 1.0, 0.4): 4.0,
-        (0.4, 1.0, 1.0, 0.2): 3.0,
-        (0.2, 1.0, 1.0, 0.2): 2.0,
-    },
-    "encouraged_division_of_labor_large": {
-        (1.0, 1.0, 1.0, 1.0): 10.0,
-        (0.8, 1.0, 1.0, 0.8): 8.0,
-        (0.6, 1.0, 1.0, 0.6): 6.0,
-        (0.4, 1.0, 1.0, 0.4): 4.0,
-        (0.4, 1.0, 1.0, 0.2): 3.0,
-        (0.2, 1.0, 1.0, 0.2): 2.0,
-    },
-    "1-encouraged_division_of_labor_large": {
-        (1.0, 1.0, 1.0, 1.0): 8.0,
-        (0.8, 1.0, 1.0, 0.8): 6.0,
-        (0.6, 1.0, 1.0, 0.6): 5.0,
-        (0.4, 1.0, 1.0, 0.4): 3.0,
-        (0.4, 1.0, 1.0, 0.2): 2.0,
-        (0.2, 1.0, 1.0, 0.2): 1.0,
-    },
-    "2-encouraged_division_of_labor_large": {
-        (1.0, 1.0, 1.0, 1.0): 6.0,
-        (0.8, 1.0, 1.0, 0.8): 4.0,
-        (0.6, 1.0, 1.0, 0.6): 3.0,
-        (0.4, 1.0, 1.0, 0.4): 2.0,
-        (0.4, 1.0, 1.0, 0.2): 1.0,
-        (0.2, 1.0, 1.0, 0.2): 0.0,
-    },
-    "3-encouraged_division_of_labor_large": {
-        (1.0, 1.0, 1.0, 1.0): 4.0,
-        (0.8, 1.0, 1.0, 0.8): 3.0,
-        (0.6, 1.0, 1.0, 0.6): 2.0,
-        (0.4, 1.0, 1.0, 0.4): 1.0,
-        (0.4, 1.0, 1.0, 0.2): 0.0,
-        (0.2, 1.0, 1.0, 0.2): 0.0,
-    },
-}
+# Calculate cooperation factor 
+cooperation_factor = get_cooperation_factor(MAP_NR)
 
-# Validate reference reward configuration
-if SYNERGY_SCALING_FACTOR > 0:
-    if NUM_AGENTS != 2:
-        raise ValueError("Reference-based reward shaping is currently only supported for 2-agent teams.")
+# Configure rewards and penalties
+PENALTIES_CFG = get_penalties_config(
+    COLLISION_PENALTY, SPECIALIZATION_PENALTY_SCALE, COLLISION_HARSHNESS, cooperation_factor
+)
+REWARDS_CFG = get_rewards_config(REWARDS_ON_DELIVERY, COUNTER_REWARD)
+REFERENCE_REWARD_CFG = get_reference_reward_config(
+    SYNERGY_SCALING_FACTOR, cooperation_factor, KAPPA, ACTIVATE_SYNERGY_POSITIVE
+)
+INTERMEDIATE_REWARD_DECAY_CFG = get_intermediate_reward_decay_config(
+    enable_decay=ENABLE_REWARD_DECAY, decay_start_episode=200, alpha=0.05
+)
 
-reward_weights, walking_speeds, cutting_speeds = {}, {}, {}
+# Display cooperation factor effects (use values from configurations)
+if SPECIALIZATION_PENALTY_SCALE > 0:
+    effective_specialization_penalty = PENALTIES_CFG["specialization_penalty_scale"]
+    print(f"\n=== Cooperation-Adjusted Specialization ===")
+    print(f"Base specialization penalty scale: {SPECIALIZATION_PENALTY_SCALE}")
+    print(f"Map cooperation factor: {cooperation_factor:.3f}")
+    print(f"Effective specialization penalty: {effective_specialization_penalty:.3f} (base × cooperation)")
+    print(f"Reasoning: Maps requiring more cooperation need stronger specialization incentives")
+    print(f"=========================================\n")
 
-pretrained_policies = None
-# Load pretrained policies if specified
-if CHECKPOINT_PATHS != "none":
-    pretrained_policies = {}
-    with open(CHECKPOINT_PATHS, "r") as f:
-        lines = f.readlines()
-        if NUM_AGENTS == 1:
-            # For single agent training, use the specific agent to train
-            policy_id = str(lines[0]).strip()
-            checkpoint_number = str(lines[1]).strip()
-            checkpoint_path = str(lines[2]).strip()
-            if policy_id.lower() != "none" and checkpoint_number.lower() != "none" and checkpoint_path.lower() != "none":
-                pretrained_policies[f"ai_rl_{agent_to_train}"] = {"source_policy_id": policy_id, "checkpoint_number": checkpoint_number, "path": checkpoint_path}
-            else:
-                pretrained_policies[f"ai_rl_{agent_to_train}"] = None
-        else:
-            # For multi-agent training, use the standard loop
-            for i in range(NUM_AGENTS):
-                policy_id = str(lines[3*i]).strip()
-                checkpoint_number = str(lines[3*i + 1]).strip()
-                checkpoint_path = str(lines[3*i + 2]).strip()
-                if policy_id.lower() != "none" and checkpoint_number.lower() != "none" and checkpoint_path.lower() != "none":
-                    pretrained_policies[f"ai_rl_{i+1}"] = {"source_policy_id": policy_id, "checkpoint_number": checkpoint_number, "path": checkpoint_path}
-                else:
-                    pretrained_policies[f"ai_rl_{i+1}"] = None
-
-# Determine collision mode from game version
-COLLISION_ENABLED = GAME_VERSION.endswith('_collision')
-BASE_GAME_VERSION = GAME_VERSION.replace('_collision', '') if COLLISION_ENABLED else GAME_VERSION
-
-# Update save directory to reflect collision mode
-save_dir_base = GAME_VERSION  # Use full game version (including _collision suffix if present)
-
-# Determine initialization folder based on random_initial_state flag
+# Generate save directory
 init_folder = "random_init" if RANDOM_INITIAL_STATE == "true" else "empty_init"
-
-# Add synergy subfolder if reference reward is enabled
-synergy_folder = f"synergy_{SYNERGY_SCALING_FACTOR:.2f}" if SYNERGY_SCALING_FACTOR > 0 else "synergy_0"
-
-# Add specialization penalty subfolder based on lambda value
-if SPECIALIZATION_PENALTY_SCALE == 0:
-    spec_folder = "specialized_0"
-else:
-    # Format lambda value, preserving 2 decimal places
-    lambda_str = f"{SPECIALIZATION_PENALTY_SCALE:.2f}"
-    spec_folder = f"specialized_{lambda_str}"
-
-# Path definitions
-if NUM_AGENTS == 1:
-    if synergy_folder:
-        save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/{init_folder}/map_{MAP_NR}/{synergy_folder}/{spec_folder}'
-    else:
-        save_dir = f'{local}/data/samuel_lozano/cooked/pretraining/{save_dir_base}/{init_folder}/map_{MAP_NR}/{spec_folder}'
-    reward_weights[f"ai_rl_{agent_to_train}"] = (globals()[f"alpha_{agent_to_train}"], globals()[f"beta_{agent_to_train}"])
-    walking_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"walking_speed_{agent_to_train}"]
-    cutting_speeds[f"ai_rl_{agent_to_train}"] = globals()[f"cutting_speed_{agent_to_train}"]
-else:
-    if synergy_folder:
-        save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/{init_folder}/map_{MAP_NR}/{synergy_folder}/{spec_folder}'
-    else:
-        save_dir = f'{local}/data/samuel_lozano/cooked/{save_dir_base}/{init_folder}/map_{MAP_NR}/{spec_folder}'
-    for i in range(1, NUM_AGENTS + 1):
-        reward_weights[f"ai_rl_{i}"] = (globals()[f"alpha_{i}"], globals()[f"beta_{i}"])
-        walking_speeds[f"ai_rl_{i}"] = globals()[f"walking_speed_{i}"]
-        cutting_speeds[f"ai_rl_{i}"] = globals()[f"cutting_speed_{i}"]
-
+save_dir = generate_save_directory(
+    cluster_config['local_path'], GAME_VERSION, NUM_AGENTS, MAP_NR, 
+    init_folder, SYNERGY_SCALING_FACTOR, SPECIALIZATION_PENALTY_SCALE, agent_to_train
+)
 os.makedirs(save_dir, exist_ok=True)
-
-# Determine grid size from map file (text format)
-map_txt_path = os.path.join(os.path.dirname(__file__), 'spoiled_broth', 'maps', f'{MAP_NR}.txt')
-if not os.path.exists(map_txt_path):
-    raise FileNotFoundError(f"Map file {map_txt_path} not found.")
-with open(map_txt_path, 'r') as f:
-    map_lines = [line.rstrip('\n') for line in f.readlines()]
-rows = len(map_lines)
-cols = len(map_lines[0]) if rows > 0 else 0
-if rows != cols:
-    print(f"WARNING: Map is not square, this could cause errors in the future (got {rows} rows and {cols} columns).")
-GRID_SIZE = (cols, rows)
-
-# Function to lookup solo baseline from predefined dictionary
-def lookup_solo_baseline(map_nr, walking_speeds, cutting_speeds, delivery_reward, num_agents=2):
-    """
-    Look up team baseline performance from BASELINE_LOOKUP dictionary.
-    
-    Args:
-        map_nr: Map identifier (e.g., 'baseline_division_of_labor_v2')
-        walking_speeds: Dict of {agent_id: walk_speed}
-        cutting_speeds: Dict of {agent_id: cut_speed}
-        delivery_reward: Reward per delivery (from REWARDS_CFG["deliver"])
-        num_agents: Number of agents
-    
-    Returns:
-        tuple: (solo_baselines_dict, team_baseline)
-            solo_baselines_dict: {agent_id: individual_baseline_reward}
-            team_baseline: sum of individual baseline rewards
-    """
-    if num_agents != 2:
-        raise ValueError("Baseline lookup currently only supports 2 agents")
-    
-    # Extract agent speeds in sorted order
-    agent_ids = sorted(walking_speeds.keys())
-    speeds_tuple = tuple([
-        walking_speeds[agent_ids[0]],
-        cutting_speeds[agent_ids[0]],
-        walking_speeds[agent_ids[1]],
-        cutting_speeds[agent_ids[1]]
-    ])
-    
-    # Round speeds to avoid floating point precision issues
-    speeds_tuple = tuple(round(s, 2) for s in speeds_tuple)
-    
-    # Lookup baseline
-    if map_nr not in BASELINE_LOOKUP:
-        raise KeyError(f"Map '{map_nr}' not found in BASELINE_LOOKUP. Available maps: {list(BASELINE_LOOKUP.keys())}")
-    
-    map_baselines = BASELINE_LOOKUP[map_nr]
-    if speeds_tuple not in map_baselines:
-        raise KeyError(
-            f"Speed configuration {speeds_tuple} not found for map '{map_nr}'.\n"
-            f"Available configurations: {list(map_baselines.keys())}"
-        )
-    
-    # Get number of deliveries and convert to reward
-    team_deliveries = map_baselines[speeds_tuple]
-    team_baseline = team_deliveries * delivery_reward
-    
-    # Split baseline among agents proportionally to their competence
-    # Competence = average of walking and cutting speed
-    competences = {}
-    total_competence = 0.0
-    for agent_id in agent_ids:
-        comp = (walking_speeds[agent_id] + cutting_speeds[agent_id]) / 2.0
-        competences[agent_id] = comp
-        total_competence += comp
-    
-    # Distribute team baseline proportionally
-    solo_baselines = {}
-    if total_competence > 0:
-        for agent_id in agent_ids:
-            solo_baselines[agent_id] = team_baseline * (competences[agent_id] / total_competence)
-    else:
-        # Equal split if all competences are zero (shouldn't happen)
-        for agent_id in agent_ids:
-            solo_baselines[agent_id] = team_baseline / num_agents
-    
-    return solo_baselines, team_baseline
 
 # Load solo baseline for reference-based reward shaping from BASELINE_LOOKUP
 solo_baselines = None
 if REFERENCE_REWARD_CFG["enabled"]:
+    effective_synergy_scaling = REFERENCE_REWARD_CFG["synergy_scaling_factor"]
     print(f"\n=== Reference-Based Opportunity Cost Shaping ===")
-    print(f"Synergy scaling factor (opportunity cost sensitivity): {SYNERGY_SCALING_FACTOR}")
+    print(f"Base synergy scaling factor: {SYNERGY_SCALING_FACTOR}")
+    print(f"Map cooperation factor: {cooperation_factor:.2f} (mathematically calculated)")
+    print(f"Effective synergy scaling factor: {effective_synergy_scaling:.3f} (base × cooperation)")
+    print(f"Mathematical cooperation analysis:")
+    print(f"  - Analyzes spatial constraints, bottlenecks, path diversity")
+    print(f"  - Considers workspace overlap and critical dependencies")
+    print(f"  - Higher factor = more coordination structurally required")
     print(f"Loading solo baselines from BASELINE_LOOKUP dictionary...")
     
     # First, populate walking_speeds and cutting_speeds (needed for lookup)
     if NUM_AGENTS == 1:
-        walking_speeds_temp = {f"ai_rl_{agent_to_train}": globals()[f"walking_speed_{agent_to_train}"]}
-        cutting_speeds_temp = {f"ai_rl_{agent_to_train}": globals()[f"cutting_speed_{agent_to_train}"]}
+        walking_speeds_temp = {f"ai_rl_{agent_to_train}": agent_params[f"walking_speed_{agent_to_train}"]}
+        cutting_speeds_temp = {f"ai_rl_{agent_to_train}": agent_params[f"cutting_speed_{agent_to_train}"]}
     else:
-        walking_speeds_temp = {f"ai_rl_{i}": globals()[f"walking_speed_{i}"] for i in range(1, NUM_AGENTS + 1)}
-        cutting_speeds_temp = {f"ai_rl_{i}": globals()[f"cutting_speed_{i}"] for i in range(1, NUM_AGENTS + 1)}
+        walking_speeds_temp = {f"ai_rl_{i}": agent_params[f"walking_speed_{i}"] for i in range(1, NUM_AGENTS + 1)}
+        cutting_speeds_temp = {f"ai_rl_{i}": agent_params[f"cutting_speed_{i}"] for i in range(1, NUM_AGENTS + 1)}
     
     # Lookup baseline from dictionary
     try:
@@ -401,7 +160,7 @@ if REFERENCE_REWARD_CFG["enabled"]:
             NUM_AGENTS
         )
         
-        print(f"  Map: {MAP_NR}")
+        print(f"  Map: {MAP_NR} (cooperation factor: {cooperation_factor:.2f})")
         print(f"  Delivery reward: {REWARDS_CFG['deliver']:.1f}")
         print(f"  Team deliveries: {solo_baseline_team / REWARDS_CFG['deliver']:.2f}")
         print(f"  Team baseline reward: {solo_baseline_team:.2f}")
@@ -421,61 +180,61 @@ if REFERENCE_REWARD_CFG["enabled"]:
     
     print(f"===================================\n")
 
-# RLlib specific configuration - Optimized for GPU training
+# RLlib training configuration
 config = {
-    "NUM_ENVS": NUM_ENVS,
-    "INNER_SECONDS": INNER_SECONDS,
-    "TRAIN_BATCH_SIZE": TRAIN_BATCH_SIZE,
-    "SGD_MINIBATCH_SIZE": SGD_MINIBATCH_SIZE,
-    "NUM_SGD_ITER": NUM_SGD_ITER,
+    "NUM_ENVS": cluster_config['num_env_workers'],
+    "INNER_SECONDS": hyperparams["inner_seconds"],
+    "TRAIN_BATCH_SIZE": hyperparams["train_batch_size"],
+    "SGD_MINIBATCH_SIZE": hyperparams["sgd_minibatch_size"],
+    "NUM_SGD_ITER": hyperparams["num_sgd_iter"],
     "NUM_EPOCHS": NUM_EPOCHS,
     "NUM_AGENTS": NUM_AGENTS,
     "AGENT_TO_TRAIN": agent_to_train if NUM_AGENTS == 1 else None,
-    "SHOW_EVERY_N_EPOCHS": SHOW_EVERY_N_EPOCHS,
-    "SAVE_EVERY_N_EPOCHS": SAVE_EVERY_N_EPOCHS,
+    "SHOW_EVERY_N_EPOCHS": hyperparams["show_every_n_epochs"],
+    "SAVE_EVERY_N_EPOCHS": hyperparams["save_every_n_epochs"],
     "LR": LR,
     "MAP_NR": MAP_NR,
     "REWARD_WEIGHTS": reward_weights,
-    "GAME_VERSION": BASE_GAME_VERSION,  # Use base version without collision suffix
-    "COLLISION_ENABLED": COLLISION_ENABLED,  # Add collision flag
+    "GAME_VERSION": BASE_GAME_VERSION,
+    "COLLISION_ENABLED": COLLISION_ENABLED,
     "GRID_SIZE": GRID_SIZE,
-    "PAYOFF_MATRIX": PAYOFF_MATRIX,
+    "PAYOFF_MATRIX": hyperparams["payoff_matrix"],
     "WALKING_SPEEDS": walking_speeds,
     "CUTTING_SPEEDS": cutting_speeds,
     "INITIAL_SEED": SEED,
-    "WAIT_FOR_COMPLETION": WAIT_FOR_ACTION_COMPLETION,
+    "WAIT_FOR_COMPLETION": True,
     "RANDOM_INITIAL_STATE": RANDOM_INITIAL_STATE,
     "SAVE_DIR": save_dir,
-    "CHECKPOINTS": pretrained_policies,  # Add pretrained policies configuration
-    # Reward and penalty configurations
+    "CHECKPOINTS": pretrained_policies,
+    # Configurations from modules
     "PENALTIES_CFG": PENALTIES_CFG,
     "REWARDS_CFG": REWARDS_CFG,
-    "REFERENCE_REWARD_CFG": REFERENCE_REWARD_CFG,  # Reference-based opportunity cost shaping
-    "SOLO_BASELINES": solo_baselines,  # Individual solo baselines for reference reward (dict: agent_id -> baseline)
-    "ALLOW_BLOCKED": ALLOW_BLOCKED,  # Whether to allow blocked actions to be attempted
+    "REFERENCE_REWARD_CFG": REFERENCE_REWARD_CFG,
+    "INTERMEDIATE_REWARD_DECAY_CFG": INTERMEDIATE_REWARD_DECAY_CFG,
+    "SOLO_BASELINES": solo_baselines,
+    "ALLOW_BLOCKED": ALLOW_BLOCKED,
     # Hyperparameters
-    "NUM_UPDATES": NUM_SGD_ITER,  # Number of SGD iterations per batch
-    "GAMMA": 0.9,     # Discount factor for future rewards (close to 1 = long-term, lower = short-term)
-    "GAE_LAMBDA": 0.95,  # GAE lambda for advantage estimation
-    "ENT_COEF": 0.01,    # Entropy coefficient for exploration
-    "CLIP_EPS": 0.3,     # PPO clip parameter (limits how much the policy can change at each update; stabilizes training)
-    "VF_COEF": 1.0,      # Value function coefficient
-    "GRAD_CLIP": 0.5,    # Gradient clipping threshold
-    "FCNET_HIDDENS": MLP_LAYERS,  # Hidden layer sizes for MLP
-    "FCNET_ACTIVATION": "tanh",  # Activation function for MLP ("tanh", "relu", etc.)
+    "NUM_UPDATES": hyperparams["num_sgd_iter"],
+    "GAMMA": hyperparams["gamma"],
+    "GAE_LAMBDA": hyperparams["gae_lambda"],
+    "ENT_COEF": hyperparams["ent_coef"],
+    "CLIP_EPS": hyperparams["clip_eps"],
+    "VF_COEF": hyperparams["vf_coef"],
+    "GRAD_CLIP": hyperparams["grad_clip"],
+    "FCNET_HIDDENS": hyperparams["mlp_layers"],
+    "FCNET_ACTIVATION": hyperparams["fcnet_activation"],
     # Resource allocation
-    "NUM_CPUS": NUM_CPUS,
-    "NUM_GPUS": NUM_GPUS,
-    # RLlib specific parameters - Optimized for GPU
-    "NUM_ENV_WORKERS": NUM_ENV_WORKERS,  # Parallel environment workers (CPU)
-    "NUM_LEARNER_WORKERS": NUM_LEARNER_WORKERS,  # GPU learner workers
+    "NUM_CPUS": cluster_config['num_cpus'],
+    "NUM_GPUS": cluster_config['num_gpus'],
+    "NUM_ENV_WORKERS": cluster_config['num_env_workers'],
+    "NUM_LEARNER_WORKERS": cluster_config['num_learner_workers'],
     # Performance optimizations
-    "ROLLOUT_FRAGMENT_LENGTH": "auto",  # Steps per rollout fragment
-    "BATCH_MODE": "complete_episodes",  # Collect complete episodes for better learning
-    "COMPRESS_OBSERVATIONS": False,  # Disable compression for speed
-    "NUM_CPUS_PER_WORKER": 1,  # CPU cores per environment worker
-    "NUM_GPUS_PER_WORKER": 0,  # Environment workers run on CPU only
-    "NUM_CPUS_FOR_DRIVER": 1,  # Driver CPU usage
+    "ROLLOUT_FRAGMENT_LENGTH": hyperparams["rollout_fragment_length"],
+    "BATCH_MODE": hyperparams["batch_mode"],
+    "COMPRESS_OBSERVATIONS": hyperparams["compress_observations"],
+    "NUM_CPUS_PER_WORKER": hyperparams["num_cpus_per_worker"],
+    "NUM_GPUS_PER_WORKER": hyperparams["num_gpus_per_worker"],
+    "NUM_CPUS_FOR_DRIVER": hyperparams["num_cpus_for_driver"],
 }
 
 if ray.is_initialized():
@@ -483,7 +242,7 @@ if ray.is_initialized():
 
 # Initialize Ray with optimized resource allocation
 ray.init(
-    num_cpus=NUM_CPUS,
+    num_cpus=cluster_config['num_cpus'],
     num_gpus=1,  # Ensure GPU is available
     object_store_memory=2000000000,  # 2GB object store for efficient data transfer
     _plasma_directory="/tmp",  # Use fast storage for plasma store
@@ -517,12 +276,12 @@ os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"  # Allow GPU memory growth
 
 # Run training with performance monitoring
 print(f"Starting training with configuration:")
-print(f"  Environment workers: {NUM_ENV_WORKERS} (CPU)")
-print(f"  Learner workers: {NUM_LEARNER_WORKERS} (GPU)")
-print(f"  Train batch size: {TRAIN_BATCH_SIZE}")
-print(f"  SGD minibatch size: {SGD_MINIBATCH_SIZE}")
-print(f"  Total CPU cores: {NUM_CPUS}")
-print(f"  GPU allocation: {NUM_GPUS}")
+print(f"  Environment workers: {cluster_config['num_env_workers']} (CPU)")
+print(f"  Learner workers: {cluster_config['num_learner_workers']} (GPU)")
+print(f"  Train batch size: {hyperparams['train_batch_size']}")
+print(f"  SGD minibatch size: {hyperparams['sgd_minibatch_size']}")
+print(f"  Total CPU cores: {cluster_config['num_cpus']}")
+print(f"  GPU allocation: {cluster_config['num_gpus']}")
 
 # Monitor GPU memory before training
 if torch.cuda.is_available():

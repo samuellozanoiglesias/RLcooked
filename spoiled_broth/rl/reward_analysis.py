@@ -8,7 +8,7 @@ def get_cutting_time(agent, game):
     # Lower speed = more time (inverse relationship)
     return base_cutting_time / cutting_speed if cutting_speed > 0 else base_cutting_time
 
-def get_rewards(self, agent_events, agent_penalties, rewards_cfg):
+def get_rewards(self, agent_events, agent_penalties, rewards_cfg, intermediate_reward_decay_cfg=None, episode=0):
     """
     Calculate pure and modified rewards based on the game mode.
     
@@ -18,29 +18,37 @@ def get_rewards(self, agent_events, agent_penalties, rewards_cfg):
     - self.solo_baseline_team: sum of individual solo baselines
     - self.cumulated_pure_rewards: cumulative rewards so far
     - self.agent_abilities: agent cutting and walking abilities (kappa values) for dynamic competence calculation
+    - intermediate_reward_decay_cfg: Configuration for intermediate reward decay
+    - episode: Current episode number for reward decay calculation
     """
     if self.game_mode == "classic":
-        return get_rewards_classic(self, agent_events, agent_penalties, rewards_cfg)
+        return get_rewards_classic(self, agent_events, agent_penalties, rewards_cfg, intermediate_reward_decay_cfg, episode)
     elif self.game_mode == "competition":
-        return get_rewards_competition(self, agent_events, agent_penalties, rewards_cfg)
+        return get_rewards_competition(self, agent_events, agent_penalties, rewards_cfg, intermediate_reward_decay_cfg, episode)
     else:
         raise ValueError(f"Unknown game mode: {self.game_mode}")
 
 
 # ---- Classic mode without ownership awareness ---- #
-def get_rewards_classic(self, agent_events, agent_penalties, rewards_cfg):
+def get_rewards_classic(self, agent_events, agent_penalties, rewards_cfg, intermediate_reward_decay_cfg=None, episode=0):
     """
     Calculate pure and modified rewards for classic mode.
     """    
+    # Apply intermediate reward decay if enabled
+    effective_rewards_cfg = rewards_cfg.copy()
+    if intermediate_reward_decay_cfg and intermediate_reward_decay_cfg.get("enabled", False):
+        from training_configuration.reward_penalties import apply_reward_decay
+        effective_rewards_cfg = apply_reward_decay(rewards_cfg, episode, intermediate_reward_decay_cfg)
+    
     event_rewards = {agent_id: 0.0 for agent_id in self.agents}
     deliver_rewards = {agent_id: 0.0 for agent_id in self.agents}
     for agent_id in self.agents:
         # Event rewards: apply specialization-based rewards/penalties
         event_rewards[agent_id] = _apply_specialization_rewards(
-            self, agent_id, agent_events, rewards_cfg
+            self, agent_id, agent_events, effective_rewards_cfg
         )
         deliver_rewards[agent_id] = _get_specialized_reward_for_event(
-            self, agent_id, "deliver", agent_events[agent_id]["deliver"], rewards_cfg["deliver"]
+            self, agent_id, "deliver", agent_events[agent_id]["deliver"], effective_rewards_cfg["deliver"]
         )
 
     shared_deliver_reward = sum(deliver_rewards.values())
@@ -87,29 +95,35 @@ def get_rewards_classic(self, agent_events, agent_penalties, rewards_cfg):
                 modified_reward += synergy_contribution
         
         self.modified_rewards[agent_id] = modified_reward
-        self.cumulated_modified_rewards[agent_id] += self.modified_rewards[agent_id]
+        
+    return self.cumulated_pure_rewards, self.modified_rewards
 
-    return self.cumulated_pure_rewards, self.cumulated_modified_rewards
 
 # ---- Competition mode with ownership awareness ---- #
-def get_rewards_competition(self, agent_events, agent_penalties, rewards_cfg):
+def get_rewards_competition(self, agent_events, agent_penalties, rewards_cfg, intermediate_reward_decay_cfg=None, episode=0):
+    # Apply intermediate reward decay if enabled
+    effective_rewards_cfg = rewards_cfg.copy()
+    if intermediate_reward_decay_cfg and intermediate_reward_decay_cfg.get("enabled", False):
+        from training_configuration.reward_penalties import apply_reward_decay
+        effective_rewards_cfg = apply_reward_decay(rewards_cfg, episode, intermediate_reward_decay_cfg)
+    
     pure_rewards = {agent_id: 0.0 for agent_id in self.agents}
     for agent_id in self.agents:
         # Pure rewards: apply specialization-based rewards/penalties
         reward_from_own = (
-            _get_specialized_reward_for_event(self, agent_id, "deliver", agent_events[agent_id]["deliver_own"], rewards_cfg["deliver"])
-            + _get_specialized_reward_for_event(self, agent_id, "salad", agent_events[agent_id]["salad_own"], rewards_cfg["salad"])
-            + _get_specialized_reward_for_event(self, agent_id, "cut", agent_events[agent_id]["cut_own"], rewards_cfg["cut"])
-            + agent_events[agent_id]["counter"] * rewards_cfg["counter"]  # No specialization for counter
-            + _get_specialized_reward_for_event(self, agent_id, "raw_food", agent_events[agent_id]["raw_food_own"], rewards_cfg["raw_food"])
-            + _get_specialized_reward_for_event(self, agent_id, "plate", agent_events[agent_id]["plate"], rewards_cfg["plate"])
+            _get_specialized_reward_for_event(self, agent_id, "deliver", agent_events[agent_id]["deliver_own"], effective_rewards_cfg["deliver"])
+            + _get_specialized_reward_for_event(self, agent_id, "salad", agent_events[agent_id]["salad_own"], effective_rewards_cfg["salad"])
+            + _get_specialized_reward_for_event(self, agent_id, "cut", agent_events[agent_id]["cut_own"], effective_rewards_cfg["cut"])
+            + agent_events[agent_id]["counter"] * effective_rewards_cfg["counter"]  # No specialization for counter
+            + _get_specialized_reward_for_event(self, agent_id, "raw_food", agent_events[agent_id]["raw_food_own"], effective_rewards_cfg["raw_food"])
+            + _get_specialized_reward_for_event(self, agent_id, "plate", agent_events[agent_id]["plate"], effective_rewards_cfg["plate"])
         )
 
         reward_from_other = (
-            _get_specialized_reward_for_event(self, agent_id, "deliver", agent_events[agent_id]["deliver_other"], rewards_cfg["deliver"])
-            + _get_specialized_reward_for_event(self, agent_id, "salad", agent_events[agent_id]["salad_other"], rewards_cfg["salad"])
-            + _get_specialized_reward_for_event(self, agent_id, "cut", agent_events[agent_id]["cut_other"], rewards_cfg["cut"])
-            + _get_specialized_reward_for_event(self, agent_id, "raw_food", agent_events[agent_id]["raw_food_other"], rewards_cfg["raw_food"])
+            _get_specialized_reward_for_event(self, agent_id, "deliver", agent_events[agent_id]["deliver_other"], effective_rewards_cfg["deliver"])
+            + _get_specialized_reward_for_event(self, agent_id, "salad", agent_events[agent_id]["salad_other"], effective_rewards_cfg["salad"])
+            + _get_specialized_reward_for_event(self, agent_id, "cut", agent_events[agent_id]["cut_other"], effective_rewards_cfg["cut"])
+            + _get_specialized_reward_for_event(self, agent_id, "raw_food", agent_events[agent_id]["raw_food_other"], effective_rewards_cfg["raw_food"])
         )
 
         penalty_from_other = 0
@@ -117,7 +131,7 @@ def get_rewards_competition(self, agent_events, agent_penalties, rewards_cfg):
             if other_agent_id == agent_id:
                 continue
             penalty_from_other += (
-                agent_events[other_agent_id]["deliver_other"] * rewards_cfg["deliver"]
+                agent_events[other_agent_id]["deliver_other"] * effective_rewards_cfg["deliver"]
             )
 
         pure_rewards[agent_id] = (
@@ -203,54 +217,37 @@ def _get_specialized_reward_for_event(self, agent_id, event_type, event_count, b
         collision_harshness = self.penalties_cfg.get("collision_harshness", 2.0)
         specialization_scale *= collision_harshness
     
+    rewarbase_reward = base_reward * event_count
+
     if specialization_scale == 0.0:
         # Specialization system disabled
-        return base_reward * event_count
+        return rewarbase_reward
+    
+    # Check for balanced agents (both abilities at 1.0) - they should get normal rewards
+    if cut_speed >= 1.0 and walk_speed >= 1.0:
+        # Balanced agent - same rewards as if specialization was disabled
+        return rewarbase_reward
     
     # Determine reward/penalty based on event type and agent specialization
     if event_type == "cut":
         # Cutting action - requires cut_speed = 1
         if cut_speed >= 1.0:
-            if walk_speed < 1.0:
-                reward = base_reward * event_count * specialization_scale  # Full reward for specialist
-                return reward
-            else:
-                # Both speeds are >= 1.0 (balanced agent)
-                reward = base_reward * event_count  # Normal reward for balanced agent
-                return reward
+            return rewarbase_reward
         else:
             penalty = base_reward * (1.0 - cut_speed) * specialization_scale * event_count
-            return -penalty  # Penalty for non-specialist
+            return rewarbase_reward - penalty  # Penalty for non-specialist
     
     elif event_type in ["deliver", "raw_food", "plate"]:
         # Delivery/dispenser actions - require walk_speed = 1
         if walk_speed >= 1.0:
-            if cut_speed < 1.0:
-                reward = base_reward * event_count * specialization_scale  # Full reward for specialist
-                return reward
-            else:
-                # Both speeds are >= 1.0 (balanced agent)
-                reward = base_reward * event_count  # Normal reward for balanced agent
-                return reward
+            return rewarbase_reward
         else:
             penalty = base_reward * (1.0 - walk_speed) * specialization_scale * event_count
-            return -penalty  # Penalty for non-specialist
-    
-    elif event_type == "salad":
-        # Salad assembly - rewarded for both specializations
-        if cut_speed >= 1.0 or walk_speed >= 1.0:
-            reward = base_reward * event_count * specialization_scale  # Full reward if specialist in either
-            return reward
-        else:
-            # Penalty if not specialist in either (use max speed to be lenient)
-            max_speed = max(cut_speed, walk_speed)
-            penalty = base_reward * (1.0 - max_speed) * specialization_scale * event_count
-            return -penalty
+            return rewarbase_reward - penalty  # Penalty for non-specialist
     
     else:
-        # No specialization requirement (e.g., "counter")
-        reward = base_reward * event_count * specialization_scale
-        return reward
+        # No specialization requirement (e.g., "counter" or "salad")
+        return rewarbase_reward
 
 def _apply_specialization_rewards(self, agent_id, agent_events, rewards_cfg):
     """

@@ -151,6 +151,7 @@ def make_train_rllib(config):
                 "cutting_speeds": config.get("CUTTING_SPEEDS", None),
                 "penalties_cfg": config.get("PENALTIES_CFG", None),
                 "rewards_cfg": config.get("REWARDS_CFG", None),
+                "intermediate_reward_decay_cfg": config.get("INTERMEDIATE_REWARD_DECAY_CFG", None),
                 "collision_enabled": config.get("COLLISION_ENABLED", False),
                 "reference_reward_cfg": config.get("REFERENCE_REWARD_CFG", None),
                 "solo_baselines": config.get("SOLO_BASELINES", None),

@@ -101,12 +101,12 @@ class CooperativeAnalyzer:
         self.map_names = [
             'baseline_division_of_labor_large',
             'semiencouraged_division_of_labor_large',
-            '1-semiencouraged_division_of_labor_large',
-            '2-semiencouraged_division_of_labor_large',
+            #'1-semiencouraged_division_of_labor_large',
+            #'2-semiencouraged_division_of_labor_large',
             'encouraged_division_of_labor_large',
-            '1-encouraged_division_of_labor_large',
-            '2-encouraged_division_of_labor_large',
-            '3-encouraged_division_of_labor_large',
+            #'1-encouraged_division_of_labor_large',
+            #'2-encouraged_division_of_labor_large',
+            #'3-encouraged_division_of_labor_large',
         ]
         
         # Define ability configurations for 2D grid analysis (X-axis)

@@ -70,7 +70,7 @@ class CooperativeAnalyzer:
     def __init__(self, study_name: Optional[str] = None, 
                  map_name_1: str = 'baseline_division_of_labor_large',
                  map_name_2: str = 'encouraged_division_of_labor_large',
-                 init_type: str = 'random_init',
+                 init_type: str = 'empty_init',
                  synergy: float = 0.0,
                  synergy_provided: bool = False,
                  specialization: Optional[float] = None,
@@ -1065,8 +1065,8 @@ def setup_argument_parser() -> argparse.ArgumentParser:
         '--init_type',
         type=str,
         choices=['random_init', 'empty_init'],
-        default='random_init',
-        help='Initialization type subdirectory to analyze (default: random_init)'
+        default='empty_init',
+        help='Initialization type subdirectory to analyze (default: empty_init)'
     )
     
     parser.add_argument(

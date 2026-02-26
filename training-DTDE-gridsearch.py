@@ -127,14 +127,9 @@ else:
         "deliver": DELIVER_REWARD,
     }
 
-# Dynamic configurations (disabled for grid search to ensure clean comparisons)
-DYNAMIC_REWARDS_CFG = {
-    "enabled": False,
-    "decay_rate": 0.005,
-    "min_reward_multiplier": 0.00,
-    "decay_start_episode": 100,
-    "affected_rewards": ["raw_food", "plate", "counter", "cut", "salad"],
-}
+# Dynamic configurations (replaced with new intermediate reward decay system)
+from training_configuration.reward_penalties import get_intermediate_reward_decay_config
+INTERMEDIATE_REWARD_DECAY_CFG = get_intermediate_reward_decay_config(enabled=False)  # Disabled for grid search to ensure clean comparisons
 
 DYNAMIC_PPO_PARAMS_CFG = {
     "enabled": False,
@@ -226,7 +221,7 @@ config = {
     # Reward and penalty configurations
     "PENALTIES_CFG": PENALTIES_CFG,
     "REWARDS_CFG": REWARDS_CFG,
-    "DYNAMIC_REWARDS_CFG": DYNAMIC_REWARDS_CFG,
+    "INTERMEDIATE_REWARD_DECAY_CFG": INTERMEDIATE_REWARD_DECAY_CFG,
     "DYNAMIC_PPO_PARAMS_CFG": DYNAMIC_PPO_PARAMS_CFG,
     # Hyperparameters from command line
     "NUM_UPDATES": NUM_SGD_ITER,
