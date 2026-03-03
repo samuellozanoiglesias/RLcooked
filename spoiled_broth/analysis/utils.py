@@ -1455,9 +1455,9 @@ def _build_experiment_path(local_path: str, experiment_type: str, game_type: str
             # For pretraining: /data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/
             if study_name:
                 if spec_folder:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{study_name}/pretraining/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/"
                 else:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{study_name}/pretraining/{game_type}/{init_type}/map_{map_name}/{synergy_folder}"
             else:
                 if spec_folder:
                     raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}"
@@ -1467,9 +1467,9 @@ def _build_experiment_path(local_path: str, experiment_type: str, game_type: str
             # For classic/competition: /data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/
             if study_name:
                 if spec_folder:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{study_name}/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/"
                 else:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{study_name}/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/"
             else:
                 if spec_folder:
                     raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}"
@@ -1479,9 +1479,9 @@ def _build_experiment_path(local_path: str, experiment_type: str, game_type: str
             # For other experiment types: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/
             if study_name:
                 if spec_folder:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{study_name}/{experiment_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}/"
                 else:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{synergy_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{study_name}/{experiment_type}/{init_type}/map_{map_name}/{synergy_folder}/"
             else:
                 if spec_folder:
                     raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{synergy_folder}/{spec_folder}"
@@ -1493,9 +1493,9 @@ def _build_experiment_path(local_path: str, experiment_type: str, game_type: str
             # For pretraining: /data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{spec_folder}/
             if study_name:
                 if spec_folder:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{spec_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{study_name}/pretraining/{game_type}/{init_type}/map_{map_name}/{spec_folder}/"
                 else:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{study_name}/pretraining/{game_type}/{init_type}/map_{map_name}/"
             else:
                 if spec_folder:
                     raw_dir = f"{local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/{init_type}/map_{map_name}/{spec_folder}"
@@ -1505,9 +1505,9 @@ def _build_experiment_path(local_path: str, experiment_type: str, game_type: str
             # For classic/competition: /data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{spec_folder}/
             if study_name:
                 if spec_folder:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{spec_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{study_name}/{game_type}/{init_type}/map_{map_name}/{spec_folder}/"
                 else:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{study_name}/{game_type}/{init_type}/map_{map_name}/"
             else:
                 if spec_folder:
                     raw_dir = f"{local_path}/data/samuel_lozano/cooked/{game_type}/{init_type}/map_{map_name}/{spec_folder}"
@@ -1517,9 +1517,9 @@ def _build_experiment_path(local_path: str, experiment_type: str, game_type: str
             # For other experiment types: /data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{spec_folder}/
             if study_name:
                 if spec_folder:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{spec_folder}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{study_name}/{experiment_type}/{init_type}/map_{map_name}/{spec_folder}/"
                 else:
-                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{study_name}"
+                    raw_dir = f"{local_path}/data/samuel_lozano/cooked/{study_name}/{experiment_type}/{init_type}/map_{map_name}/"
             else:
                 if spec_folder:
                     raw_dir = f"{local_path}/data/samuel_lozano/cooked/{experiment_type}/{init_type}/map_{map_name}/{spec_folder}"

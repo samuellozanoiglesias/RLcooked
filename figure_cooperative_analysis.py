@@ -354,11 +354,11 @@ class CooperativeAnalyzer:
                         
                         # Build directory path
                         if self.study_name:
-                            # Use study_name folder structure
+                            # Use study_name folder structure: /cooked/{study_name}/{game_type}/...
                             if spec_folder:
-                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', game_type, self.init_type, f'map_{map_name}', synergy_folder, spec_folder, self.study_name)
+                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', self.study_name, game_type, self.init_type, f'map_{map_name}', synergy_folder, spec_folder)
                             else:
-                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', game_type, self.init_type, f'map_{map_name}', synergy_folder, self.study_name)
+                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', self.study_name, game_type, self.init_type, f'map_{map_name}', synergy_folder)
                         else:
                             # Default structure
                             if spec_folder:
@@ -385,7 +385,12 @@ class CooperativeAnalyzer:
                         os.makedirs(dir_path, exist_ok=True)
                     
                     # Load the data (using 2 agents since this is multi-agent cooperative data)
-                    df = self.data_processor.load_experiment_data(paths, num_agents=2)
+                    try:
+                        df = self.data_processor.load_experiment_data(paths, num_agents=2)
+                    except ValueError as e:
+                        print(f"  Warning: Could not load data for {condition_name}: {e}")
+                        print(f"  Skipping this condition and continuing with available data...")
+                        continue
                     
                     if df is not None and len(df) > 0:
                         print(f"  Loaded initial data shape: {df.shape}")
@@ -734,7 +739,7 @@ class CooperativeAnalyzer:
                     (abs(df['walking_speed_1'] - 0.4) < 0.01) &
                     (abs(df['cutting_speed_1'] - 1.0) < 0.01) &
                     (abs(df['walking_speed_2'] - 1.0) < 0.01) &
-                    (abs(df['cutting_speed_2'] - 0.2) < 0.01)
+                    (abs(df['cutting_speed_2'] - 0.4) < 0.01)
                 )
                 return df[filter_condition].copy()
             else:

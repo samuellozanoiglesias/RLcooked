@@ -25,11 +25,11 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/cooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NRS=(semiencouraged_division_of_labor_large)  # List of maps to run
+MAP_NRS=(3-encouraged_division_of_labor_large)  # List of maps to run
 LR=3e-4
 GAME_VERSIONS=(classic_collision)  # List of game versions to run
 NUM_AGENTS=2
-NUM_EPOCHS=500  # Number of training epochs
+NUM_EPOCHS=3000  # Number of training epochs
 SEEDS=(0)  # Different random seeds for runs
 REWARDS_ON_DELIVERY_ONLY=False  # Whether to use rewards on delivery only
 RANDOM_INITIAL_STATE=False  # Whether to randomize initial state
@@ -44,6 +44,9 @@ ALLOW_BLOCKED=False  # Whether to allow agents to attempt blocked actions
 CUSTOM_CHECKPOINT_DIR="checkpoints/checkpoints_baseline_stars.txt"  # e.g., "checkpoints/my_custom_checkpoint.txt"
 ACTIVATE_CHECKPOINTS=False  # Set to False to disable checkpoint loading
 
+# Entropy coefficient for training
+ENTROPY_COEF=0.001  # Default value, can be changed
+
 # Define arrays for angles and seeds
 ANGLE_PAIRS=("0 0")
 
@@ -51,27 +54,32 @@ ANGLE_PAIRS=("0 0")
 # Format: "cut_speed1,walk_speed1 cut_speed2,walk_speed2"
 SPEED_PAIRS=(
     "1.0,1.0 1.0,1.0"
+    "1.0,0.9 0.9,1.0"
     "1.0,0.8 0.8,1.0"
+    "1.0,0.7 0.7,1.0"
     "1.0,0.6 0.6,1.0"
+    "1.0,0.5 0.5,1.0"
     "1.0,0.4 0.4,1.0"
+    "1.0,0.3 0.3,1.0"
     "1.0,0.2 0.2,1.0"
+    "1.0,0.1 0.1,1.0"
 )
 
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)
-SYNERGY_SCALING_FACTOR_VALUES=(0.0 1.0)
+SYNERGY_SCALING_FACTOR_VALUES=(0.4)
 
 # Define specialization penalty scale values
-SPECIALIZATION_PENALTY_SCALE_VALUES=(0.0 0.05)
+SPECIALIZATION_PENALTY_SCALE_VALUES=(0.05)
 
 # Define kappa values (competence transformation parameter for team synergy distribution)
-KAPPA_VALUES=(30.0)
+KAPPA_VALUES=(1.0)
 
 # Define activate_synergy_positive values (whether to activate positive synergy signals)
 ACTIVATE_SYNERGY_POSITIVE_VALUES=(False)
 
 # Define enable_reward_decay values (exponentially decay intermediate rewards after episode 200)
 # True = enabled, False = disabled
-ENABLE_REWARD_DECAY_VALUES=(False True)
+ENABLE_REWARD_DECAY_VALUES=(False)
 
 # Define collision harshness values (multiplier when collisions enabled)
 # Controls how much stronger specialization penalty becomes in collision scenarios
@@ -79,7 +87,7 @@ ENABLE_REWARD_DECAY_VALUES=(False True)
 COLLISION_HARSHNESS_VALUES=(10.0)
 
 # Maximum number of parallel jobs
-MAX_PARALLEL=5 # Set this to control how many jobs run in parallel
+MAX_PARALLEL=10 # Set this to control how many jobs run in parallel
 
 # Function to get checkpoint name based on map and game version
 get_checkpoint_name() {
@@ -305,13 +313,13 @@ for job in "${job_list[@]}"; do
 
     if [ $NUM_AGENTS -eq 1 ]; then
         echo "Starting job $job_count/${#job_list[@]}: GAME_VERSION=$GAME_VERSION MAP_NR=$MAP_NR ANGLE1=$ANGLE1 ANGLE2=$ANGLE2 C_SPEEDS=[$CUTTING_SPEED_1,$CUTTING_SPEED_2] W_SPEEDS=[$WALKING_SPEED_1,$WALKING_SPEED_2] LR=$LR SEED=$SEED SYNERGY_SCALING_FACTOR=$SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE=$SPEC_PENALTY_SCALE KAPPA=$KAPPA CHECKPOINT=$CHECKPOINT_PATHS COUNTER_REWARD=$COUNTER_REWARD_VALUE COLLISION_PENALTY=$COLLISION_PENALTY_VALUE ALLOW_BLOCKED=$ALLOW_BLOCKED ACTIVATE_SYNERGY_POSITIVE=$ACTIVATE_SYNERGY_POSITIVE ENABLE_REWARD_DECAY=$ENABLE_REWARD_DECAY COLLISION_HARSHNESS=$COLLISION_HARSHNESS AGENTS_TO_TRAIN=$AGENTS"
-        python "$TRAIN_SCRIPT" "$CLUSTER" "$INPUT_FILE" "$MAP_NR" "$LR" "$GAME_VERSION" "$NUM_AGENTS" "$NUM_EPOCHS" "$SEED" "$CHECKPOINT_PATHS" "$REWARDS_ON_DELIVERY_ONLY" "$RANDOM_INITIAL_STATE" "$SYNERGY_SCALING_FACTOR" "$SPEC_PENALTY_SCALE" "$COUNTER_REWARD_VALUE" "$COLLISION_PENALTY_VALUE" "$ALLOW_BLOCKED" "$KAPPA" "$ACTIVATE_SYNERGY_POSITIVE" "$ENABLE_REWARD_DECAY" "$COLLISION_HARSHNESS" "$AGENTS" > "$LOG_FILE" 2>&1 &
+            python "$TRAIN_SCRIPT" "$CLUSTER" "$INPUT_FILE" "$MAP_NR" "$LR" "$GAME_VERSION" "$NUM_AGENTS" "$NUM_EPOCHS" "$SEED" "$CHECKPOINT_PATHS" "$REWARDS_ON_DELIVERY_ONLY" "$RANDOM_INITIAL_STATE" "$SYNERGY_SCALING_FACTOR" "$SPEC_PENALTY_SCALE" "$COUNTER_REWARD_VALUE" "$COLLISION_PENALTY_VALUE" "$ALLOW_BLOCKED" "$KAPPA" "$ACTIVATE_SYNERGY_POSITIVE" "$ENABLE_REWARD_DECAY" "$COLLISION_HARSHNESS" "$ENTROPY_COEF" "$AGENTS" > "$LOG_FILE" 2>&1 &
     else
         echo "Starting job $job_count/${#job_list[@]}: GAME_VERSION=$GAME_VERSION MAP_NR=$MAP_NR ANGLE1=$ANGLE1 ANGLE2=$ANGLE2 C_SPEEDS=[$CUTTING_SPEED_1,$CUTTING_SPEED_2] W_SPEEDS=[$WALKING_SPEED_1,$WALKING_SPEED_2] LR=$LR SEED=$SEED SYNERGY_SCALING_FACTOR=$SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE=$SPEC_PENALTY_SCALE KAPPA=$KAPPA CHECKPOINT=$CHECKPOINT_PATHS COUNTER_REWARD=$COUNTER_REWARD_VALUE COLLISION_PENALTY=$COLLISION_PENALTY_VALUE ALLOW_BLOCKED=$ALLOW_BLOCKED ACTIVATE_SYNERGY_POSITIVE=$ACTIVATE_SYNERGY_POSITIVE ENABLE_REWARD_DECAY=$ENABLE_REWARD_DECAY COLLISION_HARSHNESS=$COLLISION_HARSHNESS"
-        python "$TRAIN_SCRIPT" "$CLUSTER" "$INPUT_FILE" "$MAP_NR" "$LR" "$GAME_VERSION" "$NUM_AGENTS" "$NUM_EPOCHS" "$SEED" "$CHECKPOINT_PATHS" "$REWARDS_ON_DELIVERY_ONLY" "$RANDOM_INITIAL_STATE" "$SYNERGY_SCALING_FACTOR" "$SPEC_PENALTY_SCALE" "$COUNTER_REWARD_VALUE" "$COLLISION_PENALTY_VALUE" "$ALLOW_BLOCKED" "$KAPPA" "$ACTIVATE_SYNERGY_POSITIVE" "$ENABLE_REWARD_DECAY" "$COLLISION_HARSHNESS" > "$LOG_FILE" 2>&1 &
+            python "$TRAIN_SCRIPT" "$CLUSTER" "$INPUT_FILE" "$MAP_NR" "$LR" "$GAME_VERSION" "$NUM_AGENTS" "$NUM_EPOCHS" "$SEED" "$CHECKPOINT_PATHS" "$REWARDS_ON_DELIVERY_ONLY" "$RANDOM_INITIAL_STATE" "$SYNERGY_SCALING_FACTOR" "$SPEC_PENALTY_SCALE" "$COUNTER_REWARD_VALUE" "$COLLISION_PENALTY_VALUE" "$ALLOW_BLOCKED" "$KAPPA" "$ACTIVATE_SYNERGY_POSITIVE" "$ENABLE_REWARD_DECAY" "$COLLISION_HARSHNESS" "$ENTROPY_COEF" > "$LOG_FILE" 2>&1 &
     fi
     
-    sleep 100  # Delay between job starts
+    sleep 200  # Delay between job starts
 done
 
 # Wait for all remaining jobs to complete

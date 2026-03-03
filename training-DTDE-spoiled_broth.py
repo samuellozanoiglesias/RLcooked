@@ -55,10 +55,13 @@ ACTIVATE_SYNERGY_POSITIVE_ARG = str(sys.argv[18]).lower() if len(sys.argv) > 18 
 ENABLE_REWARD_DECAY_ARG = str(sys.argv[19]).lower() if len(sys.argv) > 19 else "false"
 COLLISION_HARSHNESS = float(sys.argv[20]) if len(sys.argv) > 20 else 2.0
 
+# Entropy coefficient
+ENTROPY_COEF = float(sys.argv[21]) if len(sys.argv) > 21 else 0.01
+
 # Handle single agent training
 agent_to_train = 1
-if NUM_AGENTS == 1 and len(sys.argv) > 21:
-    agent_to_train = int(sys.argv[21])
+if NUM_AGENTS == 1 and len(sys.argv) > 22:
+    agent_to_train = int(sys.argv[22])
 
 ######### ----------------------------------------------------------------- #########
 ######### -------------- Configuration Processing ------------------------- #########
@@ -216,8 +219,8 @@ config = {
     # Hyperparameters
     "NUM_UPDATES": hyperparams["num_sgd_iter"],
     "GAMMA": hyperparams["gamma"],
-    "GAE_LAMBDA": hyperparams["gae_lambda"],
-    "ENT_COEF": hyperparams["ent_coef"],
+        "GAE_LAMBDA": hyperparams["gae_lambda"],
+        "ENT_COEF": ENTROPY_COEF,
     "CLIP_EPS": hyperparams["clip_eps"],
     "VF_COEF": hyperparams["vf_coef"],
     "GRAD_CLIP": hyperparams["grad_clip"],
