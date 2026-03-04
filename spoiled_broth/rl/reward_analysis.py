@@ -95,8 +95,9 @@ def get_rewards_classic(self, agent_events, agent_penalties, rewards_cfg, interm
                 modified_reward += synergy_contribution
         
         self.modified_rewards[agent_id] = modified_reward
+        self.cumulated_modified_rewards[agent_id] += modified_reward
         
-    return self.cumulated_pure_rewards, self.modified_rewards
+    return self.cumulated_pure_rewards, self.cumulated_modified_rewards
 
 
 # ---- Competition mode with ownership awareness ---- #

@@ -1,17 +1,18 @@
 #!/bin/bash
-#SBATCH --job-name=analysis_classic
-#SBATCH -t 30-00:00:00
-#SBATCH --partition=gpu
-#SBATCH --qos=qos_gpu_long
+#SBATCH --job-name=launch_py
+#SBATCH -t 01:00:00
+#SBATCH --partition=long
 #SBATCH --account=teruel
-#SBATCH --ntasks=24
-#SBATCH --gres=gpu:1
-#SBATCH --output=results-GPU-%x-%j.out
-#SBATCH --error=error-GPU-%x-%j.err
+#SBATCH --ntasks=1
+#SBATCH --output=tar-%x-%j.out
+#SBATCH --error=tar-%x-%j.err
 
 # Activar tu entorno
 source ~/.bashrc
 conda activate cooked 
 
 # Ejecutar el script
-python ../figure_gridsearch_analysis.py --cluster brigit --episode_range final --num_final_episodes 20 
+for target_ep in $(seq 300 100 6000); do
+    nohup python ../grid_full_cooperative_analysis.py --episode_range specific --init_type empty_init --num_episodes 10 --cluster brigit --specialization 0.05 --synergy 0.40 --target_episode $target_ep > full_grid_empty_init_ep${target_ep}.log 2>&1 &
+done
+wait

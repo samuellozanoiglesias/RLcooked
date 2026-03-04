@@ -176,4 +176,4 @@ output*
 *.out
 *.log
 *.err
-logs*
+logs*spoiled_broth/llm/api/_secrets.py

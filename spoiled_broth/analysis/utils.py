@@ -48,6 +48,9 @@ class DataProcessor:
         self.reward_pattern = re.compile(
             r"'([^']+)':\s*\(\s*([-\d\.eE+]+),\s*([-\d\.eE+]+)\)"
         )
+        # Cache: (raw_dir, num_agents, study_name) -> DataFrame
+        # Avoids re-reading the same CSV directory multiple times (e.g. for different x_val filters)
+        self._dir_cache: Dict = {}
     
     def setup_directories(self, experiment_type: str, map_name: str, cluster: str = 'cuenca', study_name: str = None) -> Dict[str, str]:
         """
@@ -193,126 +196,21 @@ class DataProcessor:
         print(f"Processing {folder_path} with NUM_ENVS = {num_envs}")
         
         if num_envs > 1:
-            # Parse the multi-environment format where each data line is preceded by a header
-            # Structure: header, episode_X_env_1, header, episode_X_env_2, ..., header, episode_X_env_N, 
-            #           header, episode_X+1_env_1, header, episode_X+1_env_2, ...
-            
-            print(f"Processing multi-environment CSV with {num_envs} environments")
-            
-            header = None
-            episode_groups = {}  # Dictionary to group data by episode number
-            
-            # Process the file alternating between headers and data
-            i = 0
-            data_lines_processed = 0
-            
-            while i < len(lines):
-                line = lines[i].strip()
-                
-                # Skip empty lines
-                if not line:
-                    i += 1
-                    continue
-                
-                # Check if this line is a header
-                if line.startswith('episode,'):
-                    if header is None:
-                        header = line
-                        print(f"Found header: {header[:50]}...")
-                    i += 1
-                    continue
-                
-                # This should be a data line
-                values = line.split(',')
-                if len(values) >= 2:  # At least episode and one metric
-                    try:
-                        episode_num = int(values[0])
-                        
-                        # Initialize episode group if not exists
-                        if episode_num not in episode_groups:
-                            episode_groups[episode_num] = []
-                        
-                        # Add this environment's data for this episode
-                        episode_groups[episode_num].append(line)
-                        data_lines_processed += 1
-                        
-                        # Print progress every 1000 lines
-                        if data_lines_processed % 1000 == 0:
-                            print(f"Processed {data_lines_processed} data lines, current episode: {episode_num}")
-                            
-                    except ValueError:
-                        print(f"Warning: Could not parse episode number from line: {line[:50]}...")
-                
-                i += 1
-            
-            print(f"Finished parsing. Found {len(episode_groups)} unique episodes, {data_lines_processed} total data lines")
-            
-            if header and episode_groups:
-                # Create cleaned CSV with single header and averaged data
-                cleaned_lines = [header]
-                
-                # Process episodes in order - sample first 10 and last 10 for debugging
-                episode_nums = sorted(episode_groups.keys())
-                print(f"Episode range: {episode_nums[0]} to {episode_nums[-1]}")
-                print(f"First 10 episodes: {episode_nums[:10]}")
-                print(f"Last 10 episodes: {episode_nums[-10:]}")
-                
-                # Check a sample of episodes for environment count
-                sample_episodes = episode_nums[:5] + episode_nums[-5:]
-                for ep in sample_episodes:
-                    env_count = len(episode_groups[ep])
-                    if env_count != num_envs:
-                        print(f"Warning: Episode {ep} has {env_count} environments, expected {num_envs}")
-                
-                # Process all episodes
-                episodes_processed = 0
-                for episode_num in episode_nums:
-                    episode_data_lines = episode_groups[episode_num]
-                    
-                    # Parse each environment's data for this episode
-                    episode_values = []
-                    
-                    for env_data in episode_data_lines:
-                        values = env_data.split(',')
-                        if len(values) >= 2:  # At least episode and one metric
-                            # Convert numeric values (skip episode column)
-                            numeric_values = []
-                            for val in values[1:]:  # Skip episode column
-                                try:
-                                    numeric_values.append(float(val))
-                                except ValueError:
-                                    numeric_values.append(0.0)  # Default for non-numeric
-                            episode_values.append(numeric_values)
-                    
-                    # Calculate mean across environments for this episode
-                    if episode_values:
-                        mean_values = [str(episode_num)]  # Start with episode number
-                        
-                        # Calculate means for each metric across environments
-                        num_metrics = len(episode_values[0])
-                        for metric_idx in range(num_metrics):
-                            metric_sum = sum(env_vals[metric_idx] for env_vals in episode_values if len(env_vals) > metric_idx)
-                            valid_envs = len([env_vals for env_vals in episode_values if len(env_vals) > metric_idx])
-                            if valid_envs > 0:
-                                mean_value = metric_sum / valid_envs
-                                mean_values.append(str(mean_value))
-                            else:
-                                mean_values.append('0.0')
-                        
-                        cleaned_lines.append(','.join(mean_values))
-                        episodes_processed += 1
-                
-                print(f"Successfully processed {episodes_processed} episodes")
-                
-                # Create DataFrame from cleaned data
-                df = pd.read_csv(StringIO('\n'.join(cleaned_lines)))
-                print(f"Final DataFrame: {len(df)} episodes aggregated across {num_envs} environments")
-                print(f"  Each episode row now contains the MEAN values across {num_envs} parallel environments")
-            else:
-                print("Warning: Could not parse multi-environment format, falling back to single environment parsing")
-                # Fallback to single environment parsing
-                filtered_lines = [lines[0]] + [line for line in lines[1:] if not line.startswith("episode,")]
-                df = pd.read_csv(StringIO("".join(filtered_lines)))
+            # Fast path: strip duplicate headers then use pandas groupby to average across envs.
+            # This replaces an O(N*M) Python loop with a single vectorised groupby.
+            print(f"Processing multi-environment CSV with {num_envs} environments (pandas fast path)")
+            data_lines = [lines[0].strip()]  # keep the single header
+            for line in lines[1:]:
+                stripped = line.strip()
+                if stripped and not stripped.startswith('episode,'):
+                    data_lines.append(stripped)
+            df_raw = pd.read_csv(StringIO('\n'.join(data_lines)))
+            df_raw['episode'] = pd.to_numeric(df_raw['episode'], errors='coerce')
+            df_raw = df_raw.dropna(subset=['episode'])
+            df_raw['episode'] = df_raw['episode'].astype(int)
+            numeric_cols = df_raw.select_dtypes(include=[np.number]).columns.tolist()
+            df = df_raw.groupby('episode')[numeric_cols].mean().reset_index()
+            print(f"Final DataFrame: {len(df)} episodes averaged across {num_envs} environments")
         else:
             # Single environment - use original logic but clean header duplication
             print(f"Single environment detected (NUM_ENVS = {num_envs})")
@@ -506,6 +404,12 @@ class DataProcessor:
         """
         raw_dir = paths['raw_dir']
         study_name = paths.get('study_name')
+
+        # Return cached result if this directory has already been loaded
+        cache_key = (raw_dir, num_agents, study_name)
+        if cache_key in self._dir_cache:
+            print(f"[Cache hit] {raw_dir}")
+            return self._dir_cache[cache_key]
         
         print(f"Loading experiment data from directory: {raw_dir}")
         if study_name:
@@ -609,11 +513,8 @@ class DataProcessor:
         if 'seed' in final_df.columns and study_name:
             final_df = self._average_across_seeds(final_df, num_agents)
         
-        # Remove existing output file and save new one
-        if os.path.exists(paths['output_path']):
-            os.remove(paths['output_path'])
-        
-        final_df.to_csv(paths['output_path'], index=False)
+        # Cache the result so repeated calls for the same directory are instant
+        self._dir_cache[cache_key] = final_df
         return final_df
     
     def prepare_dataframe(self, df: pd.DataFrame, num_agents: int = 1) -> pd.DataFrame:

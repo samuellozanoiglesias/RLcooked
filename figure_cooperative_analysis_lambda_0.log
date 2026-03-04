@@ -1,0 +1,866 @@
+nohup: ignoring input
+============================================================
+COOPERATIVE ANALYSIS - RAINCLOUD PLOTS
+============================================================
+Cluster: cuenca
+Init type: random_init
+Synergy scaling factor: 0.0
+Specialization: 1.0
+Map 1: baseline_division_of_labor_large
+Map 2: encouraged_division_of_labor_large
+Loading experimental data from all conditions...
+Specialization lambda: 1.0
+Synergy: Auto-detecting all available synergy values
+    Found synergy values: [0.0]
+
+Processing synergy value: 0.0
+  Processing specialization: specialized_1.00
+
+Processing condition: baseline_mixed
+  Map: baseline_division_of_labor_large, Game type: classic, Speed config: mixed
+  Specialization: specialized_1.00
+  Loading from: /data/samuel_lozano/cooked/classic/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00
+Loading experiment data from directory: /data/samuel_lozano/cooked/classic/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00
+Direct training folders detected
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 0.4, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 0.4
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 0.2}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 0.2
+Processing /data/samuel_lozano/cooked/classic/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-51 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 273 unique episodes, 2184 total data lines
+Episode range: 0 to 272
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [263, 264, 265, 266, 267, 268, 269, 270, 271, 272]
+Successfully processed 273 episodes
+Final DataFrame: 273 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-51:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 0.4, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 0.2}
+  DataFrame shape: (273, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 272
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 0.4
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 0.2
+    pure_reward_ai_rl_1: 4.5
+    deliver_ai_rl_1: 0.0
+    cut_ai_rl_1: 1.0
+    salad_ai_rl_1: 0.25
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 1.0
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 1.0
+Processing /data/samuel_lozano/cooked/classic/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-08 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 275 unique episodes, 2200 total data lines
+Episode range: 0 to 274
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [265, 266, 267, 268, 269, 270, 271, 272, 273, 274]
+Successfully processed 275 episodes
+Final DataFrame: 275 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-08:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 1.0, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 1.0}
+  DataFrame shape: (275, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 274
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 1.0
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 1.0
+    pure_reward_ai_rl_1: 28.625
+    deliver_ai_rl_1: 0.25
+    cut_ai_rl_1: 4.0
+    salad_ai_rl_1: 2.125
+Found 2 folders, successfully processed 2
+Folders found: ['Training_2026-02-11_02-17-51', 'Training_2026-02-11_02-15-08']
+Folders processed: ['Training_2026-02-11_02-17-51', 'Training_2026-02-11_02-15-08']
+  Loaded initial data shape: (548, 70)
+  Available columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1']...
+  Filtered to 273 episodes matching speed mixed
+    Created total_deliveries from deliver_ai_rl_1 + deliver_ai_rl_2
+    Created pure_reward_total from pure_reward_ai_rl_1 + pure_reward_ai_rl_2
+    Created total_counters from counter_ai_rl_1 + counter_ai_rl_2
+  Loaded 273 episodes
+  Loaded 273 episodes
+
+Processing condition: baseline_mixed_collision
+  Map: baseline_division_of_labor_large, Game type: classic_collision, Speed config: mixed
+  Specialization: specialized_1.00
+  Loading from: /data/samuel_lozano/cooked/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00
+Loading experiment data from directory: /data/samuel_lozano/cooked/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00
+Direct training folders detected
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 0.4, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 0.4
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 0.2}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 0.2
+Processing /data/samuel_lozano/cooked/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-55 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 273 unique episodes, 2184 total data lines
+Episode range: 0 to 272
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [263, 264, 265, 266, 267, 268, 269, 270, 271, 272]
+Successfully processed 273 episodes
+Final DataFrame: 273 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-55:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 0.4, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 0.2}
+  DataFrame shape: (273, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 272
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 0.4
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 0.2
+    pure_reward_ai_rl_1: 9.375
+    deliver_ai_rl_1: 0.25
+    cut_ai_rl_1: 0.625
+    salad_ai_rl_1: 0.625
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 1.0
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 1.0
+Processing /data/samuel_lozano/cooked/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-01 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 278 unique episodes, 2224 total data lines
+Episode range: 0 to 277
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [268, 269, 270, 271, 272, 273, 274, 275, 276, 277]
+Successfully processed 278 episodes
+Final DataFrame: 278 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-01:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 1.0, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 1.0}
+  DataFrame shape: (278, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 277
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 1.0
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 1.0
+    pure_reward_ai_rl_1: 13.625
+    deliver_ai_rl_1: 0.375
+    cut_ai_rl_1: 0.875
+    salad_ai_rl_1: 0.875
+Found 2 folders, successfully processed 2
+Folders found: ['Training_2026-02-11_02-17-55', 'Training_2026-02-11_02-15-01']
+Folders processed: ['Training_2026-02-11_02-17-55', 'Training_2026-02-11_02-15-01']
+  Loaded initial data shape: (551, 70)
+  Available columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1']...
+  Filtered to 273 episodes matching speed mixed
+    Created total_deliveries from deliver_ai_rl_1 + deliver_ai_rl_2
+    Created pure_reward_total from pure_reward_ai_rl_1 + pure_reward_ai_rl_2
+    Created total_counters from counter_ai_rl_1 + counter_ai_rl_2
+  Loaded 273 episodes
+  Loaded 273 episodes
+
+Processing condition: baseline_superstar
+  Map: baseline_division_of_labor_large, Game type: classic, Speed config: superstar
+  Specialization: specialized_1.00
+  Loading from: /data/samuel_lozano/cooked/classic/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00
+Loading experiment data from directory: /data/samuel_lozano/cooked/classic/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00
+Direct training folders detected
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 0.4, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 0.4
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 0.2}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 0.2
+Processing /data/samuel_lozano/cooked/classic/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-51 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 273 unique episodes, 2184 total data lines
+Episode range: 0 to 272
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [263, 264, 265, 266, 267, 268, 269, 270, 271, 272]
+Successfully processed 273 episodes
+Final DataFrame: 273 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-51:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 0.4, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 0.2}
+  DataFrame shape: (273, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 272
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 0.4
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 0.2
+    pure_reward_ai_rl_1: 4.5
+    deliver_ai_rl_1: 0.0
+    cut_ai_rl_1: 1.0
+    salad_ai_rl_1: 0.25
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 1.0
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 1.0
+Processing /data/samuel_lozano/cooked/classic/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-08 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 275 unique episodes, 2200 total data lines
+Episode range: 0 to 274
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [265, 266, 267, 268, 269, 270, 271, 272, 273, 274]
+Successfully processed 275 episodes
+Final DataFrame: 275 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-08:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 1.0, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 1.0}
+  DataFrame shape: (275, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 274
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 1.0
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 1.0
+    pure_reward_ai_rl_1: 28.625
+    deliver_ai_rl_1: 0.25
+    cut_ai_rl_1: 4.0
+    salad_ai_rl_1: 2.125
+Found 2 folders, successfully processed 2
+Folders found: ['Training_2026-02-11_02-17-51', 'Training_2026-02-11_02-15-08']
+Folders processed: ['Training_2026-02-11_02-17-51', 'Training_2026-02-11_02-15-08']
+  Loaded initial data shape: (548, 70)
+  Available columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1']...
+  Filtered to 275 episodes matching speed superstar
+    Created total_deliveries from deliver_ai_rl_1 + deliver_ai_rl_2
+    Created pure_reward_total from pure_reward_ai_rl_1 + pure_reward_ai_rl_2
+    Created total_counters from counter_ai_rl_1 + counter_ai_rl_2
+  Loaded 275 episodes
+  Loaded 275 episodes
+
+Processing condition: baseline_superstar_collision
+  Map: baseline_division_of_labor_large, Game type: classic_collision, Speed config: superstar
+  Specialization: specialized_1.00
+  Loading from: /data/samuel_lozano/cooked/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00
+Loading experiment data from directory: /data/samuel_lozano/cooked/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00
+Direct training folders detected
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 0.4, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 0.4
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 0.2}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 0.2
+Processing /data/samuel_lozano/cooked/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-55 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 273 unique episodes, 2184 total data lines
+Episode range: 0 to 272
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [263, 264, 265, 266, 267, 268, 269, 270, 271, 272]
+Successfully processed 273 episodes
+Final DataFrame: 273 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-55:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 0.4, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 0.2}
+  DataFrame shape: (273, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 272
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 0.4
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 0.2
+    pure_reward_ai_rl_1: 9.375
+    deliver_ai_rl_1: 0.25
+    cut_ai_rl_1: 0.625
+    salad_ai_rl_1: 0.625
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 1.0
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 1.0
+Processing /data/samuel_lozano/cooked/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-01 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 278 unique episodes, 2224 total data lines
+Episode range: 0 to 277
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [268, 269, 270, 271, 272, 273, 274, 275, 276, 277]
+Successfully processed 278 episodes
+Final DataFrame: 278 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic_collision/random_init/map_baseline_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-01:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 1.0, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 1.0}
+  DataFrame shape: (278, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 277
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 1.0
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 1.0
+    pure_reward_ai_rl_1: 13.625
+    deliver_ai_rl_1: 0.375
+    cut_ai_rl_1: 0.875
+    salad_ai_rl_1: 0.875
+Found 2 folders, successfully processed 2
+Folders found: ['Training_2026-02-11_02-17-55', 'Training_2026-02-11_02-15-01']
+Folders processed: ['Training_2026-02-11_02-17-55', 'Training_2026-02-11_02-15-01']
+  Loaded initial data shape: (551, 70)
+  Available columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1']...
+  Filtered to 278 episodes matching speed superstar
+    Created total_deliveries from deliver_ai_rl_1 + deliver_ai_rl_2
+    Created pure_reward_total from pure_reward_ai_rl_1 + pure_reward_ai_rl_2
+    Created total_counters from counter_ai_rl_1 + counter_ai_rl_2
+  Loaded 278 episodes
+  Loaded 278 episodes
+
+Processing condition: encouraged_mixed
+  Map: encouraged_division_of_labor_large, Game type: classic, Speed config: mixed
+  Specialization: specialized_1.00
+  Loading from: /data/samuel_lozano/cooked/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00
+Loading experiment data from directory: /data/samuel_lozano/cooked/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00
+Direct training folders detected
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 0.4, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 0.4
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 0.2}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 0.2
+Processing /data/samuel_lozano/cooked/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-45 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 269 unique episodes, 2152 total data lines
+Episode range: 0 to 268
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [259, 260, 261, 262, 263, 264, 265, 266, 267, 268]
+Successfully processed 269 episodes
+Final DataFrame: 269 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-45:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 0.4, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 0.2}
+  DataFrame shape: (269, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 268
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 0.4
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 0.2
+    pure_reward_ai_rl_1: 9.875
+    deliver_ai_rl_1: 0.125
+    cut_ai_rl_1: 1.5
+    salad_ai_rl_1: 0.375
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 1.0
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 1.0
+Processing /data/samuel_lozano/cooked/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-23 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 273 unique episodes, 2184 total data lines
+Episode range: 0 to 272
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [263, 264, 265, 266, 267, 268, 269, 270, 271, 272]
+Successfully processed 273 episodes
+Final DataFrame: 273 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-23:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 1.0, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 1.0}
+  DataFrame shape: (273, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 272
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 1.0
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 1.0
+    pure_reward_ai_rl_1: 14.125
+    deliver_ai_rl_1: 0.125
+    cut_ai_rl_1: 1.75
+    salad_ai_rl_1: 1.625
+Found 2 folders, successfully processed 2
+Folders found: ['Training_2026-02-11_02-17-45', 'Training_2026-02-11_02-15-23']
+Folders processed: ['Training_2026-02-11_02-17-45', 'Training_2026-02-11_02-15-23']
+  Loaded initial data shape: (542, 70)
+  Available columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1']...
+  Filtered to 269 episodes matching speed mixed
+    Created total_deliveries from deliver_ai_rl_1 + deliver_ai_rl_2
+    Created pure_reward_total from pure_reward_ai_rl_1 + pure_reward_ai_rl_2
+    Created total_counters from counter_ai_rl_1 + counter_ai_rl_2
+  Loaded 269 episodes
+  Loaded 269 episodes
+
+Processing condition: encouraged_mixed_collision
+  Map: encouraged_division_of_labor_large, Game type: classic_collision, Speed config: mixed
+  Specialization: specialized_1.00
+  Loading from: /data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00
+Loading experiment data from directory: /data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00
+Direct training folders detected
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 0.4, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 0.4
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 0.2}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 0.2
+Processing /data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-41 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 272 unique episodes, 2176 total data lines
+Episode range: 0 to 271
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [262, 263, 264, 265, 266, 267, 268, 269, 270, 271]
+Successfully processed 272 episodes
+Final DataFrame: 272 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-41:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 0.4, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 0.2}
+  DataFrame shape: (272, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 271
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 0.4
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 0.2
+    pure_reward_ai_rl_1: 0.0
+    deliver_ai_rl_1: 0.0
+    cut_ai_rl_1: 0.0
+    salad_ai_rl_1: 0.0
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 1.0
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 1.0
+Processing /data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-36 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 270 unique episodes, 2160 total data lines
+Episode range: 0 to 269
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [260, 261, 262, 263, 264, 265, 266, 267, 268, 269]
+Successfully processed 270 episodes
+Final DataFrame: 270 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-36:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 1.0, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 1.0}
+  DataFrame shape: (270, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 269
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 1.0
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 1.0
+    pure_reward_ai_rl_1: 9.625
+    deliver_ai_rl_1: 0.125
+    cut_ai_rl_1: 0.75
+    salad_ai_rl_1: 0.625
+Found 2 folders, successfully processed 2
+Folders found: ['Training_2026-02-11_02-17-41', 'Training_2026-02-11_02-15-36']
+Folders processed: ['Training_2026-02-11_02-17-41', 'Training_2026-02-11_02-15-36']
+  Loaded initial data shape: (542, 70)
+  Available columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1']...
+  Filtered to 272 episodes matching speed mixed
+    Created total_deliveries from deliver_ai_rl_1 + deliver_ai_rl_2
+    Created pure_reward_total from pure_reward_ai_rl_1 + pure_reward_ai_rl_2
+    Created total_counters from counter_ai_rl_1 + counter_ai_rl_2
+  Loaded 272 episodes
+  Loaded 272 episodes
+
+Processing condition: encouraged_superstar
+  Map: encouraged_division_of_labor_large, Game type: classic, Speed config: superstar
+  Specialization: specialized_1.00
+  Loading from: /data/samuel_lozano/cooked/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00
+Loading experiment data from directory: /data/samuel_lozano/cooked/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00
+Direct training folders detected
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 0.4, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 0.4
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 0.2}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 0.2
+Processing /data/samuel_lozano/cooked/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-45 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 269 unique episodes, 2152 total data lines
+Episode range: 0 to 268
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [259, 260, 261, 262, 263, 264, 265, 266, 267, 268]
+Successfully processed 269 episodes
+Final DataFrame: 269 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-45:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 0.4, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 0.2}
+  DataFrame shape: (269, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 268
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 0.4
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 0.2
+    pure_reward_ai_rl_1: 9.875
+    deliver_ai_rl_1: 0.125
+    cut_ai_rl_1: 1.5
+    salad_ai_rl_1: 0.375
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 1.0
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 1.0
+Processing /data/samuel_lozano/cooked/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-23 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 273 unique episodes, 2184 total data lines
+Episode range: 0 to 272
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [263, 264, 265, 266, 267, 268, 269, 270, 271, 272]
+Successfully processed 273 episodes
+Final DataFrame: 273 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-23:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 1.0, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 1.0}
+  DataFrame shape: (273, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 272
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 1.0
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 1.0
+    pure_reward_ai_rl_1: 14.125
+    deliver_ai_rl_1: 0.125
+    cut_ai_rl_1: 1.75
+    salad_ai_rl_1: 1.625
+Found 2 folders, successfully processed 2
+Folders found: ['Training_2026-02-11_02-17-45', 'Training_2026-02-11_02-15-23']
+Folders processed: ['Training_2026-02-11_02-17-45', 'Training_2026-02-11_02-15-23']
+  Loaded initial data shape: (542, 70)
+  Available columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1']...
+  Filtered to 273 episodes matching speed superstar
+    Created total_deliveries from deliver_ai_rl_1 + deliver_ai_rl_2
+    Created pure_reward_total from pure_reward_ai_rl_1 + pure_reward_ai_rl_2
+    Created total_counters from counter_ai_rl_1 + counter_ai_rl_2
+  Loaded 273 episodes
+  Loaded 273 episodes
+
+Processing condition: encouraged_superstar_collision
+  Map: encouraged_division_of_labor_large, Game type: classic_collision, Speed config: superstar
+  Specialization: specialized_1.00
+  Loading from: /data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00
+Loading experiment data from directory: /data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00
+Direct training folders detected
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 0.4, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 0.4
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 0.2}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 0.2
+Processing /data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-41 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 272 unique episodes, 2176 total data lines
+Episode range: 0 to 271
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [262, 263, 264, 265, 266, 267, 268, 269, 270, 271]
+Successfully processed 272 episodes
+Final DataFrame: 272 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-17-41:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 0.4, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 0.2}
+  DataFrame shape: (272, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 271
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 0.4
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 0.2
+    pure_reward_ai_rl_1: 0.0
+    deliver_ai_rl_1: 0.0
+    cut_ai_rl_1: 0.0
+    salad_ai_rl_1: 0.0
+  Found REWARD_WEIGHTS: {'ai_rl_1': (1.0, 0.0), 'ai_rl_2': (1.0, 0.0)}
+  Reward pattern matches: [('ai_rl_1', '1.0', '0.0'), ('ai_rl_2', '1.0', '0.0')]
+  GAME_VERSION extracted: classic
+  Found WALKING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted walking_speed_1: 1.0
+    Extracted walking_speed_2: 1.0
+  Found CUTTING_SPEEDS: {'ai_rl_1': 1.0, 'ai_rl_2': 1.0}
+    Extracted cutting_speed_1: 1.0
+    Extracted cutting_speed_2: 1.0
+Processing /data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-36 with NUM_ENVS = 8
+Processing multi-environment CSV with 8 environments
+Found header: episode,collisions_detected,collisions_rerouted,co...
+Processed 1000 data lines, current episode: 124
+Processed 2000 data lines, current episode: 249
+Finished parsing. Found 270 unique episodes, 2160 total data lines
+Episode range: 0 to 269
+First 10 episodes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Last 10 episodes: [260, 261, 262, 263, 264, 265, 266, 267, 268, 269]
+Successfully processed 270 episodes
+Final DataFrame: 270 episodes aggregated across 8 environments
+  Each episode row now contains the MEAN values across 8 parallel environments
+Parsed training folder /data/samuel_lozano/cooked/classic_collision/random_init/map_encouraged_division_of_labor_large/synergy_0/specialized_1.00/Training_2026-02-11_02-15-36:
+  NUM_ENVS detected: 8
+  SEED detected: 0
+  GAME_TYPE detected: classic
+  Walking speeds: {1: 1.0, 2: 1.0}
+  Cutting speeds: {1: 1.0, 2: 1.0}
+  DataFrame shape: (270, 70)
+  All columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2', 'episode', 'collisions_detected', 'collisions_rerouted', 'collisions_failed', 'pure_reward_ai_rl_1', 'modified_reward_ai_rl_1', 'deliver_ai_rl_1', 'salad_ai_rl_1', 'cut_ai_rl_1', 'plate_ai_rl_1', 'raw_food_ai_rl_1', 'counter_ai_rl_1', 'actions_asked_ai_rl_1', 'actions_not_available_ai_rl_1', 'inaccessible_actions_ai_rl_1', 'do_nothing_ai_rl_1', 'useless_floor_ai_rl_1', 'useless_wall_ai_rl_1', 'useless_counter_ai_rl_1', 'useful_counter_ai_rl_1', 'salad_assembly_ai_rl_1', 'destructive_food_dispenser_ai_rl_1', 'useful_food_dispenser_ai_rl_1', 'useless_cutting_board_ai_rl_1', 'useful_cutting_board_ai_rl_1', 'destructive_plate_dispenser_ai_rl_1', 'useful_plate_dispenser_ai_rl_1', 'useless_delivery_ai_rl_1', 'useful_delivery_ai_rl_1', 'inaccessible_tile_ai_rl_1', 'not_available_ai_rl_1', 'pure_reward_ai_rl_2', 'modified_reward_ai_rl_2', 'deliver_ai_rl_2', 'salad_ai_rl_2', 'cut_ai_rl_2', 'plate_ai_rl_2', 'raw_food_ai_rl_2', 'counter_ai_rl_2', 'actions_asked_ai_rl_2', 'actions_not_available_ai_rl_2', 'inaccessible_actions_ai_rl_2', 'do_nothing_ai_rl_2', 'useless_floor_ai_rl_2', 'useless_wall_ai_rl_2', 'useless_counter_ai_rl_2', 'useful_counter_ai_rl_2', 'salad_assembly_ai_rl_2', 'destructive_food_dispenser_ai_rl_2', 'useful_food_dispenser_ai_rl_2', 'useless_cutting_board_ai_rl_2', 'useful_cutting_board_ai_rl_2', 'destructive_plate_dispenser_ai_rl_2', 'useful_plate_dispenser_ai_rl_2', 'useless_delivery_ai_rl_2', 'useful_delivery_ai_rl_2', 'inaccessible_tile_ai_rl_2', 'not_available_ai_rl_2']
+  Speed columns found: ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
+  Episodes range: 0 to 269
+  Sample data for first episode:
+    Episode: 0
+    Seed: 0
+    Game type: classic
+    walking_speed_1: 1.0
+    cutting_speed_1: 1.0
+    walking_speed_2: 1.0
+    cutting_speed_2: 1.0
+    pure_reward_ai_rl_1: 9.625
+    deliver_ai_rl_1: 0.125
+    cut_ai_rl_1: 0.75
+    salad_ai_rl_1: 0.625
+Found 2 folders, successfully processed 2
+Folders found: ['Training_2026-02-11_02-17-41', 'Training_2026-02-11_02-15-36']
+Folders processed: ['Training_2026-02-11_02-17-41', 'Training_2026-02-11_02-15-36']
+  Loaded initial data shape: (542, 70)
+  Available columns: ['timestamp', 'alpha_1', 'alpha_2', 'beta_2', 'beta_1', 'lr', 'seed', 'game_type', 'walking_speed_1', 'cutting_speed_1']...
+  Filtered to 270 episodes matching speed superstar
+    Created total_deliveries from deliver_ai_rl_1 + deliver_ai_rl_2
+    Created pure_reward_total from pure_reward_ai_rl_1 + pure_reward_ai_rl_2
+    Created total_counters from counter_ai_rl_1 + counter_ai_rl_2
+  Loaded 270 episodes
+  Loaded 270 episodes
+    Loaded 2183 episodes for synergy_0.0__specialized_1.00
+    Conditions in this combination: ['baseline_mixed', 'baseline_mixed_collision', 'baseline_superstar', 'baseline_superstar_collision', 'encouraged_mixed', 'encouraged_mixed_collision', 'encouraged_superstar', 'encouraged_superstar_collision']
+
+Returning single combination: synergy_0.0__specialized_1.00
+Preparing data with episode selection: final
+Using final 100 episodes: 800 total episodes
+Creating standard composite raincloud figure...
+Saving figure to: /data/samuel_lozano/cooked/cooperative_analysis_figures/cooperative_analysis_random_init_specialized_1.00_baseline_vs_encouraged_final_100eps.png
+
+Analysis completed successfully!
+Figure saved to: /data/samuel_lozano/cooked/cooperative_analysis_figures/cooperative_analysis_random_init_specialized_1.00_baseline_vs_encouraged_final_100eps.png
+Data summary:
+  Init type: random_init
+  Total episodes: 800
+  Conditions: ['baseline_mixed', 'baseline_mixed_collision', 'baseline_superstar', 'baseline_superstar_collision', 'encouraged_mixed', 'encouraged_mixed_collision', 'encouraged_superstar', 'encouraged_superstar_collision']
+  Episode selection: final
+  Final episodes used: 100

@@ -1,0 +1,6 @@
+README.md
+setup.py
+spoiled_broth.egg-info/PKG-INFO
+spoiled_broth.egg-info/SOURCES.txt
+spoiled_broth.egg-info/dependency_links.txt
+spoiled_broth.egg-info/top_level.txt

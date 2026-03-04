@@ -25,7 +25,7 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/cooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NRS=(3-encouraged_division_of_labor_large)  # List of maps to run
+MAP_NRS=(baseline_division_of_labor_large)  # List of maps to run
 LR=3e-4
 GAME_VERSIONS=(classic_collision)  # List of game versions to run
 NUM_AGENTS=2
@@ -54,15 +54,15 @@ ANGLE_PAIRS=("0 0")
 # Format: "cut_speed1,walk_speed1 cut_speed2,walk_speed2"
 SPEED_PAIRS=(
     "1.0,1.0 1.0,1.0"
-    "1.0,0.9 0.9,1.0"
-    "1.0,0.8 0.8,1.0"
-    "1.0,0.7 0.7,1.0"
-    "1.0,0.6 0.6,1.0"
-    "1.0,0.5 0.5,1.0"
+    #"1.0,0.9 0.9,1.0"
+    #"1.0,0.8 0.8,1.0"
+    #"1.0,0.7 0.7,1.0"
+    #"1.0,0.6 0.6,1.0"
+    #"1.0,0.5 0.5,1.0"
     "1.0,0.4 0.4,1.0"
-    "1.0,0.3 0.3,1.0"
-    "1.0,0.2 0.2,1.0"
-    "1.0,0.1 0.1,1.0"
+    #"1.0,0.3 0.3,1.0"
+    #"1.0,0.2 0.2,1.0"
+    #"1.0,0.1 0.1,1.0"
 )
 
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)

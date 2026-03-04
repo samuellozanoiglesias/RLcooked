@@ -45,6 +45,9 @@ Examples:
     
     # Analyze empty_init data
     nohup python grid_full_cooperative_analysis.py --episode_range final --init_type empty_init --num_episodes 100 > full_grid_empty_init.log 2>&1 &
+
+    # Analyze specific episode range around episode 500
+    nohup python grid_full_cooperative_analysis.py --episode_range specific --init_type empty_init --num_episodes 20 --cluster brigit --specialization 0.05 --synergy 0.40 --target_episode 100 > full_grid_empty_init.log 2>&1 
 """
 
 import sys
@@ -101,8 +104,8 @@ class CooperativeAnalyzer:
         self.map_names = [
             'baseline_division_of_labor_large',
             'semiencouraged_division_of_labor_large',
-            #'1-semiencouraged_division_of_labor_large',
-            #'2-semiencouraged_division_of_labor_large',
+            '1-semiencouraged_division_of_labor_large',
+            '2-semiencouraged_division_of_labor_large',
             'encouraged_division_of_labor_large',
             #'1-encouraged_division_of_labor_large',
             #'2-encouraged_division_of_labor_large',
@@ -112,7 +115,7 @@ class CooperativeAnalyzer:
         # Define ability configurations for 2D grid analysis (X-axis)
         # X values: 1.0, 0.8, 0.6, 0.4, 0.2
         # Agent 1: (X, 1.0), Agent 2: (1.0, X)
-        self.x_values = [1.0, 0.8, 0.6, 0.4, 0.2]
+        self.x_values = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
         
         # Define experimental conditions mapping for all map/ability combinations
         self.base_condition_mapping = {}
@@ -318,10 +321,7 @@ class CooperativeAnalyzer:
                 # Load all conditions for this specialization mode
                 for (map_name, game_type, x_val), condition_name in self.base_condition_mapping.items():
                     # Keep original condition name (no suffix)
-                    print(f"\nProcessing condition: {condition_name}")
-                    print(f"  Map: {map_name}, Game type: {game_type}, X value: {x_val}")
-                    if spec_mode:
-                        print(f"  Specialization: {spec_mode}")
+                    print(f"Processing condition: {condition_name} (map={map_name}, x={x_val})")
                     
                     try:
                         # Set up paths for this condition with init_type and synergy in the correct order
@@ -343,9 +343,9 @@ class CooperativeAnalyzer:
                         if self.study_name:
                             # Use study_name folder structure
                             if spec_folder:
-                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', game_type, self.init_type, f'map_{map_name}', synergy_folder, spec_folder, self.study_name)
+                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', self.study_name, game_type, self.init_type, f'map_{map_name}', synergy_folder, spec_folder)
                             else:
-                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', game_type, self.init_type, f'map_{map_name}', synergy_folder, self.study_name)
+                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', self.study_name, game_type, self.init_type, f'map_{map_name}', synergy_folder)
                         else:
                             # Default structure
                             if spec_folder:
@@ -375,51 +375,24 @@ class CooperativeAnalyzer:
                     df = self.data_processor.load_experiment_data(paths, num_agents=2)
                     
                     if df is not None and len(df) > 0:
-                        print(f"  Loaded initial data shape: {df.shape}")
-                        print(f"  Available columns: {list(df.columns)[:10]}...")  # Show first 10 columns
-                        
-                        # Check if the training has the expected ability configuration
-                        # Ability configuration: Agent1 (1.0, X), Agent2 (X, 1.0)
+                        # Filter to the expected ability configuration for this x_val
                         df_filtered = self._filter_by_ability_config(df, x_val)
                         
                         if len(df_filtered) == 0:
-                            print(f"  Warning: No data found matching ability configuration X={x_val}")
-                            print(f"  Available ability configurations in this training:")
-                            self._print_available_abilities(df)
+                            print(f"  Warning: No data matching X={x_val} in {condition_name}")
                             continue
                         
-                        print(f"  Filtered to {len(df_filtered)} episodes matching ability X={x_val}")
-                        
-                        # Create combined metrics from individual agent metrics
+                        # Create combined metrics and attach metadata
                         self._create_combined_metrics(df_filtered)
-                        
-                        # Add condition metadata
                         df_filtered['condition'] = condition_name
-                        df_filtered['map_name'] = map_name 
+                        df_filtered['map_name'] = map_name
                         df_filtered['game_type_clean'] = game_type
                         df_filtered['x_value'] = x_val
                         if spec_mode:
                             df_filtered['specialization'] = spec_mode
                         
-                        # Add color palette entry for this specific condition
-                        if condition_name not in self.color_palette:
-                            # No color palette needed for grid plots
-                            pass
-                        
-                        # Store data for this condition
                         condition_data.append(df_filtered)
-                        
-                        print(f"  Loaded {len(df_filtered)} episodes")
-                        
-                        # Debug: Check if our target metrics exist
-                        print(f"  Loaded {len(df_filtered)} episodes")
-                        
-                        # Debug: Check if our target metrics exist
-                        missing_metrics = [metric for metric in self.performance_metrics.keys() if metric not in df_filtered.columns]
-                        if missing_metrics:
-                            print(f"  Warning: Missing metrics: {missing_metrics}")
-                            available_metrics = [metric for metric in self.performance_metrics.keys() if metric in df_filtered.columns]
-                            print(f"  Available metrics: {available_metrics}")
+                        print(f"  OK: {len(df_filtered)} episodes loaded for {condition_name}")
                         
                     else:
                         print(f"  Warning: No data loaded for condition {condition_name}")
@@ -1057,6 +1030,150 @@ class ColorGridPlotter:
         specialization = np.abs(p1 - p2)
         
         return specialization
+
+    def _calculate_action_differentiation_index(self, data: pd.DataFrame) -> float:
+        """Calculate the action differentiation index AD for a given dataset.
+
+        AD is the total variation distance between the two agents' action-type
+        distributions over five action types: deliver, cut, salad, plate, raw_food.
+
+        AD = (1/2) * Σ_a |p1_a - p2_a|
+
+        where p_agent_a = count_a / (sum of all five action counts for that agent).
+        AD ∈ [0, 1]: 0 means identical distributions, 1 means fully non-overlapping.
+
+        Args:
+            data: DataFrame containing episode data
+
+        Returns:
+            Action differentiation index (float)
+        """
+        action_types = ['deliver', 'cut', 'salad', 'plate', 'raw_food']
+        counts_1 = []
+        counts_2 = []
+
+        for action in action_types:
+            col_1 = f'{action}_ai_rl_1'
+            col_2 = f'{action}_ai_rl_2'
+            if col_1 in data.columns and col_2 in data.columns:
+                counts_1.append(data[col_1].sum())
+                counts_2.append(data[col_2].sum())
+            else:
+                print(f"    Warning: Missing columns {col_1}/{col_2} for action differentiation")
+                counts_1.append(0.0)
+                counts_2.append(0.0)
+
+        t1 = sum(counts_1)
+        t2 = sum(counts_2)
+
+        if t1 == 0 or t2 == 0:
+            return 0.0
+
+        p1 = [c / t1 for c in counts_1]
+        p2 = [c / t2 for c in counts_2]
+
+        ad = 0.5 * sum(abs(p1[i] - p2[i]) for i in range(len(action_types)))
+        return ad
+
+    def calculate_action_differentiation_differences_global(self, data: pd.DataFrame) -> Dict[str, Dict[float, float]]:
+        """Calculate action differentiation differences relative to global baseline (baseline map + X=1.0).
+
+        Returns:
+            Dictionary with structure: {map_short: {x_value: difference}}
+        """
+        ad_diffs = {}
+        baseline_map_short = self._extract_map_short_name(self.map_names[0])
+        collision_suffix = '_collision' if 'collision' in self.game_type else ''
+        baseline_condition = f"{baseline_map_short}_1.0{collision_suffix}"
+        baseline_data = data[data['condition'] == baseline_condition]
+
+        if len(baseline_data) == 0:
+            print(f"Warning: No global baseline data found for condition {baseline_condition}")
+            return ad_diffs
+
+        baseline_ad = self._calculate_action_differentiation_index(baseline_data)
+        print(f"Global baseline ({baseline_condition}): {baseline_ad:.3f} action differentiation")
+
+        for map_name in self.map_names:
+            map_short = self._extract_map_short_name(map_name)
+            ad_diffs[map_short] = {}
+            for x_val in self.x_values:
+                condition_name = f"{map_short}_{x_val}{collision_suffix}"
+                condition_data = data[data['condition'] == condition_name]
+                if len(condition_data) == 0:
+                    print(f"Warning: No data found for condition {condition_name}")
+                    ad_diffs[map_short][x_val] = 0.0
+                    continue
+                ad_diffs[map_short][x_val] = self._calculate_action_differentiation_index(condition_data) - baseline_ad
+
+        return ad_diffs
+
+    def calculate_action_differentiation_differences_row(self, data: pd.DataFrame) -> Dict[str, Dict[float, float]]:
+        """Calculate action differentiation differences relative to each map's X=1.0 baseline (row-wise).
+
+        Returns:
+            Dictionary with structure: {map_short: {x_value: difference}}
+        """
+        ad_diffs = {}
+        collision_suffix = '_collision' if 'collision' in self.game_type else ''
+
+        for map_name in self.map_names:
+            map_short = self._extract_map_short_name(map_name)
+            baseline_condition = f"{map_short}_1.0{collision_suffix}"
+            baseline_data = data[data['condition'] == baseline_condition]
+
+            if len(baseline_data) == 0:
+                print(f"Warning: No row baseline data found for condition {baseline_condition}")
+                ad_diffs[map_short] = {x_val: 0.0 for x_val in self.x_values}
+                continue
+
+            baseline_ad = self._calculate_action_differentiation_index(baseline_data)
+            ad_diffs[map_short] = {}
+
+            for x_val in self.x_values:
+                condition_name = f"{map_short}_{x_val}{collision_suffix}"
+                condition_data = data[data['condition'] == condition_name]
+                if len(condition_data) == 0:
+                    print(f"Warning: No data found for condition {condition_name}")
+                    ad_diffs[map_short][x_val] = 0.0
+                    continue
+                ad_diffs[map_short][x_val] = self._calculate_action_differentiation_index(condition_data) - baseline_ad
+
+        return ad_diffs
+
+    def calculate_action_differentiation_differences_column(self, data: pd.DataFrame) -> Dict[str, Dict[float, float]]:
+        """Calculate action differentiation differences relative to baseline map for each ability (column-wise).
+
+        Returns:
+            Dictionary with structure: {map_short: {x_value: difference}}
+        """
+        ad_diffs = {}
+        collision_suffix = '_collision' if 'collision' in self.game_type else ''
+        baseline_map_short = self._extract_map_short_name(self.map_names[0])
+
+        for x_val in self.x_values:
+            baseline_condition = f"{baseline_map_short}_{x_val}{collision_suffix}"
+            baseline_data = data[data['condition'] == baseline_condition]
+
+            if len(baseline_data) == 0:
+                print(f"Warning: No column baseline data found for condition {baseline_condition}")
+                baseline_ad = 0.0
+            else:
+                baseline_ad = self._calculate_action_differentiation_index(baseline_data)
+
+            for map_name in self.map_names:
+                map_short = self._extract_map_short_name(map_name)
+                if map_short not in ad_diffs:
+                    ad_diffs[map_short] = {}
+                condition_name = f"{map_short}_{x_val}{collision_suffix}"
+                condition_data = data[data['condition'] == condition_name]
+                if len(condition_data) == 0:
+                    print(f"Warning: No data found for condition {condition_name}")
+                    ad_diffs[map_short][x_val] = 0.0
+                    continue
+                ad_diffs[map_short][x_val] = self._calculate_action_differentiation_index(condition_data) - baseline_ad
+
+        return ad_diffs
     
     def create_color_grid_figure(self, data: pd.DataFrame, comparison_type: str = 'global', output_path: str = None) -> plt.Figure:
         """Create a 2D color grid figure showing map × ability analysis.
@@ -1069,30 +1186,34 @@ class ColorGridPlotter:
         Returns:
             matplotlib Figure object
         """
-        # Calculate performance and specialization differences based on comparison type
+        # Calculate performance, specialization, and action differentiation differences
         if comparison_type == 'global':
             perf_diffs = self.calculate_performance_differences_global(data)
             spec_diffs = self.calculate_specialization_differences_global(data)
+            ad_diffs = self.calculate_action_differentiation_differences_global(data)
             subtitle = "vs Global Baseline (baseline map + X=1.0)"
         elif comparison_type == 'row':
             perf_diffs = self.calculate_performance_differences_row(data)
             spec_diffs = self.calculate_specialization_differences_row(data)
+            ad_diffs = self.calculate_action_differentiation_differences_row(data)
             subtitle = "vs Row Baseline (each map + X=1.0)"
         elif comparison_type == 'column':
             perf_diffs = self.calculate_performance_differences_column(data)
             spec_diffs = self.calculate_specialization_differences_column(data)
+            ad_diffs = self.calculate_action_differentiation_differences_column(data)
             subtitle = "vs Column Baseline (baseline map + each X)"
         else:
             raise ValueError(f"Unknown comparison_type: {comparison_type}")
         
-        # Create figure with subplots
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+        # Create figure with 3 subplots
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(24, 8))
         fig.suptitle(f'Map × Ability Configuration Analysis\n{subtitle}', 
                     fontsize=16, fontweight='bold')
         
         # Create 2D grids for plotting
         perf_grid = self._create_2d_grid(perf_diffs)
         spec_grid = self._create_2d_grid(spec_diffs)
+        ad_grid = self._create_2d_grid(ad_diffs)
         
         # Plot performance differences
         self._plot_2d_grid(ax1, perf_grid, 'Total Deliveries Difference', 
@@ -1101,6 +1222,10 @@ class ColorGridPlotter:
         # Plot specialization differences  
         self._plot_2d_grid(ax2, spec_grid, 'Specialization Index Difference',
                           f'Specialization Differences ({comparison_type.title()})')
+
+        # Plot action differentiation differences
+        self._plot_2d_grid(ax3, ad_grid, 'Action Differentiation Difference',
+                          f'Action Differentiation ({comparison_type.title()})')
         
         plt.tight_layout()
         
@@ -1141,19 +1266,18 @@ class ColorGridPlotter:
             metric_label: Label for the colorbar
             title: Title for the subplot
         """
-        # Check if this is a specialization metric
+        # Determine colormap based on metric type
         is_specialization = 'Specialization' in metric_label
-        
-        if is_specialization:
-            # For specialization differences: use orange-white-green colormap (symmetric around 0)
-            max_abs_diff = np.max(np.abs(grid))
-            cmap = plt.cm.RdYlGn  # Orange for negative (lower specialization), Green for positive (higher specialization)
-            vmin, vmax = -max_abs_diff, max_abs_diff
+        is_action_diff = 'Action Differentiation' in metric_label
+
+        max_abs_diff = np.max(np.abs(grid))
+        if is_specialization or is_action_diff:
+            # Orange-white-green: negative = less specialised/differentiated, positive = more
+            cmap = plt.cm.RdYlGn
         else:
-            # For performance differences: use red-white-blue colormap (symmetric around 0)
-            max_abs_diff = np.max(np.abs(grid))
-            cmap = plt.cm.RdBu_r  # Red for negative (worse), Blue for positive (better)
-            vmin, vmax = -max_abs_diff, max_abs_diff
+            # Red-white-blue: negative = worse performance, positive = better
+            cmap = plt.cm.RdBu_r
+        vmin, vmax = -max_abs_diff, max_abs_diff
         
         # Plot the grid
         im = ax.imshow(grid, cmap=cmap, aspect='auto', vmin=vmin, vmax=vmax)
@@ -1178,15 +1302,11 @@ class ColorGridPlotter:
             for j in range(len(self.x_values)):
                 value = grid[i, j]
                 
-                if is_specialization:
-                    # For specialization differences: white text on dark colors, black text on light colors
-                    normalized_value = abs(value) / max_abs_diff if max_abs_diff > 0 else 0
-                    color = 'white' if normalized_value > 0.5 else 'black'
+                normalized_value = abs(value) / max_abs_diff if max_abs_diff > 0 else 0
+                color = 'white' if normalized_value > 0.5 else 'black'
+                if is_specialization or is_action_diff:
                     text_val = f'{value:.3f}'
                 else:
-                    # For performance differences: white text on dark colors, black text on light colors
-                    normalized_value = abs(value) / max_abs_diff if max_abs_diff > 0 else 0
-                    color = 'white' if normalized_value > 0.5 else 'black'
                     text_val = f'{value:.1f}'
                     
                 ax.text(j, i, text_val, ha='center', va='center', 
@@ -1274,8 +1394,8 @@ def setup_argument_parser() -> argparse.ArgumentParser:
         '--game_type',
         type=str,
         choices=['classic', 'classic_collision'],
-        default='classic',
-        help='Game type to analyze (default: classic)'
+        default='classic_collision',
+        help='Game type to analyze (default: classic_collision)'
     )
     
     parser.add_argument(

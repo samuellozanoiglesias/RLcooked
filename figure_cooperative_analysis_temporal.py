@@ -27,6 +27,12 @@ Examples:
 
     # Analyze custom
     nohup python figure_cooperative_analysis_temporal.py --synergy 0.4 --specialization 0.05 --window_size 20 --step_size 100 --study_name MODIFIED_SPECIALIZATION > temporal_analysis.log 2>&1 &
+    
+    # Analyze specific episode range
+    nohup python figure_cooperative_analysis_temporal.py --initial_episode 100 --final_episode 500 --window_size 20 --step_size 10 > temporal_analysis_ep100-500.log 2>&1 &
+    
+    # Analyze with extended metrics and episode range
+    nohup python figure_cooperative_analysis_temporal.py --extended --initial_episode 0 --final_episode 1000 --window_size 50 --step_size 25 > temporal_analysis_extended_ep0-1000.log 2>&1 &
 """
 
 
@@ -54,9 +60,11 @@ from figure_cooperative_analysis import CooperativeAnalyzer
 class TemporalPlotter:
     """Creates temporal line plots showing evolution over episodes."""
     
-    def __init__(self, color_palette: Dict[str, str], performance_metrics: Dict[str, str]):
+    def __init__(self, color_palette: Dict[str, str], performance_metrics: Dict[str, str],
+                 extended_metrics: Dict[str, str] = None):
         self.color_palette = color_palette
         self.performance_metrics = performance_metrics
+        self.extended_metrics = extended_metrics or {}
         
         # Set up matplotlib style
         plt.style.use('default')
@@ -128,7 +136,8 @@ class TemporalPlotter:
                         'speed_condition': training_df['speed_condition'].iloc[0]
                     }
                     
-                    for metric in self.performance_metrics.keys():
+                    all_metrics = list(self.performance_metrics.keys()) + list(self.extended_metrics.keys())
+                    for metric in all_metrics:
                         if metric in window_df.columns:
                             row[f'{metric}_mean'] = window_df[metric].mean()
                             row[f'{metric}_std'] = window_df[metric].std()
@@ -215,7 +224,8 @@ class TemporalPlotter:
             spine.set_color('black')
     
     def create_temporal_figure(self, data: pd.DataFrame, window_size: int = 20, 
-                              step_size: int = 10, output_path: str = None) -> plt.Figure:
+                              step_size: int = 10, output_path: str = None,
+                              extended: bool = False) -> plt.Figure:
         """
         Create the complete temporal evolution figure.
         
@@ -224,17 +234,24 @@ class TemporalPlotter:
             window_size: Window size for averaging
             step_size: Step between data points
             output_path: Path to save figure
+            extended: If True, create 7x2 layout with extended metrics; if False, create 3x2 layout
         """
         
-        print(f"Creating temporal evolution figure...")
+        print(f"Creating {'extended' if extended else 'standard'} temporal evolution figure...")
         
         # Prepare temporal data
         temporal_df = self.prepare_temporal_data(data, window_size, step_size)
         
-        # Create figure with 3x2 layout (same as standard raincloud plot)
-        fig, axes = plt.subplots(3, 2, figsize=(16, 18))
-        fig.suptitle('Cooperative Performance Evolution Over Episodes', 
-                    fontsize=16, fontweight='bold', y=0.95)
+        if extended:
+            # Extended mode: 7x2 layout (3 main + 4 extended rows)
+            fig, axes = plt.subplots(7, 2, figsize=(16, 32))
+            fig.suptitle('Cooperative Performance Evolution Over Episodes (Extended)', 
+                        fontsize=16, fontweight='bold', y=0.98)
+        else:
+            # Standard mode: 3x2 layout
+            fig, axes = plt.subplots(3, 2, figsize=(16, 18))
+            fig.suptitle('Cooperative Performance Evolution Over Episodes', 
+                        fontsize=16, fontweight='bold', y=0.95)
         
         # Flatten axes for easy iteration
         axes_flat = axes.flatten()
@@ -242,8 +259,12 @@ class TemporalPlotter:
         # Metrics list
         metrics_list = list(self.performance_metrics.items())
         
+        # Add extended metrics if in extended mode
+        if extended and self.extended_metrics:
+            metrics_list.extend(list(self.extended_metrics.items()))
+        
         # Generate subplot labels
-        subplot_labels = ['a', 'b', 'c', 'd', 'e', 'f']
+        subplot_labels = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n']
         
         # Define speed information for agent-specific metrics
         speed_info_mapping = {
@@ -335,6 +356,12 @@ def setup_argument_parser() -> argparse.ArgumentParser:
     )
     
     parser.add_argument(
+        '--extended',
+        action='store_true',
+        help='Create extended plot with additional metrics (salad, plate, raw_food, counter) for both agents'
+    )
+    
+    parser.add_argument(
         '--init_type',
         type=str,
         choices=['random_init', 'empty_init'],
@@ -359,8 +386,22 @@ def setup_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '--cluster',
         type=str,
-        default=None,
+        default='brigit',
         help='Cluster name (optional, for reference only)'
+    )
+    
+    parser.add_argument(
+        '--initial_episode',
+        type=int,
+        default=None,
+        help='Initial episode number to start analysis (inclusive). If not specified, starts from first available episode.'
+    )
+    
+    parser.add_argument(
+        '--final_episode',
+        type=int,
+        default=None,
+        help='Final episode number to end analysis (inclusive). If not specified, goes to last available episode.'
     )
     
     return parser
@@ -376,7 +417,7 @@ def main():
         synergy_provided = '--synergy' in sys.argv
         
         # Set up output directory
-        cluster = args.cluster if args.cluster else 'cuenca'
+        cluster = args.cluster if args.cluster else 'brigit'
         config = AnalysisConfig()
         local_path = config.cluster_paths[cluster]
         
@@ -409,6 +450,9 @@ def main():
         print(f"Map 2: {args.map_name_2}")
         print(f"Window size: {args.window_size}")
         print(f"Step size: {args.step_size}")
+        print(f"Extended mode: {args.extended}")
+        if args.initial_episode is not None or args.final_episode is not None:
+            print(f"Episode range filter: {args.initial_episode or 'start'} to {args.final_episode or 'end'}")
         if args.study_name:
             print(f"Study: {args.study_name}")
         
@@ -437,17 +481,30 @@ def main():
         df_collision = df[df['condition'].isin(collision_conditions)].copy()
         
         print(f"Filtered conditions: {sorted(df_collision['condition'].unique())}")
-        print(f"Total episodes: {len(df_collision)}")
+        print(f"Total episodes before episode filtering: {len(df_collision)}")
+        
+        # Apply episode range filtering if specified
+        if args.initial_episode is not None or args.final_episode is not None:
+            initial_ep = args.initial_episode if args.initial_episode is not None else df_collision['episode'].min()
+            final_ep = args.final_episode if args.final_episode is not None else df_collision['episode'].max()
+            
+            print(f"\nApplying episode range filter: {initial_ep} to {final_ep}")
+            df_collision = df_collision[
+                (df_collision['episode'] >= initial_ep) & 
+                (df_collision['episode'] <= final_ep)
+            ].copy()
+            
+            print(f"Total episodes after episode filtering: {len(df_collision)}")
         
         if len(df_collision) == 0:
-            raise ValueError("No collision conditions found in the data!")
+            raise ValueError("No collision conditions found in the data (or no episodes in the specified range)!")
         
         # Create output directory
         output_dir = Path(output_dir_base)
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate filename
-        filename_parts = ["temporal_evolution"]
+        filename_parts = ["extended_temporal_evolution"] if args.extended else ["temporal_evolution"]
         filename_parts.append(args.init_type)
         
         if synergy_provided:
@@ -463,6 +520,12 @@ def main():
         
         filename_parts.append(f"window{args.window_size}_step{args.step_size}")
         
+        # Add episode range to filename if specified
+        if args.initial_episode is not None or args.final_episode is not None:
+            initial_ep = args.initial_episode if args.initial_episode is not None else int(df_collision['episode'].min())
+            final_ep = args.final_episode if args.final_episode is not None else int(df_collision['episode'].max())
+            filename_parts.append(f"ep{initial_ep}-{final_ep}")
+        
         if args.filename_suffix:
             filename_parts.append(args.filename_suffix)
         
@@ -472,13 +535,15 @@ def main():
         # Create temporal plots
         plotter = TemporalPlotter(
             analyzer.color_palette,
-            analyzer.performance_metrics
+            analyzer.performance_metrics,
+            analyzer.extended_metrics
         )
         fig = plotter.create_temporal_figure(
             df_collision, 
             window_size=args.window_size,
             step_size=args.step_size,
-            output_path=str(output_path)
+            output_path=str(output_path),
+            extended=args.extended
         )
         
         # Display results
