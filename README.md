@@ -72,7 +72,7 @@ cd cooked
 
 # Create and activate conda environment
 conda env create -f environment.yml
-conda activate cooked
+conda activate RLcooked
 
 # Install the package in development mode
 pip install -e .

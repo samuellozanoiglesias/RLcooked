@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=d1
+#SBATCH --job-name=m1_encouraged
 #SBATCH -t 30-00:00:00
 #SBATCH --partition=gpu
 #SBATCH --qos=qos_gpu_long
@@ -11,7 +11,7 @@
 
 # Activar entorno conda
 source ~/.bashrc
-conda activate cooked
+conda activate RLcooked
 
 # Set environment variables for JAX GPU usage
 export CUDA_VISIBLE_DEVICES=0
@@ -22,13 +22,10 @@ export XLA_PYTHON_CLIENT_MEM_FRACTION=0.95
 mkdir -p inputs
 mkdir -p logs
 
-TRAIN_SCRIPT='/mnt/lustre/home/samuloza/cooked/training-DTDE-spoiled_broth.py'
+TRAIN_SCRIPT='/mnt/lustre/home/samuloza/RLcooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NRS=(
-    encouraged_division_of_labor_large
-    baseline_division_of_labor_large
-    )  # List of maps to run
+MAP_NRS=(m1_encouraged_division_of_labor_large)  # List of maps to run
 LR=3e-4
 GAME_VERSIONS=(classic_collision)  # List of game versions to run
 NUM_AGENTS=2
@@ -57,6 +54,15 @@ ANGLE_PAIRS=("0 0")
 # Format: "cut_speed1,walk_speed1 cut_speed2,walk_speed2"
 SPEED_PAIRS=(
     "1.0,1.0 1.0,1.0"
+    "1.0,0.9 0.9,1.0"
+    "1.0,0.8 0.8,1.0"
+    "1.0,0.7 0.7,1.0"
+    "1.0,0.6 0.6,1.0"
+    "1.0,0.5 0.5,1.0"
+    "1.0,0.4 0.4,1.0"
+    "1.0,0.3 0.3,1.0"
+    "1.0,0.2 0.2,1.0"
+    "1.0,0.1 0.1,1.0"
 )
 
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)
@@ -280,12 +286,12 @@ for job in "${job_list[@]}"; do
     
     job_count=$((job_count + 1))
     
-    RAD1=$(python -c "import numpy as np; print(np.radians($ANGLE1))")
-    RAD2=$(python -c "import numpy as np; print(np.radians($ANGLE2))")
-    ALPHA1=$(python -c "import numpy as np; print(np.cos($RAD1))")
-    BETA1=$(python -c "import numpy as np; print(np.sin($RAD1))")
-    ALPHA2=$(python -c "import numpy as np; print(np.cos($RAD2))")
-    BETA2=$(python -c "import numpy as np; print(np.sin($RAD2))")
+    RAD1=$(python3 -c "import numpy as np; print(np.radians($ANGLE1))")
+    RAD2=$(python3 -c "import numpy as np; print(np.radians($ANGLE2))")
+    ALPHA1=$(python3 -c "import numpy as np; print(np.cos($RAD1))")
+    BETA1=$(python3 -c "import numpy as np; print(np.sin($RAD1))")
+    ALPHA2=$(python3 -c "import numpy as np; print(np.cos($RAD2))")
+    BETA2=$(python3 -c "import numpy as np; print(np.sin($RAD2))")
 
     # Get checkpoint path based on map and game version
     SPEED_KEY="${CUTTING_SPEED_1},${WALKING_SPEED_1} ${CUTTING_SPEED_2},${WALKING_SPEED_2}"
@@ -307,13 +313,13 @@ for job in "${job_list[@]}"; do
 
     if [ $NUM_AGENTS -eq 1 ]; then
         echo "Starting job $job_count/${#job_list[@]}: GAME_VERSION=$GAME_VERSION MAP_NR=$MAP_NR ANGLE1=$ANGLE1 ANGLE2=$ANGLE2 C_SPEEDS=[$CUTTING_SPEED_1,$CUTTING_SPEED_2] W_SPEEDS=[$WALKING_SPEED_1,$WALKING_SPEED_2] LR=$LR SEED=$SEED SYNERGY_SCALING_FACTOR=$SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE=$SPEC_PENALTY_SCALE KAPPA=$KAPPA CHECKPOINT=$CHECKPOINT_PATHS COUNTER_REWARD=$COUNTER_REWARD_VALUE COLLISION_PENALTY=$COLLISION_PENALTY_VALUE ALLOW_BLOCKED=$ALLOW_BLOCKED ACTIVATE_SYNERGY_POSITIVE=$ACTIVATE_SYNERGY_POSITIVE ENABLE_REWARD_DECAY=$ENABLE_REWARD_DECAY COLLISION_HARSHNESS=$COLLISION_HARSHNESS AGENTS_TO_TRAIN=$AGENTS"
-            python "$TRAIN_SCRIPT" "$CLUSTER" "$INPUT_FILE" "$MAP_NR" "$LR" "$GAME_VERSION" "$NUM_AGENTS" "$NUM_EPOCHS" "$SEED" "$CHECKPOINT_PATHS" "$REWARDS_ON_DELIVERY_ONLY" "$RANDOM_INITIAL_STATE" "$SYNERGY_SCALING_FACTOR" "$SPEC_PENALTY_SCALE" "$COUNTER_REWARD_VALUE" "$COLLISION_PENALTY_VALUE" "$ALLOW_BLOCKED" "$KAPPA" "$ACTIVATE_SYNERGY_POSITIVE" "$ENABLE_REWARD_DECAY" "$COLLISION_HARSHNESS" "$ENTROPY_COEF" "$AGENTS" > "$LOG_FILE" 2>&1 &
+            python3 "$TRAIN_SCRIPT" "$CLUSTER" "$INPUT_FILE" "$MAP_NR" "$LR" "$GAME_VERSION" "$NUM_AGENTS" "$NUM_EPOCHS" "$SEED" "$CHECKPOINT_PATHS" "$REWARDS_ON_DELIVERY_ONLY" "$RANDOM_INITIAL_STATE" "$SYNERGY_SCALING_FACTOR" "$SPEC_PENALTY_SCALE" "$COUNTER_REWARD_VALUE" "$COLLISION_PENALTY_VALUE" "$ALLOW_BLOCKED" "$KAPPA" "$ACTIVATE_SYNERGY_POSITIVE" "$ENABLE_REWARD_DECAY" "$COLLISION_HARSHNESS" "$ENTROPY_COEF" "$AGENTS" > "$LOG_FILE" 2>&1 &
     else
         echo "Starting job $job_count/${#job_list[@]}: GAME_VERSION=$GAME_VERSION MAP_NR=$MAP_NR ANGLE1=$ANGLE1 ANGLE2=$ANGLE2 C_SPEEDS=[$CUTTING_SPEED_1,$CUTTING_SPEED_2] W_SPEEDS=[$WALKING_SPEED_1,$WALKING_SPEED_2] LR=$LR SEED=$SEED SYNERGY_SCALING_FACTOR=$SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE=$SPEC_PENALTY_SCALE KAPPA=$KAPPA CHECKPOINT=$CHECKPOINT_PATHS COUNTER_REWARD=$COUNTER_REWARD_VALUE COLLISION_PENALTY=$COLLISION_PENALTY_VALUE ALLOW_BLOCKED=$ALLOW_BLOCKED ACTIVATE_SYNERGY_POSITIVE=$ACTIVATE_SYNERGY_POSITIVE ENABLE_REWARD_DECAY=$ENABLE_REWARD_DECAY COLLISION_HARSHNESS=$COLLISION_HARSHNESS"
-            python "$TRAIN_SCRIPT" "$CLUSTER" "$INPUT_FILE" "$MAP_NR" "$LR" "$GAME_VERSION" "$NUM_AGENTS" "$NUM_EPOCHS" "$SEED" "$CHECKPOINT_PATHS" "$REWARDS_ON_DELIVERY_ONLY" "$RANDOM_INITIAL_STATE" "$SYNERGY_SCALING_FACTOR" "$SPEC_PENALTY_SCALE" "$COUNTER_REWARD_VALUE" "$COLLISION_PENALTY_VALUE" "$ALLOW_BLOCKED" "$KAPPA" "$ACTIVATE_SYNERGY_POSITIVE" "$ENABLE_REWARD_DECAY" "$COLLISION_HARSHNESS" "$ENTROPY_COEF" > "$LOG_FILE" 2>&1 &
+            python3 "$TRAIN_SCRIPT" "$CLUSTER" "$INPUT_FILE" "$MAP_NR" "$LR" "$GAME_VERSION" "$NUM_AGENTS" "$NUM_EPOCHS" "$SEED" "$CHECKPOINT_PATHS" "$REWARDS_ON_DELIVERY_ONLY" "$RANDOM_INITIAL_STATE" "$SYNERGY_SCALING_FACTOR" "$SPEC_PENALTY_SCALE" "$COUNTER_REWARD_VALUE" "$COLLISION_PENALTY_VALUE" "$ALLOW_BLOCKED" "$KAPPA" "$ACTIVATE_SYNERGY_POSITIVE" "$ENABLE_REWARD_DECAY" "$COLLISION_HARSHNESS" "$ENTROPY_COEF" > "$LOG_FILE" 2>&1 &
     fi
     
-    sleep 20  # Delay between job starts
+    sleep 100  # Delay between job starts
 done
 
 # Wait for all remaining jobs to complete

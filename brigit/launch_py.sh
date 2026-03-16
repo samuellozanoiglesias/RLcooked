@@ -9,7 +9,7 @@
 
 # Activar tu entorno
 source ~/.bashrc
-conda activate cooked 
+conda activate RLcooked 
 
 # Ejecutar el script (secuencial, uno a uno)
 for target_ep in $(seq 50 50 5950); do

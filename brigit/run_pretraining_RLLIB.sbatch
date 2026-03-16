@@ -11,7 +11,7 @@
 
 # Activar entorno conda
 source ~/.bashrc
-conda activate cooked_11
+conda activate RLcooked
 
 # Set environment variables for JAX GPU usage
 export CUDA_VISIBLE_DEVICES=0
@@ -33,9 +33,9 @@ TRAIN_SCRIPT='/mnt/lustre/home/samuloza/cooked/training-DTDE-spoiled_broth.py'
 
 for LR in "${LRS[@]}"; do
     ANGLE1=0
-    RAD1=$(python -c "import numpy as np; print(np.radians($ANGLE1))")
-    ALPHA1=$(python -c "import numpy as np; print(np.cos($RAD1))")
-    BETA1=$(python -c "import numpy as np; print(np.sin($RAD1))")
+    RAD1=$(python3 -c "import numpy as np; print(np.radians($ANGLE1))")
+    ALPHA1=$(python3 -c "import numpy as np; print(np.cos($RAD1))")
+    BETA1=$(python3 -c "import numpy as np; print(np.sin($RAD1))")
 
     INPUT_FILE="inputs/input_${ANGLE1}.txt"
     LOG_FILE="logs/out_${ANGLE1}_lr${LR}_cooperative${COOPERATIVE}_map_${MAP_NR}.log"
@@ -43,6 +43,6 @@ for LR in "${LRS[@]}"; do
     echo -e "${ALPHA1} ${BETA1}" > "$INPUT_FILE"
 
     echo "Entrenando con MAP_NR=$MAP_NR ANGLE1=$ANGLE1 LR=$LR"
-    python "$TRAIN_SCRIPT" "$INPUT_FILE" $MAP_NR $LR $COOPERATIVE $GAME_VERSION $INTENT_VERSION $SEED $NUM_AGENTS > "$LOG_FILE" 2>&1
+    python3 "$TRAIN_SCRIPT" "$INPUT_FILE" $MAP_NR $LR $COOPERATIVE $GAME_VERSION $INTENT_VERSION $SEED $NUM_AGENTS > "$LOG_FILE" 2>&1
 
 done

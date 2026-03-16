@@ -1,4 +1,4 @@
-name: cooked
+name: RLcooked
 channels:
   - conda-forge
   - defaults

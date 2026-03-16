@@ -9,7 +9,7 @@
 # Load conda
 eval "$(conda shell.bash hook)"
 source ~/.bashrc
-conda activate cooked
+conda activate RLcooked
 
 # Features
 MAP_NR=forced_division_of_labor

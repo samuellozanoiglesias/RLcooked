@@ -11,7 +11,7 @@
 
 # Activar entorno conda
 source ~/.bashrc
-conda activate cooked
+conda activate RLcooked
 
 # Set environment variables for JAX GPU usage
 export CUDA_VISIBLE_DEVICES=0
@@ -102,12 +102,12 @@ for job in "${job_list[@]}"; do
     
     job_count=$((job_count + 1))
     
-    RAD1=$(python -c "import numpy as np; print(np.radians($ANGLE1))")
-    RAD2=$(python -c "import numpy as np; print(np.radians($ANGLE2))")
-    ALPHA1=$(python -c "import numpy as np; print(np.cos($RAD1))")
-    BETA1=$(python -c "import numpy as np; print(np.sin($RAD1))")
-    ALPHA2=$(python -c "import numpy as np; print(np.cos($RAD2))")
-    BETA2=$(python -c "import numpy as np; print(np.sin($RAD2))")
+    RAD1=$(python3 -c "import numpy as np; print(np.radians($ANGLE1))")
+    RAD2=$(python3 -c "import numpy as np; print(np.radians($ANGLE2))")
+    ALPHA1=$(python3 -c "import numpy as np; print(np.cos($RAD1))")
+    BETA1=$(python3 -c "import numpy as np; print(np.sin($RAD1))")
+    ALPHA2=$(python3 -c "import numpy as np; print(np.cos($RAD2))")
+    BETA2=$(python3 -c "import numpy as np; print(np.sin($RAD2))")
 
     INPUT_FILE="inputs/input_${ANGLE1}_${ANGLE2}.txt"
     LOG_FILE="logs/out_${ANGLE1}_${ANGLE2}_lr${LR}_${GAME_VERSION}_${MAP_NR}_seed_${SEED}_${REWARDS_ON_DELIVERY_ONLY}.log"
@@ -115,7 +115,7 @@ for job in "${job_list[@]}"; do
     echo -e "${ALPHA1} ${BETA1}\n${WALKING_SPEED_1} ${CUTTING_SPEED_1}\n${ALPHA2} ${BETA2}\n${WALKING_SPEED_2} ${CUTTING_SPEED_2}" > "$INPUT_FILE"
 
     echo "Starting job $job_count/${#job_list[@]}: MAP_NR=$MAP_NR ANGLE1=$ANGLE1 ANGLE2=$ANGLE2 LR=$LR SEED=$SEED"
-    python "$TRAIN_SCRIPT" $CLUSTER $INPUT_FILE $MAP_NR $LR $GAME_VERSION $NUM_AGENTS $NUM_EPOCHS $SEED $CHECKPOINT_PATHS $REWARDS_ON_DELIVERY_ONLY > "$LOG_FILE" 2>&1 &
+    python3 "$TRAIN_SCRIPT" $CLUSTER $INPUT_FILE $MAP_NR $LR $GAME_VERSION $NUM_AGENTS $NUM_EPOCHS $SEED $CHECKPOINT_PATHS $REWARDS_ON_DELIVERY_ONLY > "$LOG_FILE" 2>&1 &
     
     sleep 30  # Delay between job starts
 done

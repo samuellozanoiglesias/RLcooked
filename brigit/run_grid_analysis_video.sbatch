@@ -9,7 +9,7 @@
 
 # Activar entorno conda
 source ~/.bashrc
-conda activate cooked
+conda activate RLcooked
 
 # Crear carpetas si no existen
 mkdir -p logs
@@ -62,7 +62,7 @@ echo "=========================================="
 echo ""
 
 # Build command
-CMD="python $VIDEO_SCRIPT \
+CMD="python3 $VIDEO_SCRIPT \
     --start_episode $START_EPISODE \
     --end_episode $END_EPISODE \
     --step $STEP \

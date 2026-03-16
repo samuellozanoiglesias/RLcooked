@@ -38,17 +38,28 @@ class SpoiledBroth(BaseGame):
         self.frame_count = 0
         
         self.grid = Grid("grid", width, height, 16)
-        map_path_img = Path(__file__).parent / "maps" / f"{map_nr}.png"
-        map_path_txt = Path(__file__).parent / "maps" / f"{map_nr}.txt"
+        maps_root = Path(__file__).parent / "maps"
+        map_path_img = maps_root / f"{map_nr}.png"
+        map_path_txt = maps_root / f"{map_nr}.txt"
+        map_path_img_nested = maps_root / "maps_png" / f"{map_nr}.png"
+        map_path_txt_nested = maps_root / "maps_txt" / f"{map_nr}.txt"
 
-        if map_path_img.exists():
-            # Load map through image
-            self.grid.init_from_img(map_path_img, COLOR_MAP, self)
-        elif map_path_txt.exists():
-            # Load map through text
+        if map_path_txt.exists():
+            # Legacy text location under spoiled_broth/maps
             self.grid.init_from_text(map_path_txt, CHAR_MAP, self)
+        elif map_path_txt_nested.exists():
+            # Preferred text location under spoiled_broth/maps/maps_txt
+            self.grid.init_from_text(map_path_txt_nested, CHAR_MAP, self)
+        elif map_path_img.exists():
+            # Legacy image location under spoiled_broth/maps
+            self.grid.init_from_img(map_path_img, COLOR_MAP, self)
+        elif map_path_img_nested.exists():
+            # Image fallback under spoiled_broth/maps/maps_png
+            self.grid.init_from_img(map_path_img_nested, COLOR_MAP, self)
         else:
-            raise FileNotFoundError(f"Map '{map_nr}' not found, neither as image nor as text.")
+            raise FileNotFoundError(
+                f"Map '{map_nr}' not found. Checked: {map_path_img}, {map_path_img_nested}, {map_path_txt}, {map_path_txt_nested}"
+            )
         self.score = Score()
         self.gameObjects['grid'] = self.grid
         self.gameObjects['score'] = self.score
