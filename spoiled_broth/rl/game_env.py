@@ -109,7 +109,8 @@ class GameEnv(ParallelEnv):
         random_initial_state=False,  # New parameter to randomize initial game state
         reference_reward_cfg=None,  # Reference-based opportunity cost shaping
         solo_baselines=None,  # Individual solo baselines for reference reward (dict: agent_id -> baseline)
-        allow_blocked=False  # Whether to allow blocked actions to be attempted
+        allow_blocked=False,  # Whether to allow blocked actions to be attempted
+        enable_csv_logging=True  # Whether to write training_stats.csv (disable for simulations)
     ):
         super().__init__()
         self.map_nr = map_nr
@@ -120,7 +121,8 @@ class GameEnv(ParallelEnv):
         self.render_mode = None
         self.write_header = True
         self.write_csv = False
-        self.csv_path = os.path.join(path, "training_stats.csv")
+        self.enable_csv_logging = enable_csv_logging
+        self.csv_path = os.path.join(path, "training_stats.csv") if enable_csv_logging else None
         self.grid_size = grid_size
         self.seed = initial_seed
         self.payoff_matrix = payoff_matrix
@@ -454,8 +456,13 @@ class GameEnv(ParallelEnv):
                     'action_name': action_name,
                     'tile_index': -2,
                     'action_type': 'do_nothing',
+                    'agent_tile_x': getattr(agent, 'slot_x', -1),
+                    'agent_tile_y': getattr(agent, 'slot_y', -1),
                     'x': -2,
-                    'y': -2
+                    'y': -2,
+                    'cancelled_by_collision': False,
+                    'collision_detected': False,
+                    'collision_rerouted': False
                 }
                 self.total_action_types[agent_id]['do_nothing'] += 1
                 continue
@@ -572,8 +579,13 @@ class GameEnv(ParallelEnv):
                 'action_name': action_name,
                 'tile_index': logging_index,
                 'action_type': action_type,
+                'agent_tile_x': getattr(agent, 'slot_x', -1),
+                'agent_tile_y': getattr(agent, 'slot_y', -1),
                 'x': logging_x,
-                'y': logging_y
+                'y': logging_y,
+                'cancelled_by_collision': False,  # Will be set to True if collision cancels action
+                'collision_detected': False,
+                'collision_rerouted': False
             }
         
         # --- Phase 2: Predictive Collision Detection and Rerouting ---
@@ -586,6 +598,36 @@ class GameEnv(ParallelEnv):
             self.total_collisions_detected += collision_stats['collisions_detected']
             self.total_collisions_rerouted += collision_stats['collisions_rerouted']
             self.total_collisions_failed += collision_stats['collisions_failed']
+
+            # Mark collisions in action logs (including rerouted collisions).
+            detected_agents = set(collision_stats.get('agents_with_detected_collisions', []))
+            rerouted_agents = set(collision_stats.get('agents_with_rerouted_collisions', []))
+            failed_agents = set(collision_stats.get('agents_with_failed_collisions', []))
+
+            for agent_id in detected_agents:
+                if agent_id in self._logging_actions:
+                    self._logging_actions[agent_id]['collision_detected'] = True
+                    self._logging_actions[agent_id]['collision_rerouted'] = agent_id in rerouted_agents
+                else:
+                    # Agent collided while executing an ongoing action from a previous tick.
+                    # Emit a synthetic log row so actions.csv tracks all detected collisions.
+                    state = self.agent_state[agent_id]
+                    agent_obj = self.agent_map[agent_id]
+                    self._logging_actions[agent_id] = {
+                        'elapsed_time': self._elapsed_time,
+                        'action_idx': -1,
+                        'action_name': state.get('current_action') or 'ongoing_action',
+                        'tile_index': -1,
+                        'action_type': 'collision_event',
+                        'agent_tile_x': getattr(agent_obj, 'slot_x', -1),
+                        'agent_tile_y': getattr(agent_obj, 'slot_y', -1),
+                        # Keep internal coordinates 0-indexed for logger/tracker consistency.
+                        'x': (getattr(agent_obj, 'slot_x', 0) - 1) if getattr(agent_obj, 'slot_x', None) is not None else -1,
+                        'y': (getattr(agent_obj, 'slot_y', 0) - 1) if getattr(agent_obj, 'slot_y', None) is not None else -1,
+                        'cancelled_by_collision': agent_id in failed_agents,
+                        'collision_detected': True,
+                        'collision_rerouted': agent_id in rerouted_agents,
+                    }
             
             # Apply penalties to agents whose collisions couldn't be rerouted
             # These agents had their actions cancelled in resolve_predictive_collisions
@@ -594,6 +636,10 @@ class GameEnv(ParallelEnv):
                 
                 # Base blocked penalty for all failed collisions
                 agent_penalties[agent_id] += self.penalties_cfg["collision"]
+                
+                # Mark action as cancelled in logging
+                if agent_id in self._logging_actions:
+                    self._logging_actions[agent_id]['cancelled_by_collision'] = True
                 
                 # Mark these agents for observation refresh since they're now idle
                 agents_becoming_idle.add(agent_id)
@@ -684,7 +730,7 @@ class GameEnv(ParallelEnv):
         truncations = {agent: False for agent in self.agents}
         
         # If episode is done, aggregate and log
-        if self.write_csv:
+        if self.write_csv and self.enable_csv_logging:
             if self.episode_count % 100 == 0:
                 print(f"[Episode {self.episode_count}] Logging episode data to csv")
             row = {"episode": self.episode_count}

@@ -15,37 +15,72 @@ are positioned but do not perform any actions. This ensures complete system
 stabilization and prevents teleportation artifacts.
 
 Custom Checkpoints:
-Use --custom_checkpoints to specify different policies/checkpoints for each agent
+Use --custom_checkpoints to specify different policies/checkpoints for each agent.
 
-Checkpoint configuration file format (2 lines per agent):
+When using custom checkpoints:
+- training_id and checkpoint_number become OPTIONAL (default: "custom")
+- If OMITTED: training_id, checkpoint_number, synergy, and specialization folders are automatically extracted from the FIRST agent's checkpoint path
+  - Agent speeds are loaded from each agent's respective training config.txt
+  - Output is organized using the first agent's training info with synergy/specialization structure
+  - Example: .../map_X/synergy_0.40/specialized_0.05/simulations/Training_ID/checkpoint_final/
+- If PROVIDED: Used to override the detection and organize output directories
+- study_name is optional (default: empty, which saves under /simulations/ without study subfolder)
+
+Checkpoint configuration file format (3 lines per agent):
 Line 1: policy_id_to_load (e.g., policy_ai_rl_1, policy_ai_rl_2, etc.)
-Line 2: path_to_checkpoint_directory
+Line 2: checkpoint_number (e.g., "final", "1000", etc.)
+Line 3: path_to_training_directory (not checkpoint directory)
 
 Example checkpoints_config.txt for 2 agents:
 policy_ai_rl_1
-/path/to/Training_2025-11-15_13-23-45/checkpoint_final
+final
+/path/to/Training_2025-11-15_13-23-45
 policy_ai_rl_2  
-/path/to/Training_2025-11-16_14-30-12/checkpoint_100
+1000
+/path/to/Training_2025-11-16_14-30-12
 
 Usage:
-python experimental_simulation.py <map_nr> <game_version> <training_id> <checkpoint_number> [options]
+python experimental_simulation.py <map_nr> <game_version> [training_id] [checkpoint_number] [options]
+
+Arguments:
+  map_nr: Map name identifier
+  game_version: Game version (classic/classic_collision/competition) - controls both game logic and collision detection
+  training_id: Optional training identifier (auto-extracted from custom checkpoints if omitted)
+  checkpoint_number: Optional checkpoint number (auto-extracted from custom checkpoints if omitted)
+
+Note: training_id and checkpoint_number are optional when using --custom_checkpoints 
+      (defaults to "custom" and auto-extracts from first agent's checkpoint path)
+      study_name is optional (if omitted, simulations saved directly under /simulations/ without study subfolder)
+      game_version="classic_collision" enables collision detection
 
 For background execution:
-nohup python experimental_simulation.py <map_nr> <game_version> <training_id> <checkpoint_number> [options] > experimental_simulation.log 2>&1 &
+nohup python experimental_simulation.py <map_nr> <game_version> [training_id] [checkpoint_number] [options] > experimental_simulation.log 2>&1 &
 
-Example:
-nohup python experimental_simulation.py baseline_division_of_labor_v2 classic 2025-11-15_13-23-45 final --custom_checkpoints ./cuenca/checkpoints.txt > experimental_simulation.log 2>&1 &
+Examples:
 
-nohup python experimental_simulation.py baseline_division_of_labor_v2 classic 2025-11-15_13-23-45 final --num_agents 1 --enable_video true --duration 60 --agent_initialization_period 10 > experimental_simulation.log 2>&1 &
+# Using custom checkpoints with collision detection
+nohup python experimental_simulation.py encouraged_division_of_labor_large classic_collision --custom_checkpoints ./cuenca/experimental_checkpoints/checkpoints_encouraged_collision_1.0.txt > experimental_simulation.log 2>&1 &
 
-nohup python experimental_simulation.py baseline_division_of_labor_v2 classic 2025-11-15_13-23-45 final --study_name speeds --duration 180 > experimental_simulation.log 2>&1 &
+# Using custom checkpoints without collision (classic mode)
+nohup python experimental_simulation.py encouraged_division_of_labor_large classic --custom_checkpoints ./cuenca/experimental_checkpoints/checkpoints_encouraged_collision_1.0.txt > experimental_simulation.log 2>&1 &
 
-nohup python experimental_simulation.py baseline_division_of_labor_v2 classic 2025-11-15_13-23-45 final --game_type classic_collision --study_name collision_test > experimental_simulation.log 2>&1 &
+# Using custom checkpoints with specific training for speed loading
+nohup python experimental_simulation.py encouraged_division_of_labor_large classic_collision Training_20250115 final --custom_checkpoints ./cuenca/experimental_checkpoints/checkpoints_encouraged_collision_1.0.txt > experimental_simulation.log 2>&1 &
+
+# Using standard checkpoint loading (training_id and checkpoint_number required)
+nohup python experimental_simulation.py encouraged_division_of_labor_large classic_collision Training_20250115 final > experimental_simulation.log 2>&1 &
+
+# Additional options examples:
+# --num_agents 2
+# --enable_video true 
+# --duration 180
+# --agent_initialization_period 15
+# --study_name collision_test
+# --game_type classic_collision (for folder organization)
 """
 
 import sys
 import os
-import pandas as pd
 import logging
 from datetime import datetime
 
@@ -53,11 +88,8 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from spoiled_broth.simulations import (
-    setup_simulation_argument_parser, 
-    main_simulation_pipeline,
-    analyze_meaningful_actions_simplified,
-    generate_agent_position_files,
-    generate_agent_action_files
+    setup_simulation_argument_parser,
+    main_simulation_pipeline
 )
 
 
@@ -122,14 +154,15 @@ def main():
     print("=" * 50)
     
     try:
-        # Run main simulation pipeline
-        output_paths, walking_speeds, cutting_speeds = main_simulation_pipeline(
+        # Run main simulation pipeline (ALWAYS without video rendering)
+        # Video will be generated afterwards from CSV files if requested
+        output_paths = main_simulation_pipeline(
             map_nr=args.map_nr,
             num_agents=args.num_agents,
             game_version=args.game_version,
             training_id=args.training_id,
             checkpoint_number=args.checkpoint_number,
-            enable_video=enable_video,
+            enable_video=False,  # Disable video during simulation
             cluster=args.cluster,
             duration=args.duration,
             tick_rate=args.tick_rate,
@@ -151,130 +184,57 @@ def main():
             print("Output files:")
             print(f"  Simulation directory: {output_paths['simulation_dir']}")
             print(f"  Configuration file: {output_paths['config_file']}")
-            print(f"  State CSV: {output_paths['state_csv']}")
-            print(f"  Action CSV: {output_paths['action_csv']}")
-            print(f"  Observation CSV: {output_paths['observation_csv']}")
-            if output_paths['video_file']:
-                print(f"  Video file: {output_paths['video_file']}")
-            print(f"  Log file: {log_file_path}")
+            print(f"  Actions CSV (basic): {output_paths.get('actions_csv', 'N/A')}")
+            print(f"  Counters CSV: {output_paths.get('counter_csv', 'N/A')}")
             
-            # Run meaningful actions analysis
-            print("\n" + "=" * 50)
-            print("ANALYZING MEANINGFUL ACTIONS")
-            print("=" * 50)
+            # Basic position files (one per agent)
+            print("\n  Basic position files:")
+            for key, path in output_paths.items():
+                if key.startswith('positions_ai_rl_'):
+                    print(f"    {key}: {path}")
             
-            try:
-                # Read the generated CSV files (no actions.csv needed for simplified analysis)
-                simulation_df = pd.read_csv(output_paths['state_csv'])
-                counters_df = pd.read_csv(output_paths['counter_csv'])
+            # Human-readable files (generated during simulation)
+            print("\n  Human-readable files (with collaboration tracking):")
+            has_human_files = False
+            for key, path in output_paths.items():
+                if '_actions_human' in key or '_positions_human' in key:
+                    agent_id = key.split('_')[0] + '_' + key.split('_')[1] + '_' + key.split('_')[2]  # Extract agent_id
+                    file_type = 'actions' if 'actions' in key else 'positions'
+                    print(f"    {agent_id}_{file_type}.csv: {path}")
+                    has_human_files = True
+            
+            if not has_human_files:
+                print("    (Generated automatically during simulation)")
+            
+            print(f"\n  Log file: {log_file_path}")
+            
+            # Generate video from CSV if requested
+            if enable_video:
+                print("\n" + "=" * 50)
+                print("Reconstructing video from CSV files...")
+                print("=" * 50)
                 
-                # Load and report on observation data
-                try:
-                    observations_df = pd.read_csv(output_paths['observation_csv'])
-                    print(f"\nOBSERVATION DATA SUMMARY:")
-                    print(f"  Total observation records: {len(observations_df)}")
-                    print(f"  Agents with observations:")
-                    for agent_id in observations_df['agent_id'].unique():
-                        agent_obs = observations_df[observations_df['agent_id'] == agent_id]
-                        print(f"    {agent_id}: {len(agent_obs)} observations")
-                    
-                    # Check observation vector size
-                    obs_columns = [col for col in observations_df.columns if col.startswith('obs_')]
-                    if obs_columns:
-                        print(f"  Observation vector size: {len(obs_columns)}")
-                    else:
-                        print("  No observation vector columns found")
-                        
-                except Exception as obs_e:
-                    print(f"\nWarning: Could not load observation data: {obs_e}") 
+                from spoiled_broth.simulations.replay_simulation_video import replay_from_directory
                 
-                # Analyze meaningful actions using the simplified function (no actions.csv needed)
-                meaningful_df = analyze_meaningful_actions_simplified(
-                    simulation_df, 
-                    counters_df,
-                    map_nr=args.map_nr,
-                    output_dir=output_paths['simulation_dir'],
-                    engine_tick_rate=args.tick_rate
+                video_path = replay_from_directory(
+                    str(output_paths['simulation_dir']),
+                    fps=args.video_fps,
+                    tile_size=96  # Larger tile size for better visibility
                 )
                 
-                if not meaningful_df.empty:
-                    # Print summary statistics
-                    print(f"\nMEANINGFUL ACTIONS SUMMARY:")
-                    print(f"  Total meaningful actions: {len(meaningful_df)}")
-                    print(f"  Actions by agent:")
-                    for agent_id in meaningful_df['agent_id'].unique():
-                        agent_actions = meaningful_df[meaningful_df['agent_id'] == agent_id]
-                        print(f"    {agent_id}: {len(agent_actions)} actions")
-                    
-                    print(f"  Actions by type:")
-                    action_counts = meaningful_df['item_change_type'].value_counts()
-                    for action_type, count in action_counts.items():
-                        print(f"    {action_type}: {count}")
-                    
-                    print(f"  Top action categories:")
-                    category_counts = meaningful_df['action_category_name'].value_counts().head(10)
-                    for category, count in category_counts.items():
-                        print(f"    {category}: {count}")
+                if video_path:
+                    print(f"  Video file: {video_path}")
+                    output_paths['video_file'] = video_path
                 else:
-                    print("\nNo meaningful actions detected in this simulation.")
-                    
-            except Exception as e:
-                print(f"\nError during meaningful actions analysis: {e}")
-                print("Continuing without meaningful actions analysis...")
+                    print("  Video generation failed (see errors above)")
+            else:
+                print(f"\nVideo recording: Disabled (use --enable_video true to generate video)")
             
-            # Generate agent position files
             print("\n" + "=" * 50)
-            print("GENERATING AGENT POSITION FILES")
-            print("=" * 50)
-            
-            try:
-                # Generate position files for each agent
-                position_files = generate_agent_position_files(
-                    simulation_df, 
-                    output_paths['simulation_dir'],
-                    agent_initialization_period=args.agent_initialization_period,
-                    walking_speeds=walking_speeds,
-                    cutting_speeds=cutting_speeds
-                )
-                
-                print(f"\nAgent position files generated:")
-                for agent_id, filepath in position_files.items():
-                    print(f"  {agent_id}: {filepath}")
-                    
-            except Exception as e:
-                print(f"\nError during position file generation: {e}")
-                print("Continuing without position file generation...")
-            
-            # Generate agent action files
-            print("\n" + "=" * 50)
-            print("GENERATING AGENT ACTION FILES")
-            print("=" * 50)
-            
-            try:
-                # Generate action files for each agent
-                action_files = generate_agent_action_files(
-                    meaningful_df,
-                    output_paths['simulation_dir'],  # Use simulation directory as positions_dir 
-                    output_paths['simulation_dir'],
-                    map_name=args.map_nr,
-                    simulation_id=output_paths['simulation_dir'].name,
-                    engine_tick_rate=args.tick_rate,
-                    agent_initialization_period=args.agent_initialization_period,
-                    walking_speeds=walking_speeds,
-                    cutting_speeds=cutting_speeds
-                )
-                
-                print(f"\nAgent action files generated:")
-                for agent_id, filepath in action_files.items():
-                    print(f"  {agent_id}: {filepath}")
-                    
-            except Exception as e:
-                print(f"\nError during action file generation: {e}")
-                print("Continuing without action file generation...")
-            
-            print("=" * 50)
             print(f"\nExecution completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             print(f"Full log saved to: {log_file_path}")
+            print("\nNote: Human-readable CSVs ({agent_id}_actions.csv, {agent_id}_positions.csv)")
+            print("      are generated automatically during simulation with item tracking.")
         
     except Exception as e:
         # Try to save error log to simulation directory if possible

@@ -284,13 +284,15 @@ def resolve_predictive_collisions(env):
     4. If rerouting fails, cancel actions
     
     Returns:
-        dict: Collision statistics including agents_with_failed_collisions
+        dict: Collision statistics including per-agent collision metadata
     """
     if not env.path_processor.is_enabled():
         return {
             'collisions_detected': 0, 
             'collisions_rerouted': 0, 
             'collisions_failed': 0,
+            'agents_with_detected_collisions': [],
+            'agents_with_rerouted_collisions': [],
             'agents_with_failed_collisions': []
         }
     
@@ -304,9 +306,15 @@ def resolve_predictive_collisions(env):
     collisions_rerouted = 0
     collisions_failed = 0
     agents_with_failed_collisions = []
+    agents_with_detected_collisions = set()
+    agents_with_rerouted_collisions = set()
     
     # Process each collision event
     for agent_to_stop, other_agent_id, collision_tile, collision_type in collision_events:
+        # Track all agents involved in detected collisions, regardless of outcome.
+        agents_with_detected_collisions.add(agent_to_stop)
+        agents_with_detected_collisions.add(other_agent_id)
+
         # Get current positions
         agent_to_stop_obj = env.agent_map[agent_to_stop]
         other_agent_obj = env.agent_map[other_agent_id]
@@ -333,6 +341,7 @@ def resolve_predictive_collisions(env):
                 state_to_stop['movement_progress'] = 0.0
                 rerouted = True
                 collisions_rerouted += 1
+                agents_with_rerouted_collisions.add(agent_to_stop)
             else:
                 # Could not reroute moving agent - cancel only the moving agent
                 cancel_agent_action(env, agent_to_stop)
@@ -352,6 +361,7 @@ def resolve_predictive_collisions(env):
                 state_to_stop['movement_progress'] = 0.0
                 rerouted = True
                 collisions_rerouted += 1
+                agents_with_rerouted_collisions.add(agent_to_stop)
             else:
                 # Try rerouting the other agent
                 alt_path2 = find_predictive_alternative_path(
@@ -365,6 +375,7 @@ def resolve_predictive_collisions(env):
                     state_other['movement_progress'] = 0.0
                     rerouted = True
                     collisions_rerouted += 1
+                    agents_with_rerouted_collisions.add(other_agent_id)
                 else:
                     # Could not find alternative path for either agent - cancel both
                     cancel_agent_action(env, agent_to_stop)
@@ -376,5 +387,7 @@ def resolve_predictive_collisions(env):
         'collisions_detected': collisions_detected,
         'collisions_rerouted': collisions_rerouted,
         'collisions_failed': collisions_failed,
+        'agents_with_detected_collisions': list(agents_with_detected_collisions),
+        'agents_with_rerouted_collisions': list(agents_with_rerouted_collisions),
         'agents_with_failed_collisions': agents_with_failed_collisions
     }

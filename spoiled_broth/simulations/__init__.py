@@ -4,12 +4,11 @@ Simulation utilities package for running reinforcement learning simulations.
 This package provides modular components for:
 - Configuration management
 - Path management
-- Controller initialization
-- Data logging and tracking
+- Data logging (actions, positions, counters)
 - Video recording
-- Game setup and execution
+- Policy loading from RLlib checkpoints
 - Ray cluster management
-- Complete simulation execution
+- Complete simulation execution using GameEnv (same dynamics as RL training)
 
 Author: Samuel Lozano
 """
@@ -19,15 +18,14 @@ from .simulation_config import SimulationConfig
 
 # Core managers
 from .path_manager import PathManager
-from .controller_manager import ControllerManager
 from .ray_manager import RayManager
-from .game_manager import GameManager
 
 # Data handling
 from .data_logger import DataLogger
-from .raw_action_logger import RawActionLogger
-from .observation_logger import ObservationLogger
 from .video_recorder import VideoRecorder
+
+# Policy loading
+from .policy_loader import PolicyInferrer, load_policies
 
 # Main simulation runner
 from .simulation_runner import SimulationRunner
@@ -38,55 +36,32 @@ from .simulation_utils import (
     main_simulation_pipeline
 )
 
-# Meaningful actions analysis
-from .meaningful_actions import (
-    analyze_meaningful_actions,
-    analyze_meaningful_actions_simplified,
-    analyze_meaningful_actions_from_files
-)
-
-# Human-like data extraction
-from .positions_extraction_like_humans import (
-    generate_agent_position_files,
-    extract_agent_trajectories
-)
-
-from .actions_extraction_like_humans import (
-    generate_agent_action_files,
-    merge_actions_with_positions
-)
+# Video replay from CSV
+from .replay_simulation_video import replay_from_directory
 
 __all__ = [
     # Configuration
     'SimulationConfig',
-    
+
     # Core managers
     'PathManager',
-    'ControllerManager', 
     'RayManager',
-    'GameManager',
-    
+
     # Data handling
     'DataLogger',
-    'RawActionLogger',
-    'ObservationLogger',
     'VideoRecorder',
-    
+
+    # Policy loading
+    'PolicyInferrer',
+    'load_policies',
+
     # Main simulation runner
     'SimulationRunner',
-    
+
     # Utility functions
     'setup_simulation_argument_parser',
     'main_simulation_pipeline',
     
-    # Meaningful actions analysis
-    'analyze_meaningful_actions',
-    'analyze_meaningful_actions_simplified',
-    'analyze_meaningful_actions_from_files',
-    
-    # Human-like data extraction
-    'generate_agent_position_files',
-    'extract_agent_trajectories',
-    'generate_agent_action_files',
-    'merge_actions_with_positions'
+    # Video replay
+    'replay_from_directory',
 ]

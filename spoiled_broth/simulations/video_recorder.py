@@ -30,36 +30,45 @@ class VideoRecorder:
         src = self._prepare_frame(frame)
         h, w = src.shape[:2]
         
-        # Calculate HUD height for main score + two stacked player scores
-        main_font = cv2.FONT_HERSHEY_COMPLEX  # Serif-style font
-        main_scale = 0.7  # Much smaller main score
-        main_thickness = 1  # Non-bold thickness
-        player_scale = 0.5  # Player score scale
+        # Calculate HUD height - must match _add_hud_to_frame calculation
+        main_font = cv2.FONT_HERSHEY_SIMPLEX
+        player_font = cv2.FONT_HERSHEY_SIMPLEX
+        main_scale = 1.2
+        player_scale = 0.9
+        main_thickness = 2
+        player_thickness = 2
+        
         main_text_size = cv2.getTextSize('Score: 99', main_font, main_scale, main_thickness)[0]
-        player_text_size = cv2.getTextSize('P1: 99', main_font, player_scale, 1)[0]
-        self.hud_height = max(60, main_text_size[1] + (player_text_size[1] * 2) + 40)  # Space for main + two player scores
+        player_text_size = cv2.getTextSize('P1: 99', player_font, player_scale, player_thickness)[0]
+        self.hud_height = max(100, main_text_size[1] + (player_text_size[1] * 2) + 60)  # Must match _add_hud_to_frame
         
         # Video dimensions include game area + HUD area
         video_width = w
         video_height = h + self.hud_height
         
-        # Try different codecs
-        fourcc_candidates = ['mp4v', 'avc1', 'H264', 'XVID', 'MJPG']
+        # Try different codecs in order of preference
+        # mp4v: widely compatible, good compression
+        # avc1/H264: high quality but requires proper FFmpeg build
+        # XVID/MJPG: fallback options
+        fourcc_candidates = ['mp4v', 'avc1', 'H264', 'X264', 'XVID', 'MJPG']
         
         for code in fourcc_candidates:
-            fourcc = cv2.VideoWriter_fourcc(*code)
-            self.writer = cv2.VideoWriter(self.output_path, fourcc, self.fps, (video_width, video_height))
-            
             try:
-                if self.writer.isOpened():
+                fourcc = cv2.VideoWriter_fourcc(*code)
+                self.writer = cv2.VideoWriter(self.output_path, fourcc, self.fps, (video_width, video_height))
+                
+                if self.writer and self.writer.isOpened():
+                    print(f"  VideoWriter initialized with codec: {code}")
                     self.size = (video_width, video_height)
                     break
-            except Exception:
-                pass
-            
-            if self.writer:
-                self.writer.release()
-                self.writer = None
+                elif self.writer:
+                    self.writer.release()
+                    self.writer = None
+            except Exception as e:
+                if self.writer:
+                    self.writer.release()
+                    self.writer = None
+                continue
         
         if self.writer is None:
             print(f"Warning: could not open VideoWriter for {self.output_path}")
@@ -104,30 +113,36 @@ class VideoRecorder:
             # Add HUD to frame (this preserves the original game dimensions)
             frame_with_hud = self._add_hud_to_frame(src, main_score, p1_score, p2_score)
             
-            # Never resize - the frame should already be the correct size
+            # Validate frame size matches video writer expectations
+            if self.size and frame_with_hud.shape[:2][::-1] != self.size:
+                print(f"Warning: Frame size mismatch! Expected {self.size}, got {frame_with_hud.shape[:2][::-1]}")
+                return
+            
+            # Write the frame
             self.writer.write(frame_with_hud)
             
         except Exception as e:
             print(f"Warning: failed to write video frame: {e}")
     
     def _add_hud_to_frame(self, frame: np.ndarray, main_score: str, p1_score: str, p2_score: str) -> np.ndarray:
-        """Add clean HUD overlay to frame with smaller fonts and soft colors."""
+        """Add clean HUD overlay to frame with readable fonts."""
         h, w = frame.shape[:2]
         
-        # Clean, smaller font settings with serif-style font
-        main_font = cv2.FONT_HERSHEY_COMPLEX  # Serif-style font
-        player_font = cv2.FONT_HERSHEY_COMPLEX  # Same serif font for consistency
+        # Larger, more readable fonts
+        main_font = cv2.FONT_HERSHEY_SIMPLEX
+        player_font = cv2.FONT_HERSHEY_SIMPLEX
         
-        main_scale = 0.7   # Smaller main score
-        player_scale = 0.5  # Even smaller player scores
-        main_thickness = 1  # Non-bold thickness
-        player_thickness = 1  # Thin player scores
+        main_scale = 1.2   # Larger main score
+        player_scale = 0.9  # Larger player scores
+        main_thickness = 2  # Bold main score
+        player_thickness = 2  # Bold player scores
         
         # Calculate text dimensions
         main_text_size = cv2.getTextSize(main_score, main_font, main_scale, main_thickness)[0]
         player_text_size = cv2.getTextSize('P1: 99', player_font, player_scale, player_thickness)[0]
         
-        pad_height = max(60, main_text_size[1] + (player_text_size[1] * 2) + 40)  # Space for main + two stacked player scores
+        # Use the pre-calculated hud_height from start() to ensure consistency
+        pad_height = self.hud_height if self.hud_height else max(100, main_text_size[1] + (player_text_size[1] * 2) + 60)
         
         # Create canvas with HUD area - preserve original game frame exactly
         canvas = np.zeros((h + pad_height, w, 3), dtype=np.uint8)
@@ -136,18 +151,18 @@ class VideoRecorder:
         # Draw clean black background for HUD area
         cv2.rectangle(canvas, (0, h), (w, h + pad_height), (0, 0, 0), -1)
         # Add subtle separator line
-        cv2.line(canvas, (0, h), (w, h), (30, 30, 30), 1)
+        cv2.line(canvas, (0, h), (w, h), (100, 100, 100), 2)
         
-        # Position main score at top of HUD area (just below video)
+        # Position main score at top of HUD area (centered, just below video)
         main_x = (w - main_text_size[0]) // 2
-        main_y = h + 15 + main_text_size[1]  # Small gap from video
+        main_y = h + 25 + main_text_size[1]  # More space from video
         
         # Position player scores stacked vertically below main score
         # P1 aligned to left, P2 aligned to right
-        p1_x = 20  # Left alignment
-        p1_y = main_y + player_text_size[1] + 8  # Below main score
-        p2_x = w - player_text_size[0] - 20  # Right alignment  
-        p2_y = p1_y + player_text_size[1] + 5  # Below P1
+        p1_x = 30  # Left alignment with more padding
+        p1_y = main_y + player_text_size[1] + 15  # Below main score
+        p2_x = w - player_text_size[0] - 30  # Right alignment with more padding
+        p2_y = p1_y + player_text_size[1] + 10  # Below P1
         
         # Soft color scheme (BGR format for OpenCV)
         main_color = (100, 200, 100)    # Soft green (BGR: B=100, G=200, R=100)

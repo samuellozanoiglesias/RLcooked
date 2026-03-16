@@ -63,7 +63,9 @@ class PathManager:
     def setup_paths(self, map_nr: str, num_agents: int,
                    game_version: str, training_id: str,
                    checkpoint_number: str, study_name: str = 'default',
-                   game_type: str = '') -> Dict[str, Path]:
+                   game_type: str = '',
+                   synergy_folder: str = None,
+                   specialization_folder: str = None) -> Dict[str, Path]:
         """
         Set up all necessary paths for a simulation run.
         
@@ -73,13 +75,16 @@ class PathManager:
             game_version: Game version identifier
             training_id: Training identifier
             checkpoint_number: Checkpoint number to load (integer or "final")
+            synergy_folder: Optional synergy folder name (e.g., "synergy_0.40")
+            specialization_folder: Optional specialization folder name (e.g., "specialized_0.05")
             
         Returns:
             Dictionary containing all relevant paths
         """
         # Updated path structure: 
-        # If game_type is empty: /data/samuel_lozano/cooked/map_{map_nr}/simulations/{study_name}/Training_{training_id}/checkpoint_{checkpoint_number}/
-        # If game_type is specified: /data/samuel_lozano/cooked/{game_type}/map_{map_nr}/simulations/{study_name}/Training_{training_id}/checkpoint_{checkpoint_number}/
+        # Base: /data/samuel_lozano/cooked/{game_type}/map_{map_nr}/
+        # With synergy/spec: .../synergy_X.XX/specialized_X.XX/simulations/Training_{training_id}/checkpoint_{checkpoint_number}/
+        # Training data: .../synergy_X.XX/specialized_X.XX/Training_{training_id}/
         # Note: game_type (e.g., 'classic', 'classic_collision') determines folder, while game_version affects game logic
         if num_agents == 1:
             if game_type:
@@ -92,17 +97,23 @@ class PathManager:
             else:
                 base_path = Path(f"{self.config.local_path}/data/samuel_lozano/cooked/map_{map_nr}")
 
-        # New structure: all simulations go under /simulations/{study_name}/Training_{training_id}/checkpoint_{checkpoint_number}/
-        simulations_base = base_path / "simulations" / study_name
-        training_simulations_path = simulations_base / f"Training_{training_id}"
+        # Add synergy and specialization folders if provided
+        if synergy_folder and specialization_folder:
+            base_path = base_path / synergy_folder / specialization_folder
+            print(f"Using synergy/specialization path structure: {synergy_folder}/{specialization_folder}")
 
-        # Training path for model checkpoints - now organized by study
-        # If study_name is 'default', keep backward compatibility with old structure
-        if study_name == 'default':
-            training_path = base_path / f"Training_{training_id}"
-        else:
+        # New structure: all simulations go under /simulations/{study_name}/Training_{training_id}/checkpoint_{checkpoint_number}/
+        # If study_name is empty, omit the study subfolder
+        if study_name:
+            simulations_base = base_path / "simulations" / study_name
+            training_simulations_path = simulations_base / f"Training_{training_id}"
             # For named studies, look for training data within the study folder
             training_path = base_path / study_name / f"Training_{training_id}"
+        else:
+            simulations_base = base_path / "simulations"
+            training_simulations_path = simulations_base / f"Training_{training_id}"
+            # For no study name, use the base structure
+            training_path = base_path / f"Training_{training_id}"
         
         checkpoint_dir = training_path / f"checkpoint_{checkpoint_number}"
         
