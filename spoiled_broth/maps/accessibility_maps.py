@@ -85,7 +85,7 @@ def create_accessibility_map(grid) -> Dict[Tuple[int, int], Set[Tuple[int, int]]
 
 def generate_map_from_file(filename: str) -> Tuple[Dict[Tuple[int, int], Set[Tuple[int, int]]], any]:
     """Generate accessibility map from a map file"""
-    maps_dir = os.path.dirname(__file__)
+    maps_dir = os.path.join(os.path.dirname(__file__), "maps_txt")
     full_path = os.path.join(maps_dir, f"{filename}.txt")
 
     with open(full_path, "r") as f:
@@ -178,12 +178,12 @@ def plot_accessibility_grid_and_save(grid, accessibility, filename):
 
 def save_accessibility_maps():
     """Generate and save accessibility maps for all text map files"""
-    maps_dir = os.path.dirname(__file__)
-    output_file = os.path.join(maps_dir, 'precomputed_accessibility.json')
+    maps_txt_dir = os.path.join(os.path.dirname(__file__), "maps_txt")
+    output_file = os.path.join(os.path.dirname(__file__), 'precomputed_accessibility.json')
 
     all_maps = {}
 
-    for filename in os.listdir(maps_dir):
+    for filename in os.listdir(maps_txt_dir):
         if filename.endswith('.txt') and filename != 'text_maps_info.txt':
             try:
                 name_only = os.path.splitext(filename)[0]

@@ -176,10 +176,12 @@ if REFERENCE_REWARD_CFG["enabled"]:
             print(f"    {agent_id}: walk={walk:.2f}, cut={cut:.2f} → {deliveries:.2f} deliveries → baseline={baseline:.2f}")
         
     except (KeyError, ValueError) as e:
-        print(f"  WARNING: {e}")
-        print(f"  Baseline lookup failed. Setting baselines to None (synergy shaping disabled).")
-        solo_baselines = None
-        REFERENCE_REWARD_CFG["enabled"] = False
+        raise RuntimeError(
+            f"Synergy shaping is enabled (synergy_scaling_factor={SYNERGY_SCALING_FACTOR}) "
+            f"but baseline lookup failed for map '{MAP_NR}'.\n"
+            f"Add an entry for this map to BASELINE_LOOKUP in training_configuration/baseline_lookup.py "
+            f"before training.\nOriginal error: {e}"
+        ) from e
     
     print(f"===================================\n")
 

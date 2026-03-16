@@ -58,7 +58,7 @@ def get_map_grid_size(map_nr, maps_directory=None):
         tuple: (cols, rows) grid size
     """
     if maps_directory is None:
-        maps_directory = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'spoiled_broth', 'maps')
+        maps_directory = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'spoiled_broth', 'maps', 'maps_txt')
     
     map_txt_path = os.path.join(maps_directory, f'{map_nr}.txt')
     if not os.path.exists(map_txt_path):

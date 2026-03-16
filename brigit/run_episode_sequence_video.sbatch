@@ -21,14 +21,14 @@ SCRIPT_DIR='/mnt/lustre/home/samuloza/cooked'
 VIDEO_SCRIPT="${SCRIPT_DIR}/generate_episode_sequence_video.py"
 
 # Default parameters (modify as needed)
-START_EPISODE=100
-END_EPISODE=3000
-STEP=100
+START_EPISODE=50
+END_EPISODE=5950
+STEP=50
 CLUSTER="brigit"
-SYNERGY=0.4
+SYNERGY=0.8
 SPECIALIZATION=0.05
-STUDY_NAME="REAL"
-NUM_EPISODES=10
+STUDY_NAME="HEATMAP"
+NUM_EPISODES=5
 FPS=2  # 2 fps = 0.5 seconds per frame
 
 # Map names (optional, defaults will be used if not specified)

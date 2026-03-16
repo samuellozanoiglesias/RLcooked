@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=full_training-baseline_collision
+#SBATCH --job-name=d1
 #SBATCH -t 30-00:00:00
 #SBATCH --partition=gpu
 #SBATCH --qos=qos_gpu_long
@@ -25,12 +25,15 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/cooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NRS=(baseline_division_of_labor_large)  # List of maps to run
+MAP_NRS=(
+    encouraged_division_of_labor_large
+    baseline_division_of_labor_large
+    )  # List of maps to run
 LR=3e-4
 GAME_VERSIONS=(classic_collision)  # List of game versions to run
 NUM_AGENTS=2
 NUM_EPOCHS=3000  # Number of training epochs
-SEEDS=(0)  # Different random seeds for runs
+SEEDS=(42)  # Different random seeds for runs
 REWARDS_ON_DELIVERY_ONLY=False  # Whether to use rewards on delivery only
 RANDOM_INITIAL_STATE=False  # Whether to randomize initial state
 AGENTS_TO_TRAIN=("")  # Specify which agent to train when NUM_AGENTS=1 (e.g., "1" for agent 1, "2" for agent 2)
@@ -54,19 +57,10 @@ ANGLE_PAIRS=("0 0")
 # Format: "cut_speed1,walk_speed1 cut_speed2,walk_speed2"
 SPEED_PAIRS=(
     "1.0,1.0 1.0,1.0"
-    #"1.0,0.9 0.9,1.0"
-    #"1.0,0.8 0.8,1.0"
-    #"1.0,0.7 0.7,1.0"
-    #"1.0,0.6 0.6,1.0"
-    #"1.0,0.5 0.5,1.0"
-    "1.0,0.4 0.4,1.0"
-    #"1.0,0.3 0.3,1.0"
-    #"1.0,0.2 0.2,1.0"
-    #"1.0,0.1 0.1,1.0"
 )
 
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)
-SYNERGY_SCALING_FACTOR_VALUES=(0.4)
+SYNERGY_SCALING_FACTOR_VALUES=(0.80)
 
 # Define specialization penalty scale values
 SPECIALIZATION_PENALTY_SCALE_VALUES=(0.05)
@@ -319,7 +313,7 @@ for job in "${job_list[@]}"; do
             python "$TRAIN_SCRIPT" "$CLUSTER" "$INPUT_FILE" "$MAP_NR" "$LR" "$GAME_VERSION" "$NUM_AGENTS" "$NUM_EPOCHS" "$SEED" "$CHECKPOINT_PATHS" "$REWARDS_ON_DELIVERY_ONLY" "$RANDOM_INITIAL_STATE" "$SYNERGY_SCALING_FACTOR" "$SPEC_PENALTY_SCALE" "$COUNTER_REWARD_VALUE" "$COLLISION_PENALTY_VALUE" "$ALLOW_BLOCKED" "$KAPPA" "$ACTIVATE_SYNERGY_POSITIVE" "$ENABLE_REWARD_DECAY" "$COLLISION_HARSHNESS" "$ENTROPY_COEF" > "$LOG_FILE" 2>&1 &
     fi
     
-    sleep 200  # Delay between job starts
+    sleep 20  # Delay between job starts
 done
 
 # Wait for all remaining jobs to complete

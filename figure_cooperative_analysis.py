@@ -386,7 +386,7 @@ class CooperativeAnalyzer:
                     
                     # Load the data (using 2 agents since this is multi-agent cooperative data)
                     try:
-                        df = self.data_processor.load_experiment_data(paths, num_agents=2)
+                        df = self.data_processor.load_experiment_data(paths, num_agents=2, keep_env_rows=True)
                     except ValueError as e:
                         print(f"  Warning: Could not load data for {condition_name}: {e}")
                         print(f"  Skipping this condition and continuing with available data...")
@@ -522,12 +522,16 @@ class CooperativeAnalyzer:
                         print(f"    Warning: No complete episodes found for training {timestamp}")
                         continue
                     
-                    # Take final episodes from complete episodes only
-                    final_episodes = complete_episodes.tail(num_episodes)
+                    # Take the last N unique episodes and return ALL rows for those episodes
+                    # (each episode has multiple rows, one per environment)
+                    unique_eps = sorted(complete_episodes['episode'].unique())
+                    last_n_eps = unique_eps[-num_episodes:]
+                    final_episodes = complete_episodes[complete_episodes['episode'].isin(last_n_eps)]
                     final_data.append(final_episodes)
             
             final_df = pd.concat(final_data, ignore_index=True)
-            print(f"Using final {num_episodes} episodes: {len(final_df)} total episodes")
+            num_unique = final_df.groupby(['condition', 'timestamp'])['episode'].nunique().sum()
+            print(f"Using final {num_episodes} episodes: {len(final_df)} total data points ({num_unique} unique episode-training pairs)")
             return final_df
             
         elif episode_selection == 'specific':
@@ -554,15 +558,16 @@ class CooperativeAnalyzer:
                         continue
                     
                     # Convert target_episode (1-based index within training) to actual episode number
-                    # target_episode refers to the Nth episode within this training session
-                    if target_episode > len(complete_episodes):
+                    # target_episode refers to the Nth unique episode within this training session
+                    unique_eps = sorted(complete_episodes['episode'].unique())
+                    if target_episode > len(unique_eps):
                         episode_range = f"{complete_episodes['episode'].min()}-{complete_episodes['episode'].max()}"
-                        print(f"    Warning: target_episode {target_episode} exceeds training length ({len(complete_episodes)} episodes) "
+                        print(f"    Warning: target_episode {target_episode} exceeds training length ({len(unique_eps)} episodes) "
                               f"for training {timestamp}. Available episode range: {episode_range}")
                         continue
                     
                     # Get the actual episode number for the target_episode index (1-based)
-                    target_episode_actual = complete_episodes.iloc[target_episode - 1]['episode']
+                    target_episode_actual = unique_eps[target_episode - 1]
                     
                     # Calculate the window around this target episode (using actual episode numbers)
                     start_episode = target_episode_actual - half_window
@@ -575,8 +580,9 @@ class CooperativeAnalyzer:
                     ]
                     
                     if len(specific_episodes) > 0:
+                        unique_found = specific_episodes['episode'].nunique()
                         specific_data.append(specific_episodes)
-                        print(f"    Found {len(specific_episodes)} episodes around episode {target_episode} "
+                        print(f"    Found {len(specific_episodes)} data points ({unique_found} episodes) around episode {target_episode} "
                               f"(actual episode {target_episode_actual}, range: {start_episode}-{end_episode}) "
                               f"for training {timestamp}")
                     else:
@@ -589,7 +595,7 @@ class CooperativeAnalyzer:
                 raise ValueError(f"No episodes found around target episode {target_episode}")
             
             specific_df = pd.concat(specific_data, ignore_index=True)
-            print(f"Using {num_episodes} episodes around episode {target_episode}: {len(specific_df)} total episodes")
+            print(f"Using {specific_df['episode'].nunique()} episodes around episode {target_episode}: {len(specific_df)} total data points")
             return specific_df
             
         elif episode_selection == 'average':
@@ -670,39 +676,41 @@ class CooperativeAnalyzer:
         
         Incomplete episodes typically occur at the end of training when the process
         is interrupted before all environments finish an episode.
+        Since data is stored per-environment (one row per env per episode), an incomplete
+        last episode will have fewer rows than the most common row count per episode.
         """
         if len(df) == 0:
             return df
             
-        # For multi-environment training, episodes should have consistent structure
-        # We can detect incomplete episodes by checking if the last few episodes 
-        # have significantly different patterns or if there are obvious gaps
-        
-        # Simple approach: remove the last episode if it seems incomplete
-        # by checking if the last episode has very different values than previous ones
-        # or if there are obvious data quality issues
-        
-        # Sort by episode to ensure proper order
         df_sorted = df.sort_values('episode').copy()
         
-        if len(df_sorted) < 2:
+        unique_episodes = sorted(df_sorted['episode'].unique())
+        if len(unique_episodes) < 2:
             return df_sorted
         
-        # Check for obvious data quality issues in the last episode
-        last_episode = df_sorted.iloc[-1]
-        second_last_episode = df_sorted.iloc[-2] if len(df_sorted) > 1 else None
+        # Detect expected number of environments per episode (most common row count)
+        rows_per_episode = df_sorted.groupby('episode').size()
+        expected_envs = int(rows_per_episode.mode().iloc[0])
         
-        # Remove last episode if it has NaN values in key metrics where previous episode doesn't
+        last_ep = unique_episodes[-1]
+        last_ep_rows = df_sorted[df_sorted['episode'] == last_ep]
+        
+        # Remove last episode if it has fewer rows than expected (incomplete environment set)
+        if len(last_ep_rows) < expected_envs:
+            print(f"      Removing incomplete last episode {last_ep} ({len(last_ep_rows)}/{expected_envs} environments)")
+            return df_sorted[df_sorted['episode'] != last_ep]
+        
+        # Also check for NaN values in key metrics across all rows of the last episode
         key_metrics = ['deliver_ai_rl_1', 'pure_reward_ai_rl_1']
+        second_last_ep = unique_episodes[-2]
+        second_last_rows = df_sorted[df_sorted['episode'] == second_last_ep]
         
-        if second_last_episode is not None:
-            for metric in key_metrics:
-                if metric in df_sorted.columns:
-                    if (pd.isna(last_episode[metric]) and not pd.isna(second_last_episode[metric])):
-                        print(f"      Removing incomplete last episode {last_episode['episode']} due to NaN in {metric}")
-                        return df_sorted.iloc[:-1]
+        for metric in key_metrics:
+            if metric in df_sorted.columns:
+                if last_ep_rows[metric].isna().any() and not second_last_rows[metric].isna().any():
+                    print(f"      Removing incomplete last episode {last_ep} due to NaN in {metric}")
+                    return df_sorted[df_sorted['episode'] != last_ep]
         
-        # If no obvious issues, return all episodes
         return df_sorted
     
     def _filter_by_speed_config(self, df: pd.DataFrame, expected_config: str) -> pd.DataFrame:
@@ -905,7 +913,7 @@ class RaincloudPlotter:
             spine.set_color('black')
     
     def create_composite_figure(self, data: pd.DataFrame, output_path: str = None, 
-                                 extended: bool = False) -> plt.Figure:
+                                 extended: bool = False, target_episode: Optional[int] = None) -> plt.Figure:
         """Create the complete raincloud plot figure.
         
         Args:
@@ -962,6 +970,12 @@ class RaincloudPlotter:
         
         # Adjust layout
         plt.tight_layout()
+        
+        # Add episode number in top-right corner if provided (for video generation)
+        if target_episode is not None:
+            fig.text(0.98, 0.98, f'Episode {target_episode}', 
+                    ha='right', va='top', fontsize=16, fontweight='bold',
+                    bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.8, edgecolor='black'))
         
         # Create legend at the bottom
         handles = []
@@ -1215,7 +1229,7 @@ def main():
                     analyzer.performance_metrics,
                     analyzer.extended_metrics
                 )
-                fig = plotter.create_composite_figure(processed_df, str(output_path), extended=args.extended)
+                fig = plotter.create_composite_figure(processed_df, str(output_path), extended=args.extended, target_episode=args.target_episode)
                 
                 # Display results
                 print(f"\nFigure for {combination_key} completed!")
@@ -1296,7 +1310,7 @@ def main():
                 analyzer.performance_metrics,
                 analyzer.extended_metrics
             )
-            fig = plotter.create_composite_figure(processed_df, str(output_path), extended=args.extended)
+            fig = plotter.create_composite_figure(processed_df, str(output_path), extended=args.extended, target_episode=args.target_episode)
             
             # Display results
             print(f"\nAnalysis completed successfully!")

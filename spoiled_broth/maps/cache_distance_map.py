@@ -138,7 +138,8 @@ def compute_distance_map(game, grid, cache_path=None):
 		except Exception as e:
 			print(f"[WARNING] Failed to save .npz distance map for {cache_path}: {e}")
 		# Also write a readable .txt version
-		readable_dir = os.path.join(os.path.dirname(cache_path), "./readable_distances")
+		cache_parent = os.path.dirname(cache_path)
+		readable_dir = os.path.join(cache_parent, "readable_distances")
 		os.makedirs(readable_dir, exist_ok=True)
 		base_noext = os.path.splitext(os.path.basename(cache_path))[0]
 		txt_path = os.path.join(readable_dir, base_noext + '.txt')
@@ -174,18 +175,12 @@ def load_or_compute_distance_map(game, grid, map_id, cache_dir="./distance_cache
 if __name__ == "__main__":
 	print("[Distance Cache] Cleaning and recreating cache folders...")
 	cache_dir = os.path.join(os.path.dirname(__file__), "./distance_cache")
-	readable_dir = os.path.join(os.path.dirname(__file__), "./readable_distances")
-	# Always delete and recreate the folders
 	if os.path.exists(cache_dir):
 		shutil.rmtree(cache_dir)
 		print(f"  Deleted {cache_dir}")
 	os.makedirs(cache_dir, exist_ok=True)
-	if os.path.exists(readable_dir):
-		shutil.rmtree(readable_dir)
-		print(f"  Deleted {readable_dir}")
-	os.makedirs(readable_dir, exist_ok=True)
-	print("[Distance Cache] Generating distance maps for all maps in spoiled_broth/maps/*.txt ...")
-	map_dir = os.path.dirname(__file__)
+	print("[Distance Cache] Generating distance maps for all maps in spoiled_broth/maps/maps_txt/*.txt ...")
+	map_dir = os.path.join(os.path.dirname(__file__), "maps_txt")
 	map_files = glob.glob(os.path.join(map_dir, "*.txt"))
 	for map_file in map_files:
 		# Extract map_id from filename (e.g., map_1.txt -> 1)

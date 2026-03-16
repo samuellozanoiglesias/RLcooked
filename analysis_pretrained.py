@@ -10,7 +10,7 @@ nohup python analysis_pretrained.py <map_name> [options] > analysis_pretrained.l
 
 Examples:
 nohup python analysis_pretrained.py baseline_division_of_labor_large --cluster cuenca --smoothing_factor 15 > analysis_pretrained.log 2>&1 &
-nohup python analysis_pretrained.py baseline_division_of_labor_large --cluster brigit --game_type classic_collision --init_type random_init --individual_trainings yes > analysis_pretrained.log 2>&1 &
+nohup python analysis_pretrained.py encouraged_division_of_labor_large --cluster brigit --synergy 0 --specialization 0 --game_type classic_collision --init_type empty_init --individual_trainings yes > analysis_pretrained.log 2>&1 &
 """
 
 import sys
@@ -515,64 +515,78 @@ def generate_combined_attitude_plots(df, paths, unique_attitudes, config, indivi
 def main():
     """Main execution function."""
     parser = setup_argument_parser('pretrained')
+    parser.add_argument('--synergy', type=float, default=None,
+                       help='Analyze only specific synergy scaling factor value (e.g., 0.5, 1.0). If not specified, analyzes all available synergies.')
+    parser.add_argument('--specialization', type=float, default=None,
+                       help='Analyze only specific specialization lambda value (e.g., 0, 5.0). If not specified, analyzes all available lambdas.')
     args = parser.parse_args()
-    
+
     # Parse individual_trainings flag
     individual_trainings = args.individual_trainings.lower() in ['yes', 'y']
-    
+
     print(f"Starting pretraining experiment analysis...")
     print(f"Map: {args.map_name}")
     print(f"Cluster: {args.cluster}")
     print(f"Smoothing factor: {args.smoothing_factor}")
     print(f"Study name: {args.study_name}")
     print(f"Game type: {args.game_type}")
-    print(f"Synergy scaling factor: {args.synergy_scaling_factor}")
+    print(f"Init type: {args.init_type}")
+    if args.synergy is not None:
+        print(f"Synergy scaling factor: {args.synergy}")
+    if args.specialization is not None:
+        print(f"Specialization lambda: {args.specialization}")
     print(f"Individual trainings: {individual_trainings}")
-    
-    # Determine which inits to process
-    if args.init_type:
-        init_types = [args.init_type]
-        print(f"Processing single init type: {args.init_type}")
-    else:
-        # Process all available init types
-        init_types = ['random_init', 'empty_init']
-        print(f"Processing all init types: {init_types}")
-    
+
     try:
-        # Check if synergy_scaling_factor was explicitly provided
-        synergy_provided = '--synergy_scaling_factor' in sys.argv
-        
-        for init_type in init_types:
-            print(f"\n{'='*80}")
-            print(f"Processing init type: {init_type}")
-            print(f"{'='*80}\n")
-            
-            # Run main analysis pipeline
-            analysis_results = main_analysis_pipeline(
-                experiment_type='pretraining',
-                map_name=args.map_name,
-                cluster=args.cluster,
-                smoothing_factor=args.smoothing_factor,
-                num_agents=1,  # Pretrained experiments use only 1 agent
-                study_name=args.study_name,
-                game_type=args.game_type,
-                init_type=init_type,
-                synergy_scaling_factor=args.synergy_scaling_factor,
-                synergy_provided=synergy_provided
-            )
-            
-            # Add individual_trainings flag to results
+        # Check if synergy was explicitly provided
+        synergy_provided = '--synergy' in sys.argv
+
+        # Set specialization based on command line argument
+        specialization = args.specialization
+
+        # Run main analysis pipeline
+        analysis_results = main_analysis_pipeline(
+            experiment_type='pretraining',
+            map_name=args.map_name,
+            cluster=args.cluster,
+            smoothing_factor=args.smoothing_factor,
+            num_agents=1,  # Pretrained experiments use only 1 agent
+            study_name=args.study_name,
+            game_type=args.game_type,
+            init_type=args.init_type,
+            synergy_scaling_factor=args.synergy,
+            synergy_provided=synergy_provided,
+            specialization_lambda=specialization
+        )
+
+        # Check if we got a dict of results (multiple combinations) or single result
+        if isinstance(analysis_results, dict) and any(key.startswith(('specialized_', 'synergy_')) for key in analysis_results.keys()):
+            # Multiple synergy/specialization combinations - process each separately
+            print("\n" + "=" * 60)
+            print("GENERATING PLOTS FOR EACH SYNERGY/SPECIALIZATION COMBINATION")
+            print("=" * 60)
+
+            for combination_key in sorted(analysis_results.keys()):
+                print(f"\n{'='*60}")
+                print(f"CREATING PLOTS FOR {combination_key.upper()}")
+                print(f"{'='*60}")
+
+                combination_results = analysis_results[combination_key]
+                combination_results['individual_trainings'] = individual_trainings
+                generate_pretrained_plots(combination_results)
+
+                print(f"\n{combination_key.upper()} plots completed!")
+
+            print("\n" + "=" * 60)
+            print("ALL COMBINATIONS COMPLETED SUCCESSFULLY!")
+            print("=" * 60)
+        else:
+            # Single combination
             analysis_results['individual_trainings'] = individual_trainings
-            
-            # Generate pretrained-specific plots
             generate_pretrained_plots(analysis_results)
-            
-            print(f"\nCompleted analysis for init type: {init_type}")
-        
-        print(f"\n{'='*80}")
-        print("All analysis completed successfully!")
-        print(f"{'='*80}")
-        
+
+        print("Analysis completed successfully!")
+
     except Exception as e:
         print(f"Error during analysis: {e}")
         import traceback

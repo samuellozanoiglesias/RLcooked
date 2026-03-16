@@ -149,7 +149,7 @@ def get_hyperparameters():
         "sgd_minibatch_size": 500,
         "num_sgd_iter": 10,
         "show_every_n_epochs": 1,
-        "save_every_n_epochs": 1000,
+        "save_every_n_epochs": 375,
         "payoff_matrix": [1, 1, -2],
         "mlp_layers": [1024, 512, 256],
         "gamma": 0.9,

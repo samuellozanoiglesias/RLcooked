@@ -92,13 +92,16 @@ class DataProcessor:
         
         return paths
     
-    def parse_training_folder(self, folder_path: str, num_agents: int = 1) -> Optional[pd.DataFrame]:
+    def parse_training_folder(self, folder_path: str, num_agents: int = 1,
+                              keep_env_rows: bool = False) -> Optional[pd.DataFrame]:
         """
         Parse a single training folder and extract data.
         
         Args:
             folder_path: Path to training folder
             num_agents: Number of agents (1 for classic, 2 for competition)
+            keep_env_rows: If True, keep one row per environment per episode instead of
+                           averaging across environments (default: False)
             
         Returns:
             DataFrame with processed data or None if parsing fails
@@ -114,13 +117,7 @@ class DataProcessor:
         with open(config_path, "r") as f:
             config_contents = f.read()
         
-        # Debug: Show REWARD_WEIGHTS line for troubleshooting
-        reward_weights_match = re.search(r"REWARD_WEIGHTS:\s*(.+)", config_contents)
-        if reward_weights_match:
-            print(f"  Found REWARD_WEIGHTS: {reward_weights_match.group(1)}")
-        
         matches = self.reward_pattern.findall(config_contents)
-        print(f"  Reward pattern matches: {matches}")
         if len(matches) != num_agents:
             print(f"Expected {num_agents} agents, found {len(matches)} in {folder_path}")
             return None
@@ -139,7 +136,6 @@ class DataProcessor:
         # Extract game_type (classic or classic_collision)
         game_type_match = re.search(r"GAME_VERSION:\s*(\S+)", config_contents)
         game_type = game_type_match.group(1) if game_type_match else 'classic'
-        print(f"  GAME_VERSION extracted: {game_type}")
         
         # Extract walking and cutting speeds for each agent
         walking_speeds = {}
@@ -149,41 +145,27 @@ class DataProcessor:
         walking_speeds_match = re.search(r"WALKING_SPEEDS:\s*({[^}]+})", config_contents)
         if walking_speeds_match:
             try:
-                # Extract the dictionary string and evaluate it safely
                 speeds_dict_str = walking_speeds_match.group(1)
-                print(f"  Found WALKING_SPEEDS: {speeds_dict_str}")
-                
-                # Parse the dictionary manually to be safe
                 for i in range(1, num_agents + 1):
                     agent_key = f"'ai_rl_{i}'"
                     speed_match = re.search(rf"{agent_key}:\s*([0-9.eE+-]+)", speeds_dict_str)
                     if speed_match:
                         walking_speeds[i] = float(speed_match.group(1))
-                        print(f"    Extracted walking_speed_{i}: {walking_speeds[i]}")
-            except Exception as e:
-                print(f"  Error parsing WALKING_SPEEDS: {e}")
-        else:
-            print(f"  No WALKING_SPEEDS dictionary found in config")
+            except Exception:
+                pass
             
         # Parse CUTTING_SPEEDS dictionary format  
         cutting_speeds_match = re.search(r"CUTTING_SPEEDS:\s*({[^}]+})", config_contents)
         if cutting_speeds_match:
             try:
-                # Extract the dictionary string and evaluate it safely
                 speeds_dict_str = cutting_speeds_match.group(1)
-                print(f"  Found CUTTING_SPEEDS: {speeds_dict_str}")
-                
-                # Parse the dictionary manually to be safe
                 for i in range(1, num_agents + 1):
                     agent_key = f"'ai_rl_{i}'"
                     speed_match = re.search(rf"{agent_key}:\s*([0-9.eE+-]+)", speeds_dict_str)
                     if speed_match:
                         cutting_speeds[i] = float(speed_match.group(1))
-                        print(f"    Extracted cutting_speed_{i}: {cutting_speeds[i]}")
-            except Exception as e:
-                print(f"  Error parsing CUTTING_SPEEDS: {e}")
-        else:
-            print(f"  No CUTTING_SPEEDS dictionary found in config")
+            except Exception:
+                pass
         
         # Load and clean CSV data
         with open(csv_path, 'r') as f:
@@ -193,12 +175,9 @@ class DataProcessor:
         num_envs_match = re.search(r"NUM_ENVS:\s*([0-9]+)", config_contents)
         num_envs = int(num_envs_match.group(1)) if num_envs_match else 1
         
-        print(f"Processing {folder_path} with NUM_ENVS = {num_envs}")
-        
         if num_envs > 1:
-            # Fast path: strip duplicate headers then use pandas groupby to average across envs.
-            # This replaces an O(N*M) Python loop with a single vectorised groupby.
-            print(f"Processing multi-environment CSV with {num_envs} environments (pandas fast path)")
+            # Strip duplicate headers, then either average across envs (default) or keep each
+            # environment row as a separate data point (keep_env_rows=True).
             data_lines = [lines[0].strip()]  # keep the single header
             for line in lines[1:]:
                 stripped = line.strip()
@@ -208,15 +187,16 @@ class DataProcessor:
             df_raw['episode'] = pd.to_numeric(df_raw['episode'], errors='coerce')
             df_raw = df_raw.dropna(subset=['episode'])
             df_raw['episode'] = df_raw['episode'].astype(int)
-            numeric_cols = df_raw.select_dtypes(include=[np.number]).columns.tolist()
-            df = df_raw.groupby('episode')[numeric_cols].mean().reset_index()
-            print(f"Final DataFrame: {len(df)} episodes averaged across {num_envs} environments")
+            if keep_env_rows:
+                df = df_raw  # Keep all individual environment rows
+            else:
+                # Fast path: average across environments per episode (original behaviour)
+                numeric_cols = [c for c in df_raw.select_dtypes(include=[np.number]).columns if c != 'episode']
+                df = df_raw.groupby('episode')[numeric_cols].mean().reset_index()
         else:
             # Single environment - use original logic but clean header duplication
-            print(f"Single environment detected (NUM_ENVS = {num_envs})")
             filtered_lines = [lines[0]] + [line for line in lines[1:] if not line.startswith("episode,")]
             df = pd.read_csv(StringIO("".join(filtered_lines)))
-            print(f"Loaded {len(df)} episodes from single environment")
         # Check if 'episode' column exists and use it, otherwise use line numbers
         if 'episode' in df.columns:
             # Ensure episode column is numeric - convert from string if necessary
@@ -269,42 +249,6 @@ class DataProcessor:
                 df.insert(current_pos, f"cutting_speed_{i}", cutting_speeds[i])
                 current_pos += 1
         
-        # Debug: Print DataFrame info
-        print(f"Parsed training folder {folder_path}:")
-        print(f"  NUM_ENVS detected: {num_envs}")
-        print(f"  SEED detected: {seed if seed is not None else 'None'}")
-        print(f"  GAME_TYPE detected: {game_type}")
-        print(f"  Walking speeds: {walking_speeds}")
-        print(f"  Cutting speeds: {cutting_speeds}")
-        print(f"  DataFrame shape: {df.shape}")
-        print(f"  All columns: {list(df.columns)}")
-        
-        # Check specifically for speed columns
-        speed_cols_found = []
-        for col in df.columns:
-            if 'speed' in col.lower():
-                speed_cols_found.append(col)
-        print(f"  Speed columns found: {speed_cols_found}")
-        
-        if len(df) > 0:
-            print(f"  Episodes range: {df['episode'].min()} to {df['episode'].max()}")
-            print(f"  Sample data for first episode:")
-            print(f"    Episode: {df.iloc[0]['episode']}")
-            if 'seed' in df.columns:
-                print(f"    Seed: {df.iloc[0]['seed']}")
-            if 'game_type' in df.columns:
-                print(f"    Game type: {df.iloc[0]['game_type']}")
-            # Show speed values if they exist
-            for col in speed_cols_found:
-                print(f"    {col}: {df.iloc[0][col]}")
-            # Show some key metrics if they exist
-            key_metrics = ['pure_reward_ai_rl_1', 'deliver_ai_rl_1', 'cut_ai_rl_1', 'salad_ai_rl_1']
-            for metric in key_metrics:
-                if metric in df.columns:
-                    print(f"    {metric}: {df.iloc[0][metric]}")
-        else:
-            print("  WARNING: DataFrame is empty!")
-        
         return df
         
     def _average_across_seeds(self, df: pd.DataFrame, num_agents: int) -> pd.DataFrame:
@@ -318,8 +262,6 @@ class DataProcessor:
         Returns:
             DataFrame with data averaged across seeds
         """
-        print("Averaging data across seeds...")
-        
         # Define grouping columns (experimental conditions that should be the same across seeds)
         group_cols = ['episode']
         
@@ -341,22 +283,15 @@ class DataProcessor:
         # Add game_type if present
         if 'game_type' in df.columns:
             group_cols.append('game_type')
-            
-        print(f"Grouping by: {group_cols}")
         
         # Get columns to average (numeric columns except grouping columns)
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         cols_to_average = [col for col in numeric_cols if col not in group_cols and col != 'seed']
         
-        print(f"Columns to average: {len(cols_to_average)} columns")
-        print(f"Example columns: {cols_to_average[:10]}..." if len(cols_to_average) > 10 else f"Columns: {cols_to_average}")
-        
         # Check how many seeds we have
         unique_seeds = df['seed'].nunique()
-        print(f"Found {unique_seeds} different seeds")
         
         if unique_seeds == 1:
-            print("Only one seed found, no averaging needed")
             return df
         
         # Perform grouping and averaging
@@ -381,15 +316,13 @@ class DataProcessor:
             first_timestamp = df['timestamp'].iloc[0]
             averaged_data['timestamp'] = f"{first_timestamp}_averaged_{unique_seeds}_seeds"
         
-        print(f"Averaging complete:")
-        print(f"  Original data: {len(df)} rows")
-        print(f"  Averaged data: {len(averaged_data)} rows")
-        print(f"  Seeds per condition: {averaged_data['seeds_averaged'].iloc[0] if len(averaged_data) > 0 else 'N/A'}")
+        print(f"Averaging complete: {len(df)} rows -> {len(averaged_data)} rows ({unique_seeds} seeds)")
         
         return averaged_data
     
     def load_experiment_data(self, paths: Dict[str, str], 
-                           num_agents: int = 1) -> pd.DataFrame:
+                           num_agents: int = 1,
+                           keep_env_rows: bool = False) -> pd.DataFrame:
         """
         Load all experiment data from the raw directory.
         Supports both direct training folders and study_name folder structure.
@@ -398,6 +331,8 @@ class DataProcessor:
         Args:
             paths: Dictionary containing directory paths
             num_agents: Number of agents in the experiment
+            keep_env_rows: If True, keep one row per environment per episode instead of
+                           averaging across environments (default: False)
             
         Returns:
             Combined DataFrame with all experiment data
@@ -406,15 +341,10 @@ class DataProcessor:
         study_name = paths.get('study_name')
 
         # Return cached result if this directory has already been loaded
-        cache_key = (raw_dir, num_agents, study_name)
+        cache_key = (raw_dir, num_agents, study_name, keep_env_rows)
         if cache_key in self._dir_cache:
-            print(f"[Cache hit] {raw_dir}")
             return self._dir_cache[cache_key]
         
-        print(f"Loading experiment data from directory: {raw_dir}")
-        if study_name:
-            print(f"Using study name: {study_name}")
-
         if not os.path.exists(raw_dir):
             # If study_name is specified but directory doesn't exist, try to find available study names
             if study_name:
@@ -437,11 +367,10 @@ class DataProcessor:
         
         if study_name is None and training_folders:
             # Direct training folders mode (legacy)
-            print("Direct training folders detected")
             for folder in training_folders:
                 folder_path = os.path.join(raw_dir, folder)
                 folders_found.append(folder)
-                df = self.parse_training_folder(folder_path, num_agents)
+                df = self.parse_training_folder(folder_path, num_agents, keep_env_rows)
                 if df is not None:
                     all_dfs.append(df)
                     folders_processed.append(folder)
@@ -462,16 +391,13 @@ class DataProcessor:
                     if not os.path.isdir(folder_path):
                         continue
                     folders_found.append(folder)
-                    df = self.parse_training_folder(folder_path, num_agents)
+                    df = self.parse_training_folder(folder_path, num_agents, keep_env_rows)
                     if df is not None:
                         all_dfs.append(df)
                         folders_processed.append(folder)
         
         else:
             # Study name mode - process all training folders and average seeds
-            print(f"Processing study: {study_name}")
-            print(f"Looking for Training_ folders in: {raw_dir}")
-            
             # Find all training folders
             for folder in items_in_dir:
                 folder_path = os.path.join(raw_dir, folder)
@@ -479,7 +405,7 @@ class DataProcessor:
                     continue
                     
                 folders_found.append(folder)
-                df = self.parse_training_folder(folder_path, num_agents)
+                df = self.parse_training_folder(folder_path, num_agents, keep_env_rows)
                 if df is not None:
                     # Add study_name information
                     df['study_name'] = study_name
@@ -491,12 +417,6 @@ class DataProcessor:
                     
                     all_dfs.append(df)
                     folders_processed.append(folder)
-        
-        print(f"Found {len(folders_found)} folders, successfully processed {len(folders_processed)}")
-        if folders_found:
-            print(f"Folders found: {folders_found}")
-        if folders_processed:
-            print(f"Folders processed: {folders_processed}")
         
         if not all_dfs:
             error_msg = f"No valid training data found in {raw_dir}. "
@@ -556,17 +476,10 @@ class DataProcessor:
             # Create total columns for single agent (check if source columns exist)
             if "pure_reward_ai_rl_1" in df.columns:
                 df["pure_reward_total"] = df["pure_reward_ai_rl_1"]
-                print(f"Created pure_reward_total from pure_reward_ai_rl_1")
-            else:
-                print(f"WARNING: pure_reward_ai_rl_1 column not found!")
                 
             if "deliver_ai_rl_1" in df.columns:
                 df["total_deliveries"] = df["deliver_ai_rl_1"]
-                print(f"Created total_deliveries from deliver_ai_rl_1")
-            else:
-                print(f"WARNING: deliver_ai_rl_1 column not found!")
-                
-        else:  # num_agents == 2
+        else:
             df["attitude_key"] = df.apply(
                 lambda row: f"{row['alpha_1']}_{row['beta_1']}_{row['alpha_2']}_{row['beta_2']}", 
                 axis=1
@@ -584,52 +497,22 @@ class DataProcessor:
                     lambda row: f"{row['walking_speed_1']}_{row['cutting_speed_1']}_{row['walking_speed_2']}_{row['cutting_speed_2']}", 
                     axis=1
                 )
-                print(f"Created speed_key with all 4 speed values")
             elif has_speed_1:
                 df["speed_key"] = df.apply(
                     lambda row: f"{row['walking_speed_1']}_{row['cutting_speed_1']}", 
                     axis=1
                 )
-                print(f"Created speed_key with agent 1 speeds only")
             elif has_speed_2:
                 df["speed_key"] = df.apply(
                     lambda row: f"{row['walking_speed_2']}_{row['cutting_speed_2']}", 
                     axis=1
                 )
-                print(f"Created speed_key with agent 2 speeds only")
-            else:
-                print(f"WARNING: No speed columns found for speed_key creation")
-                print(f"  Available columns containing 'speed': {[col for col in df.columns if 'speed' in col.lower()]}")
             
             # Create total columns for two agents
             if "pure_reward_ai_rl_1" in df.columns and "pure_reward_ai_rl_2" in df.columns:
                 df["pure_reward_total"] = df["pure_reward_ai_rl_1"] + df["pure_reward_ai_rl_2"]
             if "deliver_ai_rl_1" in df.columns and "deliver_ai_rl_2" in df.columns:
                 df["total_deliveries"] = df["deliver_ai_rl_1"] + df["deliver_ai_rl_2"]
-        
-        # Debug: Print final DataFrame info after processing
-        print(f"After prepare_dataframe processing:")
-        print(f"  DataFrame shape: {df.shape}")
-        print(f"  Key columns present:")
-        key_cols = ['episode', 'pure_reward_total', 'total_deliveries', 'pure_reward_ai_rl_1', 'deliver_ai_rl_1']
-        for col in key_cols:
-            if col in df.columns:
-                print(f"    {col}: YES (sample value: {df[col].iloc[0] if len(df) > 0 else 'N/A'})")
-            else:
-                print(f"    {col}: NO")
-        
-        # Show speed-related columns
-        speed_cols = [col for col in df.columns if 'speed' in col.lower()]
-        print(f"  Speed-related columns: {speed_cols}")
-        if speed_cols and len(df) > 0:
-            for col in speed_cols:
-                print(f"    {col}: {df[col].iloc[0]}")
-        
-        # Show if game_type column exists
-        if 'game_type' in df.columns:
-            print(f"  game_type: {df['game_type'].iloc[0] if len(df) > 0 else 'N/A'}")
-        else:
-            print(f"  game_type: NO")
         
         return df
 

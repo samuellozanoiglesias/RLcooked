@@ -130,7 +130,7 @@ def get_reference_reward_config(synergy_scaling_factor, cooperation_factor, kapp
     Returns:
         dict: Reference reward configuration
     """
-    effective_synergy_scaling = synergy_scaling_factor * cooperation_factor
+    effective_synergy_scaling = synergy_scaling_factor #* cooperation_factor
     
     return {
         "enabled": (synergy_scaling_factor > 0),
