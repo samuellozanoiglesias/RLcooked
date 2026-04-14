@@ -8,5 +8,5 @@
 #SBATCH --error=tar-%x-%j.err
 
 # Create the tar archive
-tar -cvf /mnt/lustre/home/samuloza/data/samuel_lozano/cooked/old_different_maps.tar \
-/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/old_different_maps
+tar -cvf /mnt/lustre/home/samuloza/data/samuel_lozano/cooked/SYNERGIES.tar \
+/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/SYNERGIES

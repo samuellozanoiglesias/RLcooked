@@ -4,7 +4,8 @@ Reward and Penalty Configuration Module
 Defines reward structures and penalty systems for training.
 """
 
-def get_penalties_config(collision_penalty, specialization_penalty_scale, collision_harshness, cooperation_factor=1.0):
+def get_penalties_config(collision_penalty, specialization_penalty_scale, collision_harshness,
+                         cooperation_factor=1.0, specialization_theta=1.0):
     """
     Get penalty configuration dictionary.
     
@@ -13,6 +14,7 @@ def get_penalties_config(collision_penalty, specialization_penalty_scale, collis
         specialization_penalty_scale: Base specialization penalty scale
         collision_harshness: Collision harshness multiplier
         cooperation_factor: Map cooperation factor (higher = more cooperation needed)
+        specialization_theta: Exponential sensitivity for specialization penalties
         
     Returns:
         dict: Penalty configuration
@@ -29,6 +31,7 @@ def get_penalties_config(collision_penalty, specialization_penalty_scale, collis
         "blocked": 5.0,
         "collision": collision_penalty,
         "specialization_penalty_scale": effective_specialization_penalty,
+        "specialization_theta": specialization_theta,
         "collision_harshness": collision_harshness,
     }
 

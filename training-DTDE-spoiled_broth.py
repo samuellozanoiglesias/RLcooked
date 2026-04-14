@@ -1,9 +1,10 @@
-# USE:   <cluster> <input_path> <map_nr> <lr> <game_version> [<num_agents>] [<num_epochs>] [<seed>] [<checkpoints>] [<rewards_on_delivery_only>] [<random_initial_state>] [<synergy_scaling_factor>] [<specialization_penalty_scale>] [<collision_penalty>] [<agent_to_train>] [<allow_blocked>] [<kappa>] [<activate_synergy_positive>] [<enable_reward_decay>] [<collision_harshness>] > log_training.log 2>&1 &
-# Example: nohup python training-DTDE-spoiled_broth.py cuenca ./cuenca/input_0_0.txt baseline_division_of_labor_v2 0.0003 classic 2 1000 0 none true false 0.5 5.0 10.0 false 1.0 true false true 2.0 > log_training.log 2>&1 &
+# USE:   <cluster> <input_path> <map_nr> <lr> <game_version> [<num_agents>] [<num_epochs>] [<seed>] [<checkpoints>] [<rewards_on_delivery_only>] [<random_initial_state>] [<synergy_scaling_factor>] [<specialization_penalty_scale>] [<collision_penalty>] [<agent_to_train>] [<allow_blocked>] [<kappa>] [<activate_synergy_positive>] [<enable_reward_decay>] [<collision_harshness>] [<entropy_coef>] [<specialization_theta>] > log_training.log 2>&1 &
+# Example: nohup python training-DTDE-spoiled_broth.py cuenca ./cuenca/input_0_0.txt baseline_division_of_labor_v2 0.0003 classic 2 1000 0 none true false 0.5 5.0 10.0 false 1.0 true false true 2.0 0.001 1.0 > log_training.log 2>&1 &
 #   synergy_scaling_factor=0: Standard rewards (no team synergy shaping)
 #   synergy_scaling_factor>0: Team synergy-based reward shaping enabled with given sensitivity
 #   specialization_penalty_scale=0: No specialization penalty
 #   specialization_penalty_scale>0: Specialization penalty with given scale
+#   specialization_theta: Exponential sensitivity in specialization penalty term exp(theta * (1 - speed))
 #   kappa: Competence transformation parameter for team synergy distribution (default=1.0)
 #   activate_synergy_positive: Whether to apply positive synergy signals (true/false, default=false)
 #   enable_reward_decay: Exponentially decay intermediate rewards after episode 200 (true/false, default=false)
@@ -63,6 +64,13 @@ agent_to_train = 1
 if NUM_AGENTS == 1 and len(sys.argv) > 22:
     agent_to_train = int(sys.argv[22])
 
+# Exponential sensitivity parameter for specialization penalties.
+# Kept at the end to preserve backward compatibility for existing launch scripts.
+if NUM_AGENTS == 1:
+    SPECIALIZATION_THETA = float(sys.argv[23]) if len(sys.argv) > 23 else 1.0
+else:
+    SPECIALIZATION_THETA = float(sys.argv[22]) if len(sys.argv) > 22 else 1.0
+
 ######### ----------------------------------------------------------------- #########
 ######### -------------- Configuration Processing ------------------------- #########
 
@@ -103,7 +111,11 @@ cooperation_factor = get_cooperation_factor(MAP_NR)
 
 # Configure rewards and penalties
 PENALTIES_CFG = get_penalties_config(
-    COLLISION_PENALTY, SPECIALIZATION_PENALTY_SCALE, COLLISION_HARSHNESS, cooperation_factor
+    COLLISION_PENALTY,
+    SPECIALIZATION_PENALTY_SCALE,
+    COLLISION_HARSHNESS,
+    cooperation_factor,
+    SPECIALIZATION_THETA,
 )
 REWARDS_CFG = get_rewards_config(REWARDS_ON_DELIVERY, COUNTER_REWARD)
 REFERENCE_REWARD_CFG = get_reference_reward_config(
@@ -118,6 +130,7 @@ if SPECIALIZATION_PENALTY_SCALE > 0:
     effective_specialization_penalty = PENALTIES_CFG["specialization_penalty_scale"]
     print(f"\n=== Cooperation-Adjusted Specialization ===")
     print(f"Base specialization penalty scale: {SPECIALIZATION_PENALTY_SCALE}")
+    print(f"Specialization theta: {SPECIALIZATION_THETA}")
     print(f"Map cooperation factor: {cooperation_factor:.3f}")
     print(f"Effective specialization penalty: {effective_specialization_penalty:.3f} (base × cooperation)")
     print(f"Reasoning: Maps requiring more cooperation need stronger specialization incentives")

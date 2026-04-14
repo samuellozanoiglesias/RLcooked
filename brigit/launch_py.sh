@@ -12,6 +12,4 @@ source ~/.bashrc
 conda activate RLcooked 
 
 # Ejecutar el script (secuencial, uno a uno)
-for target_ep in $(seq 50 50 5950); do
-    python ../grid_full_cooperative_analysis.py --episode_range specific --init_type empty_init --num_episodes 10 --cluster brigit --specialization 0.05 --synergy 0.80 --target_episode $target_ep --study_name HEATMAP > full_grid_empty_init_ep${target_ep}.log 2>&1
-done
+nohup python ../analysis_classic.py encouraged_division_of_labor_large --game_type classic_collision --individual_training yes --init_type empty_init --cluster brigit > analysis_classic.log 2>&1 &

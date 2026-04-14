@@ -103,28 +103,54 @@ class CooperativeAnalyzer:
         # Define hardcoded map list for 2D grid analysis (Y-axis)
         self.map_names = [
             'baseline_division_of_labor_large',
-            'semiencouraged_division_of_labor_large',
-            '1-semiencouraged_division_of_labor_large',
-            '2-semiencouraged_division_of_labor_large',
+            'd4_encouraged_division_of_labor_large',
+            'm7_encouraged_division_of_labor_large',
+            #'m6_encouraged_division_of_labor_large',
+            #'m5_encouraged_division_of_labor_large',
+            'm4_encouraged_division_of_labor_large',
+            'm3_encouraged_division_of_labor_large',
+            #'m2_encouraged_division_of_labor_large',
+            'm1_encouraged_division_of_labor_large',
             'encouraged_division_of_labor_large',
+            'a5_encouraged_division_of_labor_large',
             #'1-encouraged_division_of_labor_large',
             #'2-encouraged_division_of_labor_large',
             #'3-encouraged_division_of_labor_large',
         ]
         
-        # Define ability configurations for 2D grid analysis (X-axis)
-        # X values: 1.0, 0.8, 0.6, 0.4, 0.2
-        # Agent 1: (X, 1.0), Agent 2: (1.0, X)
-        self.x_values = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
+        # Define ability configurations for 2D grid analysis (X-axis) manually,
+        # analogous to how map names are manually introduced for Y-axis.
+        # Each entry is explicit: (id, label, (walk1, cut1, walk2, cut2))
+        self.ability_config_definitions = [
+            ('1.0', '1.0', (1.0, 1.0, 1.0, 1.0)),
+            #('0.9', '0.9', (0.9, 1.0, 1.0, 0.9)),
+            #('0.8', '0.8', (0.8, 1.0, 1.0, 0.8)),
+            ('0.7', '0.7', (0.7, 1.0, 1.0, 0.7)),
+            #('0.6', '0.6', (0.6, 1.0, 1.0, 0.6)),
+            #('0.55', '0.55', (0.55, 1.0, 1.0, 0.55)),
+            #('0.5', '0.5', (0.5, 1.0, 1.0, 0.5)),
+            #('0.45', '0.45', (0.45, 1.0, 1.0, 0.45)),
+            #('0.4', '0.4', (0.4, 1.0, 1.0, 0.4)),
+            #('0.3', '0.3', (0.3, 1.0, 1.0, 0.3)),
+            #('0.2', '0.2', (0.2, 1.0, 1.0, 0.2)),
+            #('0.1', '0.1', (0.1, 1.0, 1.0, 0.1)),
+            ('0.4-0.2', '0.4,1.0 | 1.0,0.2', (0.4, 1.0, 1.0, 0.2)),
+        ]
+
+        self.ability_configs = [config_id for config_id, _, _ in self.ability_config_definitions]
+        self.ability_config_labels = {config_id: label for config_id, label, _ in self.ability_config_definitions}
+        self.ability_config_speeds = {config_id: speeds for config_id, _, speeds in self.ability_config_definitions}
         
         # Define experimental conditions mapping for all map/ability combinations
         self.base_condition_mapping = {}
         for map_name in self.map_names:
             map_short = self._extract_map_short_name(map_name)
-            for x_val in self.x_values:
+            
+            # Add symmetric configurations
+            for ability_config in self.ability_configs:
                 collision_suffix = '_collision' if 'collision' in game_type else ''
-                condition_key = (map_name, game_type, x_val)
-                condition_name = f'{map_short}_{x_val}{collision_suffix}'
+                condition_key = (map_name, game_type, ability_config)
+                condition_name = f'{map_short}_{ability_config}{collision_suffix}'
                 self.base_condition_mapping[condition_key] = condition_name
         
         # Color palette will be generated dynamically based on performance
@@ -159,6 +185,10 @@ class CooperativeAnalyzer:
             return map_name.split('_division_of_labor')[0]
         # Fallback: use first word
         return map_name.split('_')[0]
+
+    def _format_ability_config(self, ability_config: str) -> str:
+        """Format an ability config for logging and labels."""
+        return self.ability_config_labels.get(ability_config, str(ability_config))
     
     def _build_data_path(self, *path_parts) -> str:
         """Build a data path handling empty local_path (cuenca cluster).
@@ -319,9 +349,9 @@ class CooperativeAnalyzer:
                 condition_data = []  # Reset for each specialization mode
                 
                 # Load all conditions for this specialization mode
-                for (map_name, game_type, x_val), condition_name in self.base_condition_mapping.items():
+                for (map_name, game_type, ability_config), condition_name in self.base_condition_mapping.items():
                     # Keep original condition name (no suffix)
-                    print(f"Processing condition: {condition_name} (map={map_name}, x={x_val})")
+                    print(f"Processing condition: {condition_name} (map={map_name}, ability={self._format_ability_config(ability_config)})")
                     
                     try:
                         # Set up paths for this condition with init_type and synergy in the correct order
@@ -375,11 +405,11 @@ class CooperativeAnalyzer:
                     df = self.data_processor.load_experiment_data(paths, num_agents=2)
                     
                     if df is not None and len(df) > 0:
-                        # Filter to the expected ability configuration for this x_val
-                        df_filtered = self._filter_by_ability_config(df, x_val)
+                        # Filter to the expected ability configuration for this ability config
+                        df_filtered = self._filter_by_ability_config(df, ability_config)
                         
                         if len(df_filtered) == 0:
-                            print(f"  Warning: No data matching X={x_val} in {condition_name}")
+                            print(f"  Warning: No data matching ability {self._format_ability_config(ability_config)} in {condition_name}")
                             continue
                         
                         # Create combined metrics and attach metadata
@@ -387,7 +417,9 @@ class CooperativeAnalyzer:
                         df_filtered['condition'] = condition_name
                         df_filtered['map_name'] = map_name
                         df_filtered['game_type_clean'] = game_type
-                        df_filtered['x_value'] = x_val
+                        df_filtered['ability_config'] = [ability_config] * len(df_filtered)
+                        df_filtered['ability_label'] = self._format_ability_config(ability_config)
+                        df_filtered['x_value'] = [ability_config] * len(df_filtered)
                         if spec_mode:
                             df_filtered['specialization'] = spec_mode
                         
@@ -659,12 +691,12 @@ class CooperativeAnalyzer:
         # If no obvious issues, return all episodes
         return df_sorted
     
-    def _filter_by_ability_config(self, df: pd.DataFrame, x_val: float) -> pd.DataFrame:
+    def _filter_by_ability_config(self, df: pd.DataFrame, ability_config_id: str) -> pd.DataFrame:
         """Filter training data to match the expected ability configuration.
         
         Args:
             df: DataFrame containing training data with speed columns
-            x_val: X value for the ability configuration (Agent1: X,1.0; Agent2: 1.0,X)
+            ability_config_id: Ability config identifier defined in ability_config_definitions
             
         Returns:
             Filtered DataFrame containing only data matching the ability configuration
@@ -672,18 +704,23 @@ class CooperativeAnalyzer:
         if len(df) == 0:
             return df
             
-        # Correct ability configuration: Agent1 (x_val, 1.0), Agent2 (1.0, x_val)
-        if all(col in df.columns for col in ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']):
-            filter_condition = (
-                (abs(df['walking_speed_1'] - x_val) < 0.01) &
-                (abs(df['cutting_speed_1'] - 1.0) < 0.01) &
-                (abs(df['walking_speed_2'] - 1.0) < 0.01) &
-                (abs(df['cutting_speed_2'] - x_val) < 0.01)
-            )
-            return df[filter_condition].copy()
-        else:
+        if not all(col in df.columns for col in ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']):
             print(f"    Warning: Missing speed columns for ability filtering")
             return pd.DataFrame()
+
+        if ability_config_id not in self.ability_config_speeds:
+            print(f"    Warning: Unknown ability configuration '{ability_config_id}'")
+            return pd.DataFrame()
+
+        walk1, cut1, walk2, cut2 = self.ability_config_speeds[ability_config_id]
+        filter_condition = (
+            (abs(df['walking_speed_1'] - walk1) < 0.01) &
+            (abs(df['cutting_speed_1'] - cut1) < 0.01) &
+            (abs(df['walking_speed_2'] - walk2) < 0.01) &
+            (abs(df['cutting_speed_2'] - cut2) < 0.01)
+        )
+        
+        return df[filter_condition].copy()
     
     def _print_available_abilities(self, df: pd.DataFrame):
         """Print the available ability configurations in the training data."""
@@ -719,10 +756,12 @@ class CooperativeAnalyzer:
 class ColorGridPlotter:
     """Creates 2D color grid plots for map × ability configuration analysis."""
     
-    def __init__(self, map_names: List[str], x_values: List[float], game_type: str = 'classic'):
+    def __init__(self, map_names: List[str], ability_configs: List[str], game_type: str = 'classic',
+                 ability_config_labels: Optional[Dict[str, str]] = None):
         self.map_names = map_names
-        self.x_values = x_values
+        self.ability_configs = ability_configs
         self.game_type = game_type
+        self.ability_config_labels = ability_config_labels or {}
         
         # Set up matplotlib style
         plt.style.use('default')
@@ -758,18 +797,18 @@ class ColorGridPlotter:
             map_short = self._extract_map_short_name(map_name)
             performance_diffs[map_short] = {}
             
-            for x_val in self.x_values:
-                condition_name = f"{map_short}_{x_val}{collision_suffix}"
+            for ability_config in self.ability_configs:
+                condition_name = self._ability_condition_name(map_short, ability_config, collision_suffix)
                 condition_data = data[data['condition'] == condition_name]
                 
                 if len(condition_data) == 0:
                     print(f"Warning: No data found for condition {condition_name}")
-                    performance_diffs[map_short][x_val] = 0.0
+                    performance_diffs[map_short][ability_config] = 0.0
                     continue
                     
                 condition_deliveries = condition_data['total_deliveries'].mean()
                 difference = condition_deliveries - baseline_deliveries
-                performance_diffs[map_short][x_val] = difference
+                performance_diffs[map_short][ability_config] = difference
         
         return performance_diffs
     
@@ -792,24 +831,24 @@ class ColorGridPlotter:
             
             if len(baseline_data) == 0:
                 print(f"Warning: No row baseline data found for condition {baseline_condition}")
-                performance_diffs[map_short] = {x_val: 0.0 for x_val in self.x_values}
+                performance_diffs[map_short] = {ability_config: 0.0 for ability_config in self.ability_configs}
                 continue
                 
             baseline_deliveries = baseline_data['total_deliveries'].mean()
             performance_diffs[map_short] = {}
             
-            for x_val in self.x_values:
-                condition_name = f"{map_short}_{x_val}{collision_suffix}"
+            for ability_config in self.ability_configs:
+                condition_name = self._ability_condition_name(map_short, ability_config, collision_suffix)
                 condition_data = data[data['condition'] == condition_name]
                 
                 if len(condition_data) == 0:
                     print(f"Warning: No data found for condition {condition_name}")
-                    performance_diffs[map_short][x_val] = 0.0
+                    performance_diffs[map_short][ability_config] = 0.0
                     continue
                     
                 condition_deliveries = condition_data['total_deliveries'].mean()
                 difference = condition_deliveries - baseline_deliveries
-                performance_diffs[map_short][x_val] = difference
+                performance_diffs[map_short][ability_config] = difference
         
         return performance_diffs
     
@@ -825,9 +864,9 @@ class ColorGridPlotter:
         # Calculate differences for each ability configuration relative to baseline map
         baseline_map_short = self._extract_map_short_name(self.map_names[0])
         
-        for x_val in self.x_values:
+        for ability_config in self.ability_configs:
             # Find column baseline: baseline map + this X value
-            baseline_condition = f"{baseline_map_short}_{x_val}{collision_suffix}"
+            baseline_condition = self._ability_condition_name(baseline_map_short, ability_config, collision_suffix)
             baseline_data = data[data['condition'] == baseline_condition]
             
             if len(baseline_data) == 0:
@@ -843,17 +882,17 @@ class ColorGridPlotter:
                 if map_short not in performance_diffs:
                     performance_diffs[map_short] = {}
                 
-                condition_name = f"{map_short}_{x_val}{collision_suffix}"
+                condition_name = self._ability_condition_name(map_short, ability_config, collision_suffix)
                 condition_data = data[data['condition'] == condition_name]
                 
                 if len(condition_data) == 0:
                     print(f"Warning: No data found for condition {condition_name}")
-                    performance_diffs[map_short][x_val] = 0.0
+                    performance_diffs[map_short][ability_config] = 0.0
                     continue
                     
                 condition_deliveries = condition_data['total_deliveries'].mean()
                 difference = condition_deliveries - baseline_deliveries
-                performance_diffs[map_short][x_val] = difference
+                performance_diffs[map_short][ability_config] = difference
         
         return performance_diffs
     
@@ -862,6 +901,12 @@ class ColorGridPlotter:
         if '_division_of_labor' in map_name:
             return map_name.split('_division_of_labor')[0]
         return map_name.split('_')[0]
+
+    def _ability_condition_name(self, map_short: str, ability_config: str, collision_suffix: str) -> str:
+        return f"{map_short}_{ability_config}{collision_suffix}"
+
+    def _ability_label(self, ability_config: str) -> str:
+        return self.ability_config_labels.get(ability_config, str(ability_config))
     
     def calculate_specialization_differences_global(self, data: pd.DataFrame) -> Dict[str, Dict[float, float]]:
         """Calculate specialization differences relative to global baseline (baseline map + X=1.0).
@@ -889,18 +934,18 @@ class ColorGridPlotter:
             map_short = self._extract_map_short_name(map_name)
             specialization_diffs[map_short] = {}
             
-            for x_val in self.x_values:
-                condition_name = f"{map_short}_{x_val}{collision_suffix}"
+            for ability_config in self.ability_configs:
+                condition_name = self._ability_condition_name(map_short, ability_config, collision_suffix)
                 condition_data = data[data['condition'] == condition_name]
                 
                 if len(condition_data) == 0:
                     print(f"Warning: No data found for condition {condition_name}")
-                    specialization_diffs[map_short][x_val] = 0.0
+                    specialization_diffs[map_short][ability_config] = 0.0
                     continue
                     
                 condition_specialization = self._calculate_specialization_index(condition_data)
                 difference = condition_specialization - baseline_specialization
-                specialization_diffs[map_short][x_val] = difference
+                specialization_diffs[map_short][ability_config] = difference
         
         return specialization_diffs
     
@@ -923,24 +968,24 @@ class ColorGridPlotter:
             
             if len(baseline_data) == 0:
                 print(f"Warning: No row baseline data found for condition {baseline_condition}")
-                specialization_diffs[map_short] = {x_val: 0.0 for x_val in self.x_values}
+                specialization_diffs[map_short] = {ability_config: 0.0 for ability_config in self.ability_configs}
                 continue
                 
             baseline_specialization = self._calculate_specialization_index(baseline_data)
             specialization_diffs[map_short] = {}
             
-            for x_val in self.x_values:
-                condition_name = f"{map_short}_{x_val}{collision_suffix}"
+            for ability_config in self.ability_configs:
+                condition_name = self._ability_condition_name(map_short, ability_config, collision_suffix)
                 condition_data = data[data['condition'] == condition_name]
                 
                 if len(condition_data) == 0:
                     print(f"Warning: No data found for condition {condition_name}")
-                    specialization_diffs[map_short][x_val] = 0.0
+                    specialization_diffs[map_short][ability_config] = 0.0
                     continue
                     
                 condition_specialization = self._calculate_specialization_index(condition_data)
                 difference = condition_specialization - baseline_specialization
-                specialization_diffs[map_short][x_val] = difference
+                specialization_diffs[map_short][ability_config] = difference
         
         return specialization_diffs
     
@@ -956,9 +1001,9 @@ class ColorGridPlotter:
         # Calculate differences for each ability configuration relative to baseline map
         baseline_map_short = self._extract_map_short_name(self.map_names[0])
         
-        for x_val in self.x_values:
+        for ability_config in self.ability_configs:
             # Find column baseline: baseline map + this X value
-            baseline_condition = f"{baseline_map_short}_{x_val}{collision_suffix}"
+            baseline_condition = self._ability_condition_name(baseline_map_short, ability_config, collision_suffix)
             baseline_data = data[data['condition'] == baseline_condition]
             
             if len(baseline_data) == 0:
@@ -974,17 +1019,17 @@ class ColorGridPlotter:
                 if map_short not in specialization_diffs:
                     specialization_diffs[map_short] = {}
                 
-                condition_name = f"{map_short}_{x_val}{collision_suffix}"
+                condition_name = self._ability_condition_name(map_short, ability_config, collision_suffix)
                 condition_data = data[data['condition'] == condition_name]
                 
                 if len(condition_data) == 0:
                     print(f"Warning: No data found for condition {condition_name}")
-                    specialization_diffs[map_short][x_val] = 0.0
+                    specialization_diffs[map_short][ability_config] = 0.0
                     continue
                     
                 condition_specialization = self._calculate_specialization_index(condition_data)
                 difference = condition_specialization - baseline_specialization
-                specialization_diffs[map_short][x_val] = difference
+                specialization_diffs[map_short][ability_config] = difference
         
         return specialization_diffs
     
@@ -1097,14 +1142,14 @@ class ColorGridPlotter:
         for map_name in self.map_names:
             map_short = self._extract_map_short_name(map_name)
             ad_diffs[map_short] = {}
-            for x_val in self.x_values:
-                condition_name = f"{map_short}_{x_val}{collision_suffix}"
+            for ability_config in self.ability_configs:
+                condition_name = self._ability_condition_name(map_short, ability_config, collision_suffix)
                 condition_data = data[data['condition'] == condition_name]
                 if len(condition_data) == 0:
                     print(f"Warning: No data found for condition {condition_name}")
-                    ad_diffs[map_short][x_val] = 0.0
+                    ad_diffs[map_short][ability_config] = 0.0
                     continue
-                ad_diffs[map_short][x_val] = self._calculate_action_differentiation_index(condition_data) - baseline_ad
+                ad_diffs[map_short][ability_config] = self._calculate_action_differentiation_index(condition_data) - baseline_ad
 
         return ad_diffs
 
@@ -1124,20 +1169,20 @@ class ColorGridPlotter:
 
             if len(baseline_data) == 0:
                 print(f"Warning: No row baseline data found for condition {baseline_condition}")
-                ad_diffs[map_short] = {x_val: 0.0 for x_val in self.x_values}
+                ad_diffs[map_short] = {ability_config: 0.0 for ability_config in self.ability_configs}
                 continue
 
             baseline_ad = self._calculate_action_differentiation_index(baseline_data)
             ad_diffs[map_short] = {}
 
-            for x_val in self.x_values:
-                condition_name = f"{map_short}_{x_val}{collision_suffix}"
+            for ability_config in self.ability_configs:
+                condition_name = self._ability_condition_name(map_short, ability_config, collision_suffix)
                 condition_data = data[data['condition'] == condition_name]
                 if len(condition_data) == 0:
                     print(f"Warning: No data found for condition {condition_name}")
-                    ad_diffs[map_short][x_val] = 0.0
+                    ad_diffs[map_short][ability_config] = 0.0
                     continue
-                ad_diffs[map_short][x_val] = self._calculate_action_differentiation_index(condition_data) - baseline_ad
+                ad_diffs[map_short][ability_config] = self._calculate_action_differentiation_index(condition_data) - baseline_ad
 
         return ad_diffs
 
@@ -1151,8 +1196,8 @@ class ColorGridPlotter:
         collision_suffix = '_collision' if 'collision' in self.game_type else ''
         baseline_map_short = self._extract_map_short_name(self.map_names[0])
 
-        for x_val in self.x_values:
-            baseline_condition = f"{baseline_map_short}_{x_val}{collision_suffix}"
+        for ability_config in self.ability_configs:
+            baseline_condition = self._ability_condition_name(baseline_map_short, ability_config, collision_suffix)
             baseline_data = data[data['condition'] == baseline_condition]
 
             if len(baseline_data) == 0:
@@ -1165,13 +1210,13 @@ class ColorGridPlotter:
                 map_short = self._extract_map_short_name(map_name)
                 if map_short not in ad_diffs:
                     ad_diffs[map_short] = {}
-                condition_name = f"{map_short}_{x_val}{collision_suffix}"
+                condition_name = self._ability_condition_name(map_short, ability_config, collision_suffix)
                 condition_data = data[data['condition'] == condition_name]
                 if len(condition_data) == 0:
                     print(f"Warning: No data found for condition {condition_name}")
-                    ad_diffs[map_short][x_val] = 0.0
+                    ad_diffs[map_short][ability_config] = 0.0
                     continue
-                ad_diffs[map_short][x_val] = self._calculate_action_differentiation_index(condition_data) - baseline_ad
+                ad_diffs[map_short][ability_config] = self._calculate_action_differentiation_index(condition_data) - baseline_ad
 
         return ad_diffs
     
@@ -1245,15 +1290,15 @@ class ColorGridPlotter:
             2D numpy array with maps on rows and abilities on columns
         """
         n_maps = len(self.map_names)
-        n_abilities = len(self.x_values)
+        n_abilities = len(self.ability_configs)
         grid = np.zeros((n_maps, n_abilities))
         
         for i, map_name in enumerate(self.map_names):
             map_short = self._extract_map_short_name(map_name)
             if map_short in diffs_dict:
-                for j, x_val in enumerate(self.x_values):
-                    if x_val in diffs_dict[map_short]:
-                        grid[i, j] = diffs_dict[map_short][x_val]
+                for j, ability_config in enumerate(self.ability_configs):
+                    if ability_config in diffs_dict[map_short]:
+                        grid[i, j] = diffs_dict[map_short][ability_config]
         
         return grid
     
@@ -1283,8 +1328,8 @@ class ColorGridPlotter:
         im = ax.imshow(grid, cmap=cmap, aspect='auto', vmin=vmin, vmax=vmax)
         
         # Set ticks and labels
-        ax.set_xticks(range(len(self.x_values)))
-        ax.set_xticklabels([f'{x:.1f}' for x in self.x_values])
+        ax.set_xticks(range(len(self.ability_configs)))
+        ax.set_xticklabels([self._ability_label(ability_config) for ability_config in self.ability_configs])
         ax.set_yticks(range(len(self.map_names)))
         ax.set_yticklabels([self._extract_map_short_name(name) for name in self.map_names])
         
@@ -1299,7 +1344,7 @@ class ColorGridPlotter:
         
         # Add text annotations
         for i in range(len(self.map_names)):
-            for j in range(len(self.x_values)):
+            for j in range(len(self.ability_configs)):
                 value = grid[i, j]
                 
                 normalized_value = abs(value) / max_abs_diff if max_abs_diff > 0 else 0
@@ -1313,7 +1358,7 @@ class ColorGridPlotter:
                        color=color, fontsize=8, fontweight='bold')
         
         # Add grid lines
-        ax.set_xticks(np.arange(len(self.x_values) + 1) - 0.5, minor=True)
+        ax.set_xticks(np.arange(len(self.ability_configs) + 1) - 0.5, minor=True)
         ax.set_yticks(np.arange(len(self.map_names) + 1) - 0.5, minor=True)
         ax.grid(which='minor', color='gray', linestyle='-', linewidth=0.5, alpha=0.3)
         ax.tick_params(which='minor', size=0)
@@ -1475,7 +1520,7 @@ def main():
         print(f"Synergy scaling factor: {args.synergy}")
         print(f"Specialization: {args.specialization}")
         print(f"Maps analyzed: {len(analyzer.map_names)} maps")
-        print(f"Ability configurations: {len(analyzer.x_values)} X-values")
+        print(f"Ability configurations: {len(analyzer.ability_configs)} columns")
         if args.study_name:
             print(f"Study: {args.study_name}")
         
@@ -1503,7 +1548,12 @@ def main():
                 print(f"\\n=== Creating 2D Grid Analysis (Maps × Abilities) ===\\n")
                 
                 # Initialize the plotter
-                plotter = ColorGridPlotter(analyzer.map_names, analyzer.x_values, args.game_type)
+                plotter = ColorGridPlotter(
+                    analyzer.map_names,
+                    analyzer.ability_configs,
+                    args.game_type,
+                    ability_config_labels=analyzer.ability_config_labels
+                )
                 
                 # Set up output directory
                 output_dir = Path(output_dir_base)
@@ -1598,7 +1648,12 @@ def main():
             print(f"\\n=== Creating 2D Grid Analysis (Maps × Abilities) ===\\n")
             
             # Initialize the plotter
-            plotter = ColorGridPlotter(analyzer.map_names, analyzer.x_values, args.game_type)
+            plotter = ColorGridPlotter(
+                analyzer.map_names,
+                analyzer.ability_configs,
+                args.game_type,
+                ability_config_labels=analyzer.ability_config_labels
+            )
             
             # Set up output directory
             output_dir = Path(output_dir_base)
@@ -1677,22 +1732,28 @@ def main():
             
             perf_diffs = plotter.calculate_performance_differences_global(prepared_data)
             spec_diffs = plotter.calculate_specialization_differences_global(prepared_data)
+
+            def ability_sort_key(value):
+                try:
+                    return float(value)
+                except ValueError:
+                    return float('inf')
             
             print("Performance differences (vs baseline map + X=1.0):")
             for map_short in [plotter._extract_map_short_name(name) for name in analyzer.map_names]:
                 if map_short in perf_diffs:
                     print(f"\\n{map_short}:")
-                    for x_val in sorted(perf_diffs[map_short].keys()):
-                        diff = perf_diffs[map_short][x_val]
-                        print(f"  X={x_val}: {diff:+.2f} deliveries")
+                    for ability_config in sorted(perf_diffs[map_short].keys(), key=ability_sort_key):
+                        diff = perf_diffs[map_short][ability_config]
+                        print(f"  {plotter._ability_label(ability_config)}: {diff:+.2f} deliveries")
             
             print("\\nSpecialization differences (vs baseline map + X=1.0):")
             for map_short in [plotter._extract_map_short_name(name) for name in analyzer.map_names]:
                 if map_short in spec_diffs:
                     print(f"\\n{map_short}:")
-                    for x_val in sorted(spec_diffs[map_short].keys()):
-                        diff = spec_diffs[map_short][x_val] 
-                        print(f"  X={x_val}: {diff:+.3f} specialization")
+                    for ability_config in sorted(spec_diffs[map_short].keys(), key=ability_sort_key):
+                        diff = spec_diffs[map_short][ability_config] 
+                        print(f"  {plotter._ability_label(ability_config)}: {diff:+.3f} specialization")
         
     except Exception as e:
         print(f"Error during analysis: {e}")

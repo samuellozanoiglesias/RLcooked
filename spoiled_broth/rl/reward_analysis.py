@@ -210,45 +210,48 @@ def _get_specialized_reward_for_event(self, agent_id, event_type, event_count, b
         # Fallback if abilities not available
         walk_speed = cut_speed = 1.0
     
-    # Get specialization scale from penalties config
+    # Get specialization parameters from penalties config
     specialization_scale = self.penalties_cfg.get("specialization_penalty_scale", 0.0)
+    specialization_theta = self.penalties_cfg.get("specialization_theta", 1.0)
     
     # Increase specialization significance when collisions are enabled
     if hasattr(self, 'collision_enabled') and self.collision_enabled:
         collision_harshness = self.penalties_cfg.get("collision_harshness", 2.0)
         specialization_scale *= collision_harshness
     
-    rewarbase_reward = base_reward * event_count
+    event_base_reward = base_reward * event_count
 
     if specialization_scale == 0.0:
         # Specialization system disabled
-        return rewarbase_reward
+        return event_base_reward
     
     # Check for balanced agents (both abilities at 1.0) - they should get normal rewards
     if cut_speed >= 1.0 and walk_speed >= 1.0:
         # Balanced agent - same rewards as if specialization was disabled
-        return rewarbase_reward
+        return event_base_reward
     
     # Determine reward/penalty based on event type and agent specialization
     if event_type == "cut":
         # Cutting action - requires cut_speed = 1
         if cut_speed >= 1.0:
-            return rewarbase_reward
+            return event_base_reward
         else:
-            penalty = base_reward * (1.0 - cut_speed) * specialization_scale * event_count
-            return rewarbase_reward - penalty  # Penalty for non-specialist
+            # penalty = base_reward * (exp(theta * (1.0 - speed)) - 1) * specialization_scale * event_count
+            penalty = base_reward * (np.exp(specialization_theta * (1.0 - cut_speed)) - 1.0) * specialization_scale * event_count
+            return event_base_reward - penalty  # Penalty for non-specialist
     
     elif event_type in ["deliver", "raw_food", "plate"]:
         # Delivery/dispenser actions - require walk_speed = 1
         if walk_speed >= 1.0:
-            return rewarbase_reward
+            return event_base_reward
         else:
-            penalty = base_reward * (1.0 - walk_speed) * specialization_scale * event_count
-            return rewarbase_reward - penalty  # Penalty for non-specialist
+            # penalty = base_reward * (exp(theta * (1.0 - speed)) - 1) * specialization_scale * event_count
+            penalty = base_reward * (np.exp(specialization_theta * (1.0 - walk_speed)) - 1.0) * specialization_scale * event_count
+            return event_base_reward - penalty  # Penalty for non-specialist
     
     else:
         # No specialization requirement (e.g., "counter" or "salad")
-        return rewarbase_reward
+        return event_base_reward
 
 def _apply_specialization_rewards(self, agent_id, agent_events, rewards_cfg):
     """

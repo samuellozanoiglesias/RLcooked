@@ -15,17 +15,17 @@ conda activate RLcooked
 mkdir -p logs
 
 # Script path
-SCRIPT_DIR='/mnt/lustre/home/samuloza/cooked'
+SCRIPT_DIR='/mnt/lustre/home/samuloza/RLcooked'
 VIDEO_SCRIPT="${SCRIPT_DIR}/generate_grid_analysis_video.py"
 
 # Default parameters (modify as needed)
 START_EPISODE=50
-END_EPISODE=5950
+END_EPISODE=800
 STEP=50
 CLUSTER="brigit"
-SYNERGY=0.80
-SPECIALIZATION=0.05
-STUDY_NAME="HEATMAP"
+SYNERGY=1.40
+SPECIALIZATION=2.00
+STUDY_NAME=""
 NUM_EPISODES=10
 FPS=2  # 2 fps = 0.5 seconds per frame
 
@@ -69,7 +69,6 @@ CMD="python3 $VIDEO_SCRIPT \
     --cluster $CLUSTER \
     --synergy $SYNERGY \
     --specialization $SPECIALIZATION \
-    --study_name $STUDY_NAME \
     --num_episodes $NUM_EPISODES \
     --fps $FPS \
     --init_type $INIT_TYPE \
@@ -77,6 +76,10 @@ CMD="python3 $VIDEO_SCRIPT \
     --comparison_type $COMPARISON_TYPE"
 
 # Add optional flags
+if [ -n "$STUDY_NAME" ]; then
+    CMD="$CMD --study_name $STUDY_NAME"
+fi
+
 if [ -n "$EXECUTION_MODE" ]; then
     CMD="$CMD $EXECUTION_MODE"
 fi

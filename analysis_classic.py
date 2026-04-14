@@ -12,7 +12,7 @@ Examples:
 nohup python analysis_classic.py baseline_division_of_labor_large --study_name speeds --game_type classic > analysis_classic.log 2>&1 &
 nohup python analysis_classic.py baseline_division_of_labor_large --study_name speeds --game_type classic_collision > analysis_classic_collision.log 2>&1 &
 nohup python analysis_classic.py baseline_division_of_labor_large --init_type empty_init --game_type classic > analysis_classic_empty_init.log 2>&1 &
-nohup python analysis_classic.py encouraged_division_of_labor_large --game_type classic_collision --individual_training yes --init_type random_init --cluster brigit > analysis_classic.log 2>&1 &
+nohup python analysis_classic.py encouraged_division_of_labor_large --game_type classic_collision --individual_training yes --cluster brigit > analysis_classic.log 2>&1 &
 """
 
 import sys

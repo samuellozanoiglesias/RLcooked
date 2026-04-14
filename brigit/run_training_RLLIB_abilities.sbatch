@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=synergies_RLLIB
+#SBATCH --job-name=encouraged_division_of_labor_large
 #SBATCH -t 30-00:00:00
 #SBATCH --partition=gpu
 #SBATCH --qos=qos_gpu_long
@@ -25,9 +25,7 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/RLcooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NRS=(m1_encouraged_division_of_labor_large
-        m4_encouraged_division_of_labor_large
-        a5_encouraged_division_of_labor_large)  # List of maps to run
+MAP_NRS=(encouraged_division_of_labor_large)  # List of maps to run
 LR=3e-4
 GAME_VERSIONS=(classic_collision)  # List of game versions to run
 NUM_AGENTS=2
@@ -52,28 +50,54 @@ ENTROPY_COEF=0.001  # Default value, can be changed
 # Define arrays for angles and seeds
 ANGLE_PAIRS=("0 0")
 
-# Define specific speed pairs
-# Format: "cut_speed1,walk_speed1 cut_speed2,walk_speed2"
-SPEED_PAIRS=(
-    "1.0,1.0 1.0,1.0"
-    #"1.0,0.9 0.9,1.0"
-    #"1.0,0.8 0.8,1.0"
-    #"1.0,0.7 0.7,1.0"
-    #"1.0,0.6 0.6,1.0"
-    #"1.0,0.5 0.5,1.0"
-    #"1.0,0.4 0.4,1.0"
-    #"1.0,0.45 0.45,1.0"
-    #"1.0,0.55 0.55,1.0"
-    #"1.0,0.4 0.2,1.0"
-    #"1.0,0.3 0.3,1.0"
-    #"1.0,0.2 0.2,1.0"
-    #"1.0,0.1 0.1,1.0"
-    #"1.0,0.5 0.7,1.0"
-    #"1.0,0.1 1.0,1.0"
+# Generate all speed pairs for the asymmetric ability sweep.
+# Agent 1 uses 1.0,X and Agent 2 uses Y,1.0.
+# Adjust these intervals to control the sweep density.
+AGENT1_WALKING_SPEED_START=0.1
+AGENT1_WALKING_SPEED_END=1.0
+AGENT1_WALKING_SPEED_STEP=0.1
+
+AGENT2_CUTTING_SPEED_START=1.0
+AGENT2_CUTTING_SPEED_END=1.0
+AGENT2_CUTTING_SPEED_STEP=0.1
+
+readarray -t AGENT1_WALKING_SPEED_VALUES < <(python3 - <<EOF
+from decimal import Decimal
+
+start = Decimal("$AGENT1_WALKING_SPEED_START")
+end = Decimal("$AGENT1_WALKING_SPEED_END")
+step = Decimal("$AGENT1_WALKING_SPEED_STEP")
+
+value = start
+while value <= end:
+    print(value)
+    value += step
+EOF
 )
 
+readarray -t AGENT2_CUTTING_SPEED_VALUES < <(python3 - <<EOF
+from decimal import Decimal
+
+start = Decimal("$AGENT2_CUTTING_SPEED_START")
+end = Decimal("$AGENT2_CUTTING_SPEED_END")
+step = Decimal("$AGENT2_CUTTING_SPEED_STEP")
+
+value = start
+while value <= end:
+    print(value)
+    value += step
+EOF
+)
+
+declare -a SPEED_PAIRS=()
+for WALKING_SPEED_1 in "${AGENT1_WALKING_SPEED_VALUES[@]}"; do
+    for CUTTING_SPEED_2 in "${AGENT2_CUTTING_SPEED_VALUES[@]}"; do
+        SPEED_PAIRS+=("1.0,${WALKING_SPEED_1} ${CUTTING_SPEED_2},1.0")
+    done
+done
+
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)
-SYNERGY_SCALING_FACTOR_VALUES=(1.4)
+SYNERGY_SCALING_FACTOR_VALUES=(1.7)
 
 # Define specialization penalty scale values
 SPECIALIZATION_PENALTY_SCALE_VALUES=(0.05)
@@ -98,7 +122,7 @@ ENABLE_REWARD_DECAY_VALUES=(False)
 COLLISION_HARSHNESS_VALUES=(10.0)
 
 # Maximum number of parallel jobs
-MAX_PARALLEL=12 # Set this to control how many jobs run in parallel
+MAX_PARALLEL=10 # Set this to control how many jobs run in parallel
 
 # Function to get checkpoint name based on map and game version
 get_checkpoint_name() {
@@ -119,10 +143,8 @@ get_checkpoint_name() {
     # Determine suffix based on speeds
     if [ "$speeds" = "1.0,1.0 1.0,1.0" ]; then
         local speed_suffix="stars"
-    elif [ "$speeds" = "1.0,0.4 0.2,1.0" ]; then
-        local speed_suffix="mixed"
     else
-        local speed_suffix="custom"
+        local speed_suffix="$(echo "$speeds" | tr ' ,.' '__p')"
     fi
     
     # Generate checkpoint path based on game version

@@ -138,6 +138,7 @@ class GameEnv(ParallelEnv):
             "collision": 0.0,  # Penalty when a collision occurs (if collision_enabled=True)
             "inaccessible_tile": 1.0,  # Penalty when no path exists (walls/obstacles/no objects)
             "specialization_penalty_scale": 0.0,  # Specialization penalty scale (lambda): 0=no penalty, >0=penalty scale
+            "specialization_theta": 1.0,  # Exponential sensitivity for specialization penalties
             "adaptive_cooperation_scale": 0.0,  # Path-length penalty for slow walkers: 0=disabled, >0=enabled (multiplied by collision_harshness when collisions enabled)
             "collision_harshness": 2.0,  # Multiplier for specialization and adaptive cooperation when collisions enabled (1.0=same, 2.0=double)
         }
@@ -243,7 +244,7 @@ class GameEnv(ParallelEnv):
         self.reference_reward_enabled = self.reference_reward_cfg.get("enabled", False) and self.solo_baselines
         
         # Always initialize kappa (competence transformation parameter)
-        self.kappa = self.reference_reward_cfg.get("kappa", 1.0)
+        self.kappa = self.reference_reward_cfg.get("kappa", 10.0)
         
         # Initialize activate_synergy_positive flag (controls whether positive synergy signals are applied)
         self.activate_synergy_positive = self.reference_reward_cfg.get("activate_synergy_positive", False)
