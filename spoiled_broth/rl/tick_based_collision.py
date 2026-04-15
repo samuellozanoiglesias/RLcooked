@@ -23,6 +23,7 @@ def predict_next_tile_positions(env):
     """
     next_positions = {}
     agent_movement_status = {}
+    tick_duration = float(getattr(env, 'tick_duration', 0.5))
     
     for agent_id in env.agents:
         state = env.agent_state[agent_id]
@@ -34,7 +35,7 @@ def predict_next_tile_positions(env):
             
             # Get agent's movement speed
             agent_speed_tiles = (agent.speed / 16.0)  # Convert pixels/sec to tiles/sec
-            movement_distance = agent_speed_tiles * 0.2  # Distance in next tick (TICK_DURATION = 0.2s)
+            movement_distance = agent_speed_tiles * tick_duration  # Distance in next tick
             
             # Check if agent will reach next tile in this tick
             new_progress = state['movement_progress'] + movement_distance
@@ -274,7 +275,7 @@ def find_predictive_alternative_path(env, agent_id, collision_tile, other_agent_
 
 def resolve_predictive_collisions(env):
     """Detect and resolve collisions BEFORE they happen.
-    
+
     This implements the collision detection strategy:
     1. Predict where agents will move next tick
     2. Detect collisions with smart rules:
@@ -282,33 +283,59 @@ def resolve_predictive_collisions(env):
        - Stop both agents for mutual collisions or tile swaps
     3. Try to reroute moving agents
     4. If rerouting fails, cancel actions
-    
+
     Returns:
         dict: Collision statistics including per-agent collision metadata
     """
     if not env.path_processor.is_enabled():
         return {
-            'collisions_detected': 0, 
-            'collisions_rerouted': 0, 
+            'collisions_detected': 0,
+            'collisions_rerouted': 0,
             'collisions_failed': 0,
             'agents_with_detected_collisions': [],
             'agents_with_rerouted_collisions': [],
             'agents_with_failed_collisions': []
         }
-    
+
     # Import cancel function from tick_based_structure to avoid circular import
     from spoiled_broth.rl.tick_based_structure import cancel_agent_action
-    
+
     # Detect collision events before they happen
     collision_events = detect_predictive_collisions(env)
-    
+
     collisions_detected = len(collision_events)
     collisions_rerouted = 0
     collisions_failed = 0
-    agents_with_failed_collisions = []
+    agents_with_failed_collisions = set()
     agents_with_detected_collisions = set()
     agents_with_rerouted_collisions = set()
-    
+
+    def _apply_reroute(agent_id, alt_path):
+        """Apply alternative path and keep current progress toward movement in this tick."""
+        state = env.agent_state[agent_id]
+        state['current_path'] = alt_path[1:]  # Skip current position
+        state['path_index'] = 0
+
+    def _pair_has_next_tick_conflict(agent_a_id, agent_b_id):
+        """Check if two agents would still overlap or swap this tick."""
+        next_positions, movement_status = predict_next_tile_positions(env)
+        if agent_a_id not in next_positions or agent_b_id not in next_positions:
+            return False
+
+        a_next = next_positions[agent_a_id]
+        b_next = next_positions[agent_b_id]
+        if a_next == b_next:
+            return True
+
+        a_current = (env.agent_map[agent_a_id].slot_x, env.agent_map[agent_a_id].slot_y)
+        b_current = (env.agent_map[agent_b_id].slot_x, env.agent_map[agent_b_id].slot_y)
+        return (
+            movement_status.get(agent_a_id, False)
+            and movement_status.get(agent_b_id, False)
+            and a_current == b_next
+            and b_current == a_next
+        )
+
     # Process each collision event
     for agent_to_stop, other_agent_id, collision_tile, collision_type in collision_events:
         # Track all agents involved in detected collisions, regardless of outcome.
@@ -318,76 +345,71 @@ def resolve_predictive_collisions(env):
         # Get current positions
         agent_to_stop_obj = env.agent_map[agent_to_stop]
         other_agent_obj = env.agent_map[other_agent_id]
-        
+
         agent_to_stop_current = (agent_to_stop_obj.slot_x, agent_to_stop_obj.slot_y)
         other_agent_current = (other_agent_obj.slot_x, other_agent_obj.slot_y)
-        
-        # Get agent states
-        state_to_stop = env.agent_state[agent_to_stop]
-        state_other = env.agent_state[other_agent_id]
-        
+
         rerouted = False
-        
+
         if collision_type == 'moving_into_stationary':
             # Only try to reroute the moving agent
             alt_path = find_predictive_alternative_path(
                 env, agent_to_stop, collision_tile, other_agent_current, collision_tile
             )
-            
+
             if alt_path and len(alt_path) > 1:
-                # Successfully rerouted the moving agent
-                state_to_stop['current_path'] = alt_path[1:]  # Skip current position
-                state_to_stop['path_index'] = 0
-                state_to_stop['movement_progress'] = 0.0
-                rerouted = True
-                collisions_rerouted += 1
-                agents_with_rerouted_collisions.add(agent_to_stop)
+                _apply_reroute(agent_to_stop, alt_path)
+                if not _pair_has_next_tick_conflict(agent_to_stop, other_agent_id):
+                    rerouted = True
+                    collisions_rerouted += 1
+                    agents_with_rerouted_collisions.add(agent_to_stop)
+                else:
+                    # Tentative reroute still collides this tick
+                    cancel_agent_action(env, agent_to_stop)
+                    agents_with_failed_collisions.add(agent_to_stop)
+                    collisions_failed += 1
             else:
                 # Could not reroute moving agent - cancel only the moving agent
                 cancel_agent_action(env, agent_to_stop)
-                agents_with_failed_collisions.append(agent_to_stop)
+                agents_with_failed_collisions.add(agent_to_stop)
                 collisions_failed += 1
-                
+
         elif collision_type in ['mutual_collision', 'tile_swap']:
-            # Try to reroute either agent
+            # Try rerouting first agent
             alt_path1 = find_predictive_alternative_path(
                 env, agent_to_stop, collision_tile, other_agent_current, collision_tile
             )
-            
             if alt_path1 and len(alt_path1) > 1:
-                # Successfully rerouted first agent
-                state_to_stop['current_path'] = alt_path1[1:]
-                state_to_stop['path_index'] = 0
-                state_to_stop['movement_progress'] = 0.0
-                rerouted = True
-                collisions_rerouted += 1
-                agents_with_rerouted_collisions.add(agent_to_stop)
-            else:
-                # Try rerouting the other agent
+                _apply_reroute(agent_to_stop, alt_path1)
+                if not _pair_has_next_tick_conflict(agent_to_stop, other_agent_id):
+                    rerouted = True
+                    collisions_rerouted += 1
+                    agents_with_rerouted_collisions.add(agent_to_stop)
+
+            # If first reroute is not valid, try rerouting second agent
+            if not rerouted:
                 alt_path2 = find_predictive_alternative_path(
                     env, other_agent_id, collision_tile, agent_to_stop_current, collision_tile
                 )
-                
                 if alt_path2 and len(alt_path2) > 1:
-                    # Successfully rerouted second agent
-                    state_other['current_path'] = alt_path2[1:]
-                    state_other['path_index'] = 0
-                    state_other['movement_progress'] = 0.0
-                    rerouted = True
-                    collisions_rerouted += 1
-                    agents_with_rerouted_collisions.add(other_agent_id)
-                else:
-                    # Could not find alternative path for either agent - cancel both
-                    cancel_agent_action(env, agent_to_stop)
-                    cancel_agent_action(env, other_agent_id)
-                    agents_with_failed_collisions.extend([agent_to_stop, other_agent_id])
-                    collisions_failed += 1
-    
+                    _apply_reroute(other_agent_id, alt_path2)
+                    if not _pair_has_next_tick_conflict(agent_to_stop, other_agent_id):
+                        rerouted = True
+                        collisions_rerouted += 1
+                        agents_with_rerouted_collisions.add(other_agent_id)
+
+            if not rerouted:
+                # Could not find a valid reroute for this tick - cancel both
+                cancel_agent_action(env, agent_to_stop)
+                cancel_agent_action(env, other_agent_id)
+                agents_with_failed_collisions.update([agent_to_stop, other_agent_id])
+                collisions_failed += 1
+
     return {
         'collisions_detected': collisions_detected,
         'collisions_rerouted': collisions_rerouted,
         'collisions_failed': collisions_failed,
         'agents_with_detected_collisions': list(agents_with_detected_collisions),
         'agents_with_rerouted_collisions': list(agents_with_rerouted_collisions),
-        'agents_with_failed_collisions': agents_with_failed_collisions
+        'agents_with_failed_collisions': list(agents_with_failed_collisions)
     }

@@ -83,9 +83,11 @@ import sys
 import os
 import logging
 from datetime import datetime
+from pathlib import Path
 
-# Add the project root to the path to import utilities
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = Path(__file__).resolve().parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from spoiled_broth.simulations import (
     setup_simulation_argument_parser,
@@ -185,6 +187,8 @@ def main():
             print(f"  Simulation directory: {output_paths['simulation_dir']}")
             print(f"  Configuration file: {output_paths['config_file']}")
             print(f"  Actions CSV (basic): {output_paths.get('actions_csv', 'N/A')}")
+            print(f"  Collisions CSV: {output_paths.get('collisions_csv', 'N/A')}")
+            print(f"  Items CSV: {output_paths.get('items_csv', 'N/A')}")
             print(f"  Counters CSV: {output_paths.get('counter_csv', 'N/A')}")
             
             # Basic position files (one per agent)
@@ -194,17 +198,15 @@ def main():
                     print(f"    {key}: {path}")
             
             # Human-readable files (generated during simulation)
-            print("\n  Human-readable files (with collaboration tracking):")
+            print("\n  Derived per-agent action tables:")
             has_human_files = False
             for key, path in output_paths.items():
-                if '_actions_human' in key or '_positions_human' in key:
-                    agent_id = key.split('_')[0] + '_' + key.split('_')[1] + '_' + key.split('_')[2]  # Extract agent_id
-                    file_type = 'actions' if 'actions' in key else 'positions'
-                    print(f"    {agent_id}_{file_type}.csv: {path}")
+                if key.startswith('actions_ai_rl_'):
+                    print(f"    {key}.csv: {path}")
                     has_human_files = True
             
             if not has_human_files:
-                print("    (Generated automatically during simulation)")
+                print("    (No per-agent action tables were generated)")
             
             print(f"\n  Log file: {log_file_path}")
             
@@ -233,8 +235,8 @@ def main():
             print("\n" + "=" * 50)
             print(f"\nExecution completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             print(f"Full log saved to: {log_file_path}")
-            print("\nNote: Human-readable CSVs ({agent_id}_actions.csv, {agent_id}_positions.csv)")
-            print("      are generated automatically during simulation with item tracking.")
+            print("\nNote: Derived per-agent action tables are written as actions_{agent_id}.csv.")
+            print("      They are generated automatically during simulation with item tracking.")
         
     except Exception as e:
         # Try to save error log to simulation directory if possible

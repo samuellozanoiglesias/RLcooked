@@ -201,6 +201,7 @@ class SimulationRunner:
             obs, _rewards, _terminations, _truncations, _infos = env.step(actions)
 
             # ---- 8c. Log (only outside init period) ------------------------
+            data_logger.log_collisions(tick, 1.0 / TICK_DURATION, env)
             if not in_init:
                 data_logger.log_positions(tick, 1.0 / TICK_DURATION, env.game)
                 data_logger.log_counters(tick, 1.0 / TICK_DURATION, env.game)

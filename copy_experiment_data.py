@@ -52,9 +52,12 @@ def extract_ids_from_path(path, map_nr):
 def check_csv_files_exist(source_path):
     """Check if the required CSV files exist in the source directory."""
     csv_files = [
-        'ai_rl_1_actions.csv',
+        'actions.csv',
+        'counters.csv',
+        'items.csv',
+        'actions_ai_rl_1.csv',
         'ai_rl_1_positions.csv',
-        'ai_rl_2_actions.csv',
+        'actions_ai_rl_2.csv',
         'ai_rl_2_positions.csv'
     ]
     

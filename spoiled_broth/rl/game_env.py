@@ -190,6 +190,7 @@ class GameEnv(ParallelEnv):
         default_weights = {agent: (1.0, 0.0) for agent in self.agents}
         self.reward_weights = reward_weights if reward_weights is not None else default_weights
         self.wait_for_completion = wait_for_completion
+        self.tick_duration = TICK_DURATION
         self.cumulated_pure_rewards = {agent: 0.0 for agent in self.agents}
         self.cumulated_modified_rewards = {agent: 0.0 for agent in self.agents}
 
@@ -218,6 +219,14 @@ class GameEnv(ParallelEnv):
         self.total_collisions_detected = 0
         self.total_collisions_rerouted = 0
         self.total_collisions_failed = 0
+        self._last_collision_stats = {
+            'collisions_detected': 0,
+            'collisions_rerouted': 0,
+            'collisions_failed': 0,
+            'agents_with_detected_collisions': [],
+            'agents_with_rerouted_collisions': [],
+            'agents_with_failed_collisions': [],
+        }
 
         self.game, self.action_spaces, self._clickable_mask, self.clickable_indices = init_game(self.agents, map_nr=self.map_nr, grid_size=self.grid_size, seed=self.seed, game_mode=self.game_mode, walking_speeds=self.walking_speeds, cutting_speeds=self.cutting_speeds)
 
@@ -592,6 +601,14 @@ class GameEnv(ParallelEnv):
         # --- Phase 2: Predictive Collision Detection and Rerouting ---
         # CRITICAL: This must happen BEFORE movement to prevent collisions
         # Instead of detecting collisions after they happen, predict and prevent them
+        collision_stats = {
+            'collisions_detected': 0,
+            'collisions_rerouted': 0,
+            'collisions_failed': 0,
+            'agents_with_detected_collisions': [],
+            'agents_with_rerouted_collisions': [],
+            'agents_with_failed_collisions': [],
+        }
         if self.path_processor.collision_enabled:
             collision_stats = resolve_predictive_collisions(self)
             
@@ -646,6 +663,8 @@ class GameEnv(ParallelEnv):
                 agents_becoming_idle.add(agent_id)
         # If collision detection is disabled, this entire block is skipped
         # No collision penalties, no rerouting, agents can overlap freely
+
+            self._last_collision_stats = collision_stats
         
         # --- Phase 3: Execute one tick of simulation ---
         # Advance time by one tick

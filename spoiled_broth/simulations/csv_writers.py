@@ -25,11 +25,25 @@ def create_actions_writer(simulation_dir: Path):
         "tick", "second",
         "agent_id", "action_idx", "action_name", "action_type",
         "agent_tile_x", "agent_tile_y",
-        "tile_x", "tile_y", "cancelled_by_collision",
-        "collision_detected", "collision_rerouted",
+        "tile_x", "tile_y", "action_performed", "action_execution_status",
+        "cancelled_by_collision", "collision_detected", "collision_rerouted",
     ])
     actions_file.flush()
     return actions_file, actions_writer, actions_csv_path
+
+
+def create_collisions_writer(simulation_dir: Path):
+    """Create and initialize per-frame collisions CSV writer."""
+    collisions_csv_path = simulation_dir / "collisions.csv"
+    collisions_file = open(collisions_csv_path, "w", newline="")
+    collisions_writer = csv.writer(collisions_file)
+    collisions_writer.writerow([
+        "frame", "second", "collision_occurred",
+        "collisions_detected", "collisions_rerouted", "collisions_failed",
+        "detected_agents", "rerouted_agents", "failed_agents",
+    ])
+    collisions_file.flush()
+    return collisions_file, collisions_writer, collisions_csv_path
 
 
 def create_position_writer(simulation_dir: Path, agent_id: str):
@@ -64,7 +78,12 @@ def create_counter_writer(simulation_dir: Path, counter_positions: List):
 
 def create_human_action_writer(simulation_dir: Path, agent_id: str):
     """Create and initialize human-readable action CSV writer for a specific agent."""
-    path = simulation_dir / f"{agent_id}_actions.csv"
+    return create_agent_action_writer(simulation_dir, agent_id)
+
+
+def create_agent_action_writer(simulation_dir: Path, agent_id: str):
+    """Create and initialize derived action CSV writer for a specific agent."""
+    path = simulation_dir / f"human_like_actions_{agent_id}.csv"
     fh = open(path, "w", newline="")
     writer = csv.writer(fh)
     writer.writerow([
@@ -84,7 +103,7 @@ def create_human_action_writer(simulation_dir: Path, agent_id: str):
 
 def create_human_position_writer(simulation_dir: Path, agent_id: str):
     """Create and initialize human-readable position CSV writer for a specific agent."""
-    path = simulation_dir / f"{agent_id}_positions.csv"
+    path = simulation_dir / f"human_like_positions_{agent_id}.csv"
     fh = open(path, "w", newline="")
     writer = csv.writer(fh)
     writer.writerow([
