@@ -54,7 +54,9 @@ def check_csv_files_exist(source_path):
     csv_files = [
         'actions.csv',
         'counters.csv',
+        'counters_full.csv',
         'items.csv',
+        'items_full.csv',
         'actions_ai_rl_1.csv',
         'ai_rl_1_positions.csv',
         'actions_ai_rl_2.csv',

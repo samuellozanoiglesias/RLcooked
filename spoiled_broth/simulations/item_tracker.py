@@ -24,6 +24,7 @@ All items track their origins dictionary to maintain the full chain.
 Author: Samuel Lozano
 """
 
+import csv
 from typing import Dict, List, Optional, Tuple, Any
 
 
@@ -68,6 +69,10 @@ class ItemTracker:
             'last_touched': agent_id,
             'origins': clean_origins,
             'counters_used': [],
+            'tomato_id': '',
+            'plate_id': '',
+            'tomato_cut_id': '',
+            'tomato_salad_id': '',
             'who_picked_tomato': '',
             'who_picked_plate': '',
             'who_cut': '',
@@ -85,6 +90,7 @@ class ItemTracker:
             # Inherit who_picked_tomato from the source tomato (if tracked)
             tomato_origin = clean_origins.get('tomato_id')
             if tomato_origin and tomato_origin in self.items:
+                self.items[item_id]['tomato_id'] = tomato_origin
                 self.items[item_id]['who_picked_tomato'] = self.items[tomato_origin]['who_picked_tomato']
         elif item_type == 'tomato_salad' and agent_id:
             self.items[item_id]['who_assembled'] = agent_id
@@ -92,67 +98,11 @@ class ItemTracker:
             for origin_key in ['tomato_cut_id', 'plate_id']:
                 origin_id = clean_origins.get(origin_key)
                 if origin_id and origin_id in self.items:
+                    self.items[item_id][origin_key] = origin_id
                     origin = self.items[origin_id]
                     for role in ['who_picked_tomato', 'who_picked_plate', 'who_cut']:
                         if origin.get(role) and not self.items[item_id][role]:
                             self.items[item_id][role] = origin[role]
-                    # Also walk one level deeper: tomato_cut -> tomato
-                    if origin_key == 'tomato_cut_id':
-                        grandparent_id = origin.get('origins', {}).get('tomato_id')
-                        if grandparent_id and grandparent_id in self.items:
-                            gp = self.items[grandparent_id]
-                            if gp.get('who_picked_tomato') and not self.items[item_id]['who_picked_tomato']:
-                                self.items[item_id]['who_picked_tomato'] = gp['who_picked_tomato']
-        return item_id
-    
-    def track_pickup(self, agent_id: str, item_name: str, location: Tuple = None, from_cutting: bool = False) -> str:
-        """Track pickup action."""
-        if from_cutting:
-            # Transform held tomato into tomato_cut
-            old_item_id = self.agent_holding.get(agent_id)
-            if not old_item_id:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.error(f"Cutting error: {agent_id} has no item to cut!")
-                # This is a critical error - create orphan to maintain consistency
-                old_item_id = self.create_item('tomato', agent_id)
-            item_id = self.create_item('tomato_cut', agent_id, {'tomato_id': old_item_id})
-        elif location and location in self.counter_items:
-            # Pick up existing item from counter
-            item_id = self.counter_items.pop(location)
-            if item_id not in self.items:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.error(f"Counter tracking error: item {item_id} at {location} not in items dict")
-                # Create new item as fallback
-                item_id = self.create_item(item_name, agent_id)
-            else:
-                # Mark that this agent touched the item
-                if agent_id not in self.items[item_id]['touched_by']:
-                    self.items[item_id]['touched_by'].append(agent_id)
-                self.items[item_id]['last_touched'] = agent_id
-        else:
-            # Pick up new item from dispenser
-            item_id = self.create_item(item_name, agent_id)
-        
-        self.agent_holding[agent_id] = item_id
-        return item_id
-    
-    def track_drop(self, agent_id: str, location: Tuple) -> Optional[str]:
-        """Track drop action."""
-        item_id = self.agent_holding.get(agent_id)
-        if item_id and location:
-            self.items[item_id]['counters_used'].append((location, agent_id, 'drop'))
-            self.counter_items[location] = item_id
-        self.agent_holding[agent_id] = None
-        return item_id
-    
-    def track_delivery(self, agent_id: str) -> Optional[str]:
-        """Track delivery."""
-        item_id = self.agent_holding.get(agent_id)
-        if item_id:
-            self.items[item_id]['who_delivered'] = agent_id
-        self.agent_holding[agent_id] = None
         return item_id
 
     def record_delivered_item(
@@ -166,16 +116,24 @@ class ItemTracker:
         if not salad_item_id or salad_item_id not in self.items:
             return None
 
-        salad_item = self.items[salad_item_id]
         salad_data = self.get_item_data(salad_item_id)
 
         self._recorded_item_counter += 1
         delivered_id = f"tomato_delivered_{self._recorded_item_counter}"
         self._creation_counter += 1
 
-        touched_list = list(salad_item.get('touched_by', []))
-        if agent_id and agent_id not in touched_list:
-            touched_list.append(agent_id)
+        delivered_touched_list = [agent_id] if agent_id else []
+        history_touched_list = [
+            value for value in salad_data.get('touched_list_history', '').split(';')
+            if value
+        ]
+        if not history_touched_list:
+            history_touched_list = [
+                value for value in salad_data.get('touched_list', '').split(';')
+                if value
+            ]
+        if agent_id and agent_id not in history_touched_list:
+            history_touched_list.append(agent_id)
 
         self.recorded_items.append({
             'creation_index': self._creation_counter,
@@ -186,7 +144,8 @@ class ItemTracker:
             'created_second': f"{second:.3f}" if second is not None else '',
             'created_source': 'delivery',
             'last_touched': agent_id,
-            'touched_list': ';'.join(touched_list),
+            'touched_list': ';'.join(delivered_touched_list),
+            'touched_list_history': ';'.join(history_touched_list),
             'tomato_id': salad_data.get('tomato_id', ''),
             'plate_id': salad_data.get('plate_id', ''),
             'tomato_cut_id': salad_data.get('tomato_cut_id', ''),
@@ -200,67 +159,6 @@ class ItemTracker:
             'number_of_counters_used': salad_data.get('number_of_counters_used', 0),
         })
         return delivered_id
-
-    def track_assembly(self, agent_id: str, location: Tuple,
-                       agent_item_hint: str = '') -> str:
-        """Track salad assembly at a counter (action_type == 'salad_assembly').
-
-        The agent was holding one item (plate or tomato_cut) and the counter had
-        the complementary item. Both are consumed and a tomato_salad is placed
-        on the counter. The triggering agent is recorded as who_assembled.
-
-        agent_item_hint: 'plate' or 'tomato_cut' — inferred from action_name.
-        """
-        agent_item_id = self.agent_holding.get(agent_id)
-        counter_item_id = self.counter_items.get(location)
-
-        plate_id = None
-        tomato_cut_id = None
-
-        # Identify plate and tomato_cut from agent and counter items
-        if agent_item_id and agent_item_id in self.items:
-            agent_type = self.items[agent_item_id]['type']
-            if agent_type == 'plate':
-                plate_id = agent_item_id
-            elif agent_type == 'tomato_cut':
-                tomato_cut_id = agent_item_id
-        
-        if counter_item_id and counter_item_id in self.items:
-            counter_type = self.items[counter_item_id]['type']
-            if counter_type == 'plate':
-                plate_id = counter_item_id
-            elif counter_type == 'tomato_cut':
-                tomato_cut_id = counter_item_id
-
-        # If we still don't have both items, this is a tracking error
-        # Log it but continue to maintain CSV consistency
-        if plate_id is None or tomato_cut_id is None:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(
-                f"Assembly tracking error for {agent_id} at {location}: "
-                f"plate_id={plate_id}, tomato_cut_id={tomato_cut_id}, "
-                f"agent_item={agent_item_id}, counter_item={counter_item_id}, "
-                f"hint={agent_item_hint}"
-            )
-            # Create minimal items to maintain consistency, but mark the issue
-            if plate_id is None:
-                plate_id = self.create_item('plate', agent_id)
-                logger.warning(f"Created emergency plate: {plate_id}")
-            if tomato_cut_id is None:
-                tomato_cut_id = self.create_item('tomato_cut', agent_id)
-                logger.warning(f"Created emergency tomato_cut: {tomato_cut_id}")
-
-        # Clear agent holding and remove counter item at the assembly location
-        self.agent_holding[agent_id] = None
-        self.counter_items.pop(location, None)
-
-        # Create salad with proper lineage
-        origins = {'plate_id': plate_id, 'tomato_cut_id': tomato_cut_id}
-        salad_id = self.create_item('tomato_salad', agent_id, origins)
-        # Place salad on counter so a subsequent pick_up finds it
-        self.counter_items[location] = salad_id
-        return salad_id
     
     def get_item_data(self, item_id: str) -> Dict:
         """Get comprehensive item data for CSV output."""
@@ -270,7 +168,12 @@ class ItemTracker:
         item = self.items[item_id]
         
         # Build ID lineage — always use '' not None for missing links
-        ids = {'tomato_id': '', 'plate_id': '', 'tomato_cut_id': '', 'tomato_salad_id': ''}
+        ids = {
+            'tomato_id': item.get('tomato_id', ''),
+            'plate_id': item.get('plate_id', ''),
+            'tomato_cut_id': item.get('tomato_cut_id', ''),
+            'tomato_salad_id': item.get('tomato_salad_id', ''),
+        }
         if item['type'] == 'tomato':
             ids['tomato_id'] = item_id
         elif item['type'] == 'plate':
@@ -286,10 +189,51 @@ class ItemTracker:
             tc_id = ids['tomato_cut_id']
             if tc_id and tc_id in self.items:
                 ids['tomato_id'] = self.items[tc_id]['origins'].get('tomato_id') or ''
+
+        who_picked_tomato = item.get('who_picked_tomato', '')
+        who_picked_plate = item.get('who_picked_plate', '')
+        who_cutted = item.get('who_cut', '')
+        who_assembled = item.get('who_assembled', '')
+        who_delivered = item.get('who_delivered', '')
+
+        tomato_id = ids.get('tomato_id', '')
+        plate_id = ids.get('plate_id', '')
+        tomato_cut_id = ids.get('tomato_cut_id', '')
+        tomato_salad_id = ids.get('tomato_salad_id', '')
+
+        if tomato_cut_id and tomato_cut_id in self.items:
+            cut_item = self.items[tomato_cut_id]
+            if not who_cutted:
+                who_cutted = cut_item.get('who_cut', '')
+            if not who_picked_tomato:
+                who_picked_tomato = cut_item.get('who_picked_tomato', '')
+            if not tomato_id:
+                tomato_id = cut_item.get('origins', {}).get('tomato_id', '')
+
+        if tomato_id and tomato_id in self.items and not who_picked_tomato:
+            who_picked_tomato = self.items[tomato_id].get('who_picked_tomato', '')
+
+        if plate_id and plate_id in self.items and not who_picked_plate:
+            who_picked_plate = self.items[plate_id].get('who_picked_plate', '')
+
+        if tomato_salad_id and tomato_salad_id in self.items and not who_assembled:
+            who_assembled = (
+                self.items[tomato_salad_id].get('who_assembled', '')
+                or self.items[tomato_salad_id].get('created_by', '')
+            )
+        elif item['type'] == 'tomato_salad' and not who_assembled:
+            who_assembled = item.get('created_by', '')
+
+        ids['tomato_id'] = tomato_id or ''
+        ids['plate_id'] = plate_id or ''
+        ids['tomato_cut_id'] = tomato_cut_id or ''
+        ids['tomato_salad_id'] = tomato_salad_id or ''
+
         # Collaboration tracking:
         # - item_touched are touches on this concrete item only
         # - history_touched are touches across full lineage (origins + this item)
-        item_touched = set(item['touched_by'])
+        item_touched_list = [value for value in item.get('touched_by', []) if value]
+        item_touched = set(item_touched_list)
         history_touched_list = self._get_lineage_touched_list(item_id)
         history_touched = set(history_touched_list)
         
@@ -303,14 +247,15 @@ class ItemTracker:
             'created_second': item.get('created_second', ''),
             'created_source': item.get('created_source', ''),
             'last_touched': item['last_touched'],
-            'touched_list': ';'.join(history_touched_list),
+            'touched_list': ';'.join(item_touched_list),
+            'touched_list_history': ';'.join(history_touched_list),
             'is_item_collaboration': len(item_touched) > 1,
-            'is_exchange_collaboration': len(history_touched) > 1,
-            'who_picked_tomato': item['who_picked_tomato'],
-            'who_picked_plate': item['who_picked_plate'],
-            'who_cutted': item['who_cut'],
-            'who_assembled': item['who_assembled'],
-            'who_delivered': item['who_delivered'],
+            'is_history_collaboration': len(history_touched) > 1,
+            'who_picked_tomato': who_picked_tomato,
+            'who_picked_plate': who_picked_plate,
+            'who_cutted': who_cutted,
+            'who_assembled': who_assembled,
+            'who_delivered': who_delivered,
             'number_of_counters_used': len(item['counters_used'])
         }
 
@@ -339,11 +284,9 @@ class ItemTracker:
 
     def export_items(self, csv_path):
         """Write the current item ledger to items.csv."""
-        import csv
-
         header = [
             'item_id', 'item_type', 'creation_index', 'created_by', 'created_tick', 'created_second', 'created_source',
-            'last_touched', 'touched_list',
+            'last_touched', 'touched_list', 'touched_list_history',
             'tomato_id', 'plate_id', 'tomato_cut_id', 'tomato_salad_id', 'tomato_delivered_id',
             'who_picked_tomato', 'who_picked_plate', 'who_cutted', 'who_assembled', 'who_delivered',
             'number_of_counters_used',
@@ -362,6 +305,7 @@ class ItemTracker:
                 data.get('created_source', ''),
                 data.get('last_touched', ''),
                 data.get('touched_list', ''),
+                data.get('touched_list_history', ''),
                 data.get('tomato_id', ''),
                 data.get('plate_id', ''),
                 data.get('tomato_cut_id', ''),
@@ -386,6 +330,7 @@ class ItemTracker:
                 record.get('created_source', ''),
                 record.get('last_touched', ''),
                 record.get('touched_list', ''),
+                record.get('touched_list_history', ''),
                 record.get('tomato_id', ''),
                 record.get('plate_id', ''),
                 record.get('tomato_cut_id', ''),
@@ -407,78 +352,154 @@ class ItemTracker:
             for _, row in rows:
                 writer.writerow(row)
 
-    def annotate_item(
+    def backfill_item_origins(
         self,
-        item_id: str,
-        *,
-        created_by: Optional[str] = None,
-        created_tick: Optional[int] = None,
-        created_second: Optional[float] = None,
-        created_source: Optional[str] = None,
-        origins: Optional[Dict[str, str]] = None,
-        touched_by: Optional[str] = None,
-    ) -> None:
-        """Backfill item metadata discovered after sync."""
-        if not item_id or item_id not in self.items:
-            return
+        item_id: Optional[str],
+        origins: Optional[Dict[str, str]],
+        agent_id: str = '',
+    ) -> bool:
+        """Merge inferred origins into an existing item and refresh lineage metadata."""
+        if not item_id or item_id not in self.items or not origins:
+            return False
 
         item = self.items[item_id]
-        if created_by and not item.get('created_by'):
-            item['created_by'] = created_by
-        if created_tick is not None and item.get('created_tick', '') == '':
-            item['created_tick'] = created_tick
-        if created_second is not None and item.get('created_second', '') == '':
-            item['created_second'] = f"{created_second:.3f}"
-        if created_source and not item.get('created_source'):
-            item['created_source'] = created_source
+        clean_origins = {
+            key: value
+            for key, value in origins.items()
+            if value and value in self.items
+        }
+        if not clean_origins:
+            return False
 
-        if origins:
-            item['origins'].update({k: v for k, v in origins.items() if v and v != item_id})
-
-        if touched_by:
-            if touched_by not in item['touched_by']:
-                item['touched_by'].append(touched_by)
-            item['last_touched'] = touched_by
+        updated = False
+        for key, value in clean_origins.items():
+            if not item['origins'].get(key):
+                item['origins'][key] = value
+                updated = True
 
         if item['type'] == 'tomato_cut':
             tomato_origin = item['origins'].get('tomato_id')
             if tomato_origin and tomato_origin in self.items:
-                source_item = self.items[tomato_origin]
-                if source_item.get('who_picked_tomato') and not item.get('who_picked_tomato'):
-                    item['who_picked_tomato'] = source_item['who_picked_tomato']
+                if item.get('tomato_id') != tomato_origin:
+                    item['tomato_id'] = tomato_origin
+                    updated = True
+                picked_by = self.items[tomato_origin].get('who_picked_tomato', '')
+                if picked_by and not item.get('who_picked_tomato'):
+                    item['who_picked_tomato'] = picked_by
+                    updated = True
+            if agent_id and not item.get('who_cut'):
+                item['who_cut'] = agent_id
+                updated = True
+
         elif item['type'] == 'tomato_salad':
             tomato_cut_id = item['origins'].get('tomato_cut_id')
             plate_id = item['origins'].get('plate_id')
+
+            if tomato_cut_id and item.get('tomato_cut_id') != tomato_cut_id:
+                item['tomato_cut_id'] = tomato_cut_id
+                updated = True
+            if plate_id and item.get('plate_id') != plate_id:
+                item['plate_id'] = plate_id
+                updated = True
+
             if tomato_cut_id and tomato_cut_id in self.items:
-                source_item = self.items[tomato_cut_id]
-                for source_agent in source_item.get('touched_by', []):
-                    if source_agent and source_agent not in item['touched_by']:
-                        item['touched_by'].insert(0, source_agent)
-                for role in ['who_picked_tomato', 'who_cut']:
-                    if source_item.get(role) and not item.get(role):
-                        item[role] = source_item[role]
-            if plate_id and plate_id in self.items:
-                source_item = self.items[plate_id]
-                for source_agent in source_item.get('touched_by', []):
-                    if source_agent and source_agent not in item['touched_by']:
-                        item['touched_by'].insert(0, source_agent)
-                if source_item.get('who_picked_plate') and not item.get('who_picked_plate'):
-                    item['who_picked_plate'] = source_item['who_picked_plate']
-            # If no explicit touched_by update was passed, keep a meaningful
-            # last_touched from ingredient lineage rather than leaving it blank.
-            if not item.get('last_touched'):
-                for source_id in [tomato_cut_id, plate_id]:
-                    if source_id and source_id in self.items and self.items[source_id].get('last_touched'):
-                        item['last_touched'] = self.items[source_id]['last_touched']
-                        break
-        elif item['type'] == 'tomato_delivered':
-            salad_id = item['origins'].get('tomato_salad_id')
-            if salad_id and salad_id in self.items:
-                source_item = self.items[salad_id]
-                for role in ['who_picked_tomato', 'who_picked_plate', 'who_cut', 'who_assembled']:
-                    if source_item.get(role) and not item.get(role):
-                        item[role] = source_item[role]
-    
+                source_tomato_id = (
+                    self.items[tomato_cut_id]['origins'].get('tomato_id')
+                    or self.items[tomato_cut_id].get('tomato_id', '')
+                )
+                if source_tomato_id and not item.get('tomato_id'):
+                    item['tomato_id'] = source_tomato_id
+                    updated = True
+
+            for origin_id in [tomato_cut_id, plate_id]:
+                if not origin_id or origin_id not in self.items:
+                    continue
+                origin = self.items[origin_id]
+                for role in ['who_picked_tomato', 'who_picked_plate', 'who_cut']:
+                    if origin.get(role) and not item.get(role):
+                        item[role] = origin[role]
+                        updated = True
+
+            if agent_id and not item.get('who_assembled'):
+                item['who_assembled'] = agent_id
+                updated = True
+
+        return updated
+
+    def _infer_origins_for_new_item(
+        self,
+        item_type: str,
+        *,
+        available_origin_ids: List[str],
+        prev_agent_holding: Dict[str, Optional[str]],
+        prev_counter_items: Dict[Tuple[int, int], Optional[str]],
+        agent_id: Optional[str] = None,
+        counter_key: Optional[Tuple[int, int]] = None,
+    ) -> Dict[str, str]:
+        """Infer origins for newly created transformed items during state sync."""
+
+        def _id_type(item_id: Optional[str]) -> Optional[str]:
+            if not item_id or item_id not in self.items:
+                return None
+            return self.items[item_id]['type']
+
+        def _take_if_type(candidate_id: Optional[str], expected_type: str) -> Optional[str]:
+            if (
+                candidate_id
+                and candidate_id in available_origin_ids
+                and _id_type(candidate_id) == expected_type
+            ):
+                available_origin_ids.remove(candidate_id)
+                return candidate_id
+            return None
+
+        def _take_first(expected_type: str) -> Optional[str]:
+            for candidate_id in list(available_origin_ids):
+                if _id_type(candidate_id) == expected_type:
+                    available_origin_ids.remove(candidate_id)
+                    return candidate_id
+            return None
+
+        if item_type == 'tomato_cut':
+            tomato_id = None
+            if counter_key is not None:
+                tomato_id = _take_if_type(prev_counter_items.get(counter_key), 'tomato')
+            if tomato_id is None and agent_id:
+                tomato_id = _take_if_type(prev_agent_holding.get(agent_id), 'tomato')
+            if tomato_id is None:
+                tomato_id = _take_first('tomato')
+            return {'tomato_id': tomato_id} if tomato_id else {}
+
+        if item_type == 'tomato_salad':
+            plate_id = None
+            tomato_cut_id = None
+
+            local_candidates = []
+            if counter_key is not None:
+                local_candidates.append(prev_counter_items.get(counter_key))
+            if agent_id:
+                local_candidates.append(prev_agent_holding.get(agent_id))
+
+            for candidate_id in local_candidates:
+                if plate_id is None:
+                    plate_id = _take_if_type(candidate_id, 'plate')
+                if tomato_cut_id is None:
+                    tomato_cut_id = _take_if_type(candidate_id, 'tomato_cut')
+
+            if plate_id is None:
+                plate_id = _take_first('plate')
+            if tomato_cut_id is None:
+                tomato_cut_id = _take_first('tomato_cut')
+
+            origins: Dict[str, str] = {}
+            if plate_id:
+                origins['plate_id'] = plate_id
+            if tomato_cut_id:
+                origins['tomato_cut_id'] = tomato_cut_id
+            return origins
+
+        return {}
+
     def sync_with_game_state(
         self,
         game: Any,
@@ -603,12 +624,25 @@ class ItemTracker:
                 new_counter_items[key] = matched_id
                 used_ids.add(matched_id)
 
+        consumed_origin_ids: List[str] = []
+        for previous_id in list(prev_agent_holding.values()) + list(prev_counter_items.values()):
+            if previous_id and previous_id not in used_ids and previous_id not in consumed_origin_ids:
+                consumed_origin_ids.append(previous_id)
+
         # 5) Create IDs for truly new items
         for agent_id, item_name in current_agent_items.items():
             if item_name and new_agent_holding[agent_id] is None:
+                inferred_origins = self._infer_origins_for_new_item(
+                    item_name,
+                    available_origin_ids=consumed_origin_ids,
+                    prev_agent_holding=prev_agent_holding,
+                    prev_counter_items=prev_counter_items,
+                    agent_id=agent_id,
+                )
                 new_agent_holding[agent_id] = self.create_item(
                     item_name,
                     agent_id,
+                    origins=inferred_origins,
                     tick=tick,
                     second=second,
                     source='game_state_sync',
@@ -616,9 +650,17 @@ class ItemTracker:
 
         for key, item_name in current_counter_items.items():
             if item_name and key not in new_counter_items:
+                inferred_origins = self._infer_origins_for_new_item(
+                    item_name,
+                    available_origin_ids=consumed_origin_ids,
+                    prev_agent_holding=prev_agent_holding,
+                    prev_counter_items=prev_counter_items,
+                    counter_key=key,
+                )
                 new_counter_items[key] = self.create_item(
                     item_name,
                     '',
+                    origins=inferred_origins,
                     tick=tick,
                     second=second,
                     source='game_state_sync',
@@ -660,15 +702,15 @@ class ItemTracker:
             origins.append(origin_id)
             origins.extend(self._get_all_origins(origin_id, visited))
         return origins
-    
+
     def _empty_data(self) -> Dict:
         """Return empty item data structure."""
         return {
             'item_id': '', 'item_type': '', 'creation_index': '', 'created_by': '',
             'created_tick': '', 'created_second': '', 'created_source': '',
             'tomato_id': '', 'plate_id': '', 'tomato_cut_id': '', 'tomato_salad_id': '', 'tomato_delivered_id': '',
-            'last_touched': '', 'touched_list': '',
-            'is_item_collaboration': False, 'is_exchange_collaboration': False,
+            'last_touched': '', 'touched_list': '', 'touched_list_history': '',
+            'is_item_collaboration': False, 'is_history_collaboration': False,
             'who_picked_tomato': '', 'who_picked_plate': '', 'who_cutted': '',
             'who_assembled': '', 'who_delivered': '', 'number_of_counters_used': 0
         }

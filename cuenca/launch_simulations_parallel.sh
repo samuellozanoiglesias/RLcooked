@@ -1,259 +1,304 @@
 #!/bin/bash
 
 # =============================================================================
-# Simple Multiple Simulation Launcher with Optional Parallel Limit
+# Parallel Experimental Simulation Launcher (Custom Checkpoint Files Only)
 # =============================================================================
-# Launches multiple simulations, limiting the maximum number of N running concurrently.
-# If TRAINING_ID is "all", runs simulations for all Training_* folders in the study.
+# This script only runs simulations using --custom_checkpoints.
 #
-# Usage (Default N=5): ./launch_simulations_parallel.sh MAP_NR TRAINING_ID CHECKPOINT_NUMBER NUM_SIMULATIONS [OPTIONAL_ARGS]
-# Usage (Custom N):   ./launch_simulations_parallel.sh MAP_NR TRAINING_ID CHECKPOINT_NUMBER NUM_SIMULATIONS MAX_PARALLEL [OPTIONAL_ARGS]
-# Usage (All trainings): ./launch_simulations_parallel.sh MAP_NR all CHECKPOINT_NUMBER NUM_SIMULATIONS [--study_name NAME] [OPTIONAL_ARGS]
+# For each hardcoded configuration, it auto-generates checkpoint files in:
+#   cuenca/experimental_checkpoints/checkpoint_<config_name>_<checkpoint>.txt
 #
-# Example (N=5 default):
-#   nohup ./launch_simulations_parallel.sh baseline_division_of_labor 2025-09-13_13-27-52 final 20 > log_simulation_parallel_baseline.out 2>&1 &
-#   nohup ./launch_simulations_parallel.sh baseline_division_of_labor_v2 2025-11-12_13-52-30 final 20 --num_agents 1 --duration 120 > log_simulation_parallel_baseline.out 2>&1 &
-#   nohup ./launch_simulations_parallel.sh baseline_division_of_labor 2025-09-13_13-27-52 final 20 --study_name speeds --duration 180 > log_simulation_parallel_baseline_speeds.out 2>&1 &
-#   nohup ./launch_simulations_parallel.sh baseline_division_of_labor all final 20 --study_name speeds --game_type classic --duration 300 > log_simulation_parallel_all.out 2>&1 &
-#   
-# Example (Custom N=3):
-#   nohup ./launch_simulations_parallel.sh my_map myrun final 10 3 --enable_video true --duration 240 > log_simulation_parallel_my_map.out 2>&1 &
-#   nohup ./launch_simulations_parallel.sh my_map myrun final 10 3 --study_name speeds --enable_video true --duration 180 > log_simulation_parallel_my_map.out 2>&1 &
-#   nohup ./launch_simulations_parallel.sh my_map all final 10 3 --game_type classic_collision --study_name collision_study --duration 360 > log_simulation_parallel_my_map.out 2>&1 &
+# Then it launches each configuration/checkpoint combination NUM_SIMULATIONS times,
+# with a maximum of MAX_PARALLEL jobs running concurrently.
+#
+# Usage:
+#   ./launch_simulations_parallel.sh MAP_NR GAME_VERSION NUM_SIMULATIONS [MAX_PARALLEL] [--checkpoint_mode MODE] [OPTIONAL_SIM_ARGS]
+#
+# Arguments:
+#   MAP_NR            Map name used by experimental_simulation.py
+#   GAME_VERSION      Game version (classic, classic_collision, competition)
+#   NUM_SIMULATIONS   Number of runs per (configuration, checkpoint)
+#   MAX_PARALLEL      Optional max parallel jobs (default: 5)
+#
+# Options:
+#   --checkpoint_mode found|hardcoded
+#       found:      discover every checkpoint_* folder inside each Training path
+#       hardcoded:  use HARDCODED_CHECKPOINTS array from this script
+#
+# Examples:
+#   nohup ./launch_simulations_parallel.sh encouraged_division_of_labor_large classic_collision 20 5 --checkpoint_mode hardcoded --enable_video true > log_simulation_parallel.out 2>&1 &
+#
+#   nohup ./launch_simulations_parallel.sh encouraged_division_of_labor_large classic_collision 20 --checkpoint_mode found --enable_video true --duration 300 > log_simulation_parallel_found.out 2>&1 &
 # =============================================================================
 
-# Define the default maximum parallel processes
 DEFAULT_MAX_PARALLEL=5
+DEFAULT_CHECKPOINT_MODE="found"
 
-# Check minimum arguments (4 are required)
-if [ $# -lt 4 ]; then
-    echo "Usage: $0 MAP_NR TRAINING_ID CHECKPOINT_NUMBER NUM_SIMULATIONS [MAX_PARALLEL] [OPTIONAL_ARGS]"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SIMULATION_SCRIPT="${SCRIPT_DIR}/../experimental_simulation.py"
+CHECKPOINT_CONFIG_DIR="${SCRIPT_DIR}/experimental_checkpoints"
+LOG_DIR="${SCRIPT_DIR}/simulation_logs"
+
+# -----------------------------------------------------------------------------
+# Hardcoded configurations
+# -----------------------------------------------------------------------------
+# Format per row:
+#   CONFIG_NAME|FULL_PATH_TO_TRAINING_DIRECTORY
+#
+# Example training path:
+#   /data/.../map_<MAP_NR>/synergy_X.XX/specialized_Y.YY/Training_<TRAINING_ID>
+CONFIGURATIONS=(
+    "encouraged_collision_MA_1|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-40-16"
+    "encouraged_collision_MA_2|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-41-56"
+    "encouraged_collision_MA_3|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-43-39"
+    "encouraged_collision_MA_4|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-45-20"
+    "encouraged_collision_MA_5|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-10_08-33-47"
+    "encouraged_collision_MA_6|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-13_05-16-18"
+    "encouraged_collision_HA_1|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-33-28"
+    "encouraged_collision_HA_2|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-35-10"
+    "encouraged_collision_HA_3|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-36-51"
+    "encouraged_collision_HA_4|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-38-34"
+    "encouraged_collision_HA_5|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-10_13-30-39"
+    "encouraged_collision_HA_6|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-11_07-51-14"
+)
+
+# Used only when --checkpoint_mode hardcoded
+HARDCODED_CHECKPOINTS=(
+    "final"
+)
+
+print_usage() {
+    echo "Usage: $0 MAP_NR GAME_VERSION NUM_SIMULATIONS [MAX_PARALLEL] [--checkpoint_mode MODE] [OPTIONAL_SIM_ARGS]"
     echo ""
     echo "Arguments:"
-    echo "  MAP_NR              Map name"
-    echo "  TRAINING_ID         Training identifier or 'all' to run all trainings in study"
-    echo "  CHECKPOINT_NUMBER   Checkpoint number or 'final'"
-    echo "  NUM_SIMULATIONS     Total number of simulations to run per training"
-    echo "  MAX_PARALLEL        Maximum parallel processes (optional, default is $DEFAULT_MAX_PARALLEL)"
-    echo "  OPTIONAL_ARGS       Additional arguments passed to experimental_simulation.py"
-    echo "                      Common options: --game_type (classic, classic_collision), --study_name, --num_agents, --enable_video, --duration"
+    echo "  MAP_NR            Map name"
+    echo "  GAME_VERSION      classic | classic_collision | competition"
+    echo "  NUM_SIMULATIONS   Positive integer"
+    echo "  MAX_PARALLEL      Optional positive integer (default: $DEFAULT_MAX_PARALLEL)"
     echo ""
-    echo "Note: When TRAINING_ID is 'all', --study_name must be specified to locate training folders"
-    echo "      If --game_type is not specified, the script looks directly in /data/samuel_lozano/cooked/map_<MAP_NR>/<STUDY_NAME>"
-    echo "      If --game_type is specified, the script looks in /data/samuel_lozano/cooked/<GAME_TYPE>/map_<MAP_NR>/<STUDY_NAME>"
+    echo "Options:"
+    echo "  --checkpoint_mode found|hardcoded  (default: $DEFAULT_CHECKPOINT_MODE)"
     echo ""
+    echo "All remaining arguments are forwarded to experimental_simulation.py."
+}
+
+is_positive_integer() {
+    [[ "$1" =~ ^[0-9]+$ ]] && [[ "$1" -ge 1 ]]
+}
+
+extract_training_id() {
+    local training_path="$1"
+    local base_name
+    base_name="$(basename "$training_path")"
+
+    if [[ "$base_name" == Training_* ]]; then
+        echo "${base_name#Training_}"
+    else
+        echo "$base_name"
+    fi
+}
+
+sanitize_for_filename() {
+    local value="$1"
+    value="${value//\//_}"
+    value="${value// /_}"
+    echo "$value"
+}
+
+create_custom_checkpoint_file() {
+    local checkpoint_file="$1"
+    local checkpoint_number="$2"
+    local training_path="$3"
+
+    if [[ "$training_path" != */ ]]; then
+        training_path="${training_path}/"
+    fi
+
+    cat > "$checkpoint_file" <<EOF
+policy_ai_rl_1
+${checkpoint_number}
+${training_path}
+policy_ai_rl_2
+${checkpoint_number}
+${training_path}
+EOF
+}
+
+discover_checkpoints_in_training() {
+    local training_path="$1"
+
+    find "$training_path" -maxdepth 1 -mindepth 1 -type d -name "checkpoint_*" -printf "%f\n" \
+        | sed 's/^checkpoint_//' \
+        | sort -V
+}
+
+# -----------------------------------------------------------------------------
+# Parse arguments
+# -----------------------------------------------------------------------------
+if [[ $# -lt 3 ]]; then
+    print_usage
     exit 1
 fi
 
-# Parse arguments
-MAP_NR=$1
-TRAINING_ID=$2
-CHECKPOINT_NUMBER=$3
-NUM_SIMULATIONS=$4
+MAP_NR="$1"
+GAME_VERSION="$2"
+NUM_SIMULATIONS="$3"
+shift 3
 
-# Check if MAX_PARALLEL is provided (5th argument) AND it is a valid positive integer
-if [ $# -ge 5 ]; then
-    CANDIDATE_MAX_PARALLEL=$5
-    if [[ "$CANDIDATE_MAX_PARALLEL" =~ ^[0-9]+$ ]] && [[ "$CANDIDATE_MAX_PARALLEL" -ge 1 ]]; then
-        MAX_PARALLEL=$CANDIDATE_MAX_PARALLEL
-        shift 5 # Remove first 5 arguments (4 required + MAX_PARALLEL)
-    else
-        # If the 5th argument is present but NOT a valid number, assume it's the start of OPTIONAL_ARGS
-        # and fall back to the default MAX_PARALLEL.
-        MAX_PARALLEL=$DEFAULT_MAX_PARALLEL
-        shift 4 # Remove first 4 arguments, leaving $5 and onwards as optional args
-        echo "Warning: 5th argument '$CANDIDATE_MAX_PARALLEL' is not a valid positive integer for MAX_PARALLEL. Using default ($DEFAULT_MAX_PARALLEL)."
-    fi
-else
-    # Only 4 arguments provided, use the default MAX_PARALLEL
-    MAX_PARALLEL=$DEFAULT_MAX_PARALLEL
-    shift 4 # Remove first 4 arguments, leaving nothing for optional args
-fi
-
-# Default simulation parameters
-GAME_VERSION="classic"
-
-# Additional arguments (passed as-is to the Python script)
-OPTIONAL_ARGS="$@"
-
-# Validate NUM_SIMULATIONS is a positive integer
-if ! [[ "$NUM_SIMULATIONS" =~ ^[0-9]+$ ]] || [[ "$NUM_SIMULATIONS" -lt 1 ]]; then
+if ! is_positive_integer "$NUM_SIMULATIONS"; then
     echo "Error: NUM_SIMULATIONS must be a positive integer"
     exit 1
 fi
-# MAX_PARALLEL is already validated or set to a valid default/provided value
 
-# Extract study_name and game_type from optional args
-STUDY_NAME="default"
-GAME_TYPE=""  # Empty by default - no game_type subfolder unless specified
-
-# Parse optional args to extract study_name and game_type
-# Convert OPTIONAL_ARGS to array for easier parsing
-ARGS_ARRAY=($OPTIONAL_ARGS)
-for ((i=0; i<${#ARGS_ARRAY[@]}; i++)); do
-    arg="${ARGS_ARRAY[$i]}"
-    if [[ "$arg" == "--study_name" ]]; then
-        next_i=$((i+1))
-        STUDY_NAME="${ARGS_ARRAY[$next_i]}"
-    elif [[ "$arg" == "--game_type" ]]; then
-        next_i=$((i+1))
-        GAME_TYPE="${ARGS_ARRAY[$next_i]}"
-    fi
-done
-
-# If TRAINING_ID is "all", find all Training_* folders in the map
-if [[ "$TRAINING_ID" == "all" ]]; then
-    # Construct path to search for Training folders
-    # Logic: If study_name is provided (via --study_name), look inside that study folder
-    #        Otherwise, look directly in the map folder
-    
-    # First, determine if we have a study_name from the arguments (not just the default)
-    STUDY_NAME_PROVIDED=false
-    for arg in "${ARGS_ARRAY[@]}"; do
-        if [[ "$arg" == "--study_name" ]]; then
-            STUDY_NAME_PROVIDED=true
-            break
-        fi
-    done
-    
-    if [[ -z "$GAME_TYPE" ]]; then
-        # No game_type specified - look directly in map folder
-        MAP_PATH="/data/samuel_lozano/cooked/map_${MAP_NR}"
-    else
-        # game_type specified - use game_type subfolder
-        MAP_PATH="/data/samuel_lozano/cooked/${GAME_TYPE}/map_${MAP_NR}"
-    fi
-    
-    # If study_name was explicitly provided, look in the study subfolder for Training directories
-    if [[ "$STUDY_NAME_PROVIDED" == true ]]; then
-        SEARCH_PATH="${MAP_PATH}/${STUDY_NAME}"
-    else
-        SEARCH_PATH="${MAP_PATH}"
-    fi
-    
-    if [[ ! -d "$SEARCH_PATH" ]]; then
-        echo "Error: Search path does not exist: $SEARCH_PATH"
-        if [[ "$STUDY_NAME_PROVIDED" == true ]]; then
-            echo "Make sure --study_name is specified correctly"
-        fi
-        if [[ -n "$GAME_TYPE" ]]; then
-            echo "and --game_type is specified correctly"
-        fi
-        exit 1
-    fi
-    
-    # Find all Training_* directories
-    TRAINING_DIRS=($(find "$SEARCH_PATH" -maxdepth 1 -type d -name "Training_*" | sort))
-    
-    if [[ ${#TRAINING_DIRS[@]} -eq 0 ]]; then
-        echo "Error: No Training_* folders found in $SEARCH_PATH"
-        exit 1
-    fi
-    
-    # Extract just the training IDs (remove path and Training_ prefix)
-    TRAINING_IDS=()
-    for dir in "${TRAINING_DIRS[@]}"; do
-        training_id=$(basename "$dir" | sed 's/^Training_//')
-        TRAINING_IDS+=("$training_id")
-    done
-    
-    echo "=================================================="
-    echo "Found ${#TRAINING_IDS[@]} training(s) in study '$STUDY_NAME':"
-    for tid in "${TRAINING_IDS[@]}"; do
-        echo "  - $tid"
-    done
-    echo "=================================================="
-else
-    # Single training ID provided
-    TRAINING_IDS=("$TRAINING_ID")
+MAX_PARALLEL="$DEFAULT_MAX_PARALLEL"
+if [[ $# -gt 0 ]] && is_positive_integer "$1"; then
+    MAX_PARALLEL="$1"
+    shift
 fi
 
-# Create logs directory
-LOG_DIR="simulation_logs"
+CHECKPOINT_MODE="$DEFAULT_CHECKPOINT_MODE"
+SIMULATION_ARGS=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --checkpoint_mode)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: --checkpoint_mode requires a value (found|hardcoded)"
+                exit 1
+            fi
+            CHECKPOINT_MODE="$2"
+            shift 2
+            ;;
+        -h|--help)
+            print_usage
+            exit 0
+            ;;
+        *)
+            SIMULATION_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+if [[ "$CHECKPOINT_MODE" != "found" && "$CHECKPOINT_MODE" != "hardcoded" ]]; then
+    echo "Error: invalid --checkpoint_mode '$CHECKPOINT_MODE'. Use 'found' or 'hardcoded'."
+    exit 1
+fi
+
+if [[ ! -f "$SIMULATION_SCRIPT" ]]; then
+    echo "Error: simulation script not found: $SIMULATION_SCRIPT"
+    exit 1
+fi
+
+mkdir -p "$CHECKPOINT_CONFIG_DIR"
 mkdir -p "$LOG_DIR"
 
 echo "=================================================="
-echo "Launching $NUM_SIMULATIONS simulations per training"
-echo "Total trainings: ${#TRAINING_IDS[@]}"
-echo "Total simulations: $((NUM_SIMULATIONS * ${#TRAINING_IDS[@]}))"
-echo "Max Parallel: $MAX_PARALLEL (Default is $DEFAULT_MAX_PARALLEL)"
-echo "=================================================="
-echo "Checkpoint: $CHECKPOINT_NUMBER"
+echo "Custom-checkpoint parallel launcher"
 echo "Map: $MAP_NR"
-echo "Study: $STUDY_NAME"
-echo "Game Type: $GAME_TYPE"
-echo "Optional Args: $OPTIONAL_ARGS"
-echo "Log Directory: $LOG_DIR"
-echo "To kill all simulations: pkill -f \"experimental_simulation.py\""
-echo "================================================="
+echo "Game version: $GAME_VERSION"
+echo "Simulations per configuration/checkpoint: $NUM_SIMULATIONS"
+echo "Max parallel: $MAX_PARALLEL"
+echo "Checkpoint mode: $CHECKPOINT_MODE"
+echo "Checkpoint files dir: $CHECKPOINT_CONFIG_DIR"
+echo "Log dir: $LOG_DIR"
+echo "Forwarded simulation args: ${SIMULATION_ARGS[*]}"
+echo "=================================================="
 
-# Array to store process IDs
 PIDS=()
 RUNNING_COUNT=0
+TOTAL_LAUNCHED=0
 
-# Launch simulations for each training
-for CURRENT_TRAINING_ID in "${TRAINING_IDS[@]}"; do
+for config_row in "${CONFIGURATIONS[@]}"; do
+    IFS='|' read -r CONFIG_NAME TRAINING_PATH <<< "$config_row"
+
+    if [[ -z "$CONFIG_NAME" || -z "$TRAINING_PATH" ]]; then
+        echo "Error: invalid CONFIGURATIONS row: '$config_row'"
+        exit 1
+    fi
+
+    if [[ ! -d "$TRAINING_PATH" ]]; then
+        echo "Error: training path does not exist for config '$CONFIG_NAME': $TRAINING_PATH"
+        exit 1
+    fi
+
+    TRAINING_ID="$(extract_training_id "$TRAINING_PATH")"
+    CHECKPOINTS=()
+
+    if [[ "$CHECKPOINT_MODE" == "found" ]]; then
+        while IFS= read -r checkpoint_value; do
+            if [[ -n "$checkpoint_value" ]]; then
+                CHECKPOINTS+=("$checkpoint_value")
+            fi
+        done < <(discover_checkpoints_in_training "$TRAINING_PATH")
+    else
+        CHECKPOINTS=("${HARDCODED_CHECKPOINTS[@]}")
+    fi
+
+    if [[ ${#CHECKPOINTS[@]} -eq 0 ]]; then
+        echo "Warning: no checkpoints found for config '$CONFIG_NAME' in $TRAINING_PATH"
+        continue
+    fi
+
     echo ""
-    echo "Starting simulations for training: $CURRENT_TRAINING_ID"
+    echo "Configuration: $CONFIG_NAME"
+    echo "Training path: $TRAINING_PATH"
+    echo "Training ID: $TRAINING_ID"
+    echo "Checkpoints: ${CHECKPOINTS[*]}"
     echo "--------------------------------------------------"
-    
-    # Launch simulations for this training
-    for i in $(seq 1 $NUM_SIMULATIONS); do
-        # Create log filename - handle empty GAME_TYPE
-        if [[ -z "$GAME_TYPE" ]]; then
-            LOG_FILE="$LOG_DIR/sim_${STUDY_NAME}_${MAP_NR}_${CURRENT_TRAINING_ID}_${CHECKPOINT_NUMBER}_${i}.log"
-        else
-            LOG_FILE="$LOG_DIR/sim_${GAME_TYPE}_${STUDY_NAME}_${MAP_NR}_${CURRENT_TRAINING_ID}_${CHECKPOINT_NUMBER}_${i}.log"
-        fi
-        
-        # === CONCURRENCY CONTROL LOGIC ===
-        # If the number of currently running jobs ($RUNNING_COUNT) equals MAX_PARALLEL,
-        # wait for one to finish before launching the next.
-        while [ "$RUNNING_COUNT" -ge "$MAX_PARALLEL" ]; do
-            echo "Max parallel limit ($MAX_PARALLEL) reached. Waiting for a job to finish..."
-            # Wait for any background job to finish
-            wait -n
-            # Update the running count by checking the job table for running jobs.
-            RUNNING_COUNT=$(jobs -p | wc -l)
-            # Note: jobs -p counts jobs *in the current shell's job table*
-            echo "A job completed. $RUNNING_COUNT jobs still running. Resuming launch..."
+
+    for checkpoint in "${CHECKPOINTS[@]}"; do
+        SAFE_CHECKPOINT="$(sanitize_for_filename "$checkpoint")"
+        CHECKPOINT_FILE="${CHECKPOINT_CONFIG_DIR}/checkpoint_${CONFIG_NAME}_${SAFE_CHECKPOINT}.txt"
+        create_custom_checkpoint_file "$CHECKPOINT_FILE" "$checkpoint" "$TRAINING_PATH"
+
+        for run_idx in $(seq 1 "$NUM_SIMULATIONS"); do
+            while [[ "$RUNNING_COUNT" -ge "$MAX_PARALLEL" ]]; do
+                echo "Max parallel limit ($MAX_PARALLEL) reached. Waiting for a job to finish..."
+                wait -n
+                RUNNING_COUNT="$(jobs -p | wc -l)"
+                echo "A job completed. $RUNNING_COUNT jobs still running."
+            done
+
+            LOG_FILE="${LOG_DIR}/sim_${CONFIG_NAME}_${TRAINING_ID}_${SAFE_CHECKPOINT}_${run_idx}.log"
+            CMD=(python3 "$SIMULATION_SCRIPT" "$MAP_NR" "$GAME_VERSION" --custom_checkpoints "$CHECKPOINT_FILE")
+
+            if [[ ${#SIMULATION_ARGS[@]} -gt 0 ]]; then
+                CMD+=("${SIMULATION_ARGS[@]}")
+            fi
+
+            nohup "${CMD[@]}" > "$LOG_FILE" 2>&1 &
+            PID=$!
+            PIDS+=("$PID")
+            TOTAL_LAUNCHED=$((TOTAL_LAUNCHED + 1))
+
+            echo "Launched run $run_idx/$NUM_SIMULATIONS for config '$CONFIG_NAME' checkpoint '$checkpoint' (PID: $PID)"
+            echo "  checkpoint_file: $CHECKPOINT_FILE"
+            echo "  log_file: $LOG_FILE"
+
+            RUNNING_COUNT="$(jobs -p | wc -l)"
+            sleep 2
         done
-        # ==================================
-        
-        echo "Starting simulation $i/$NUM_SIMULATIONS for $CURRENT_TRAINING_ID..."
-        
-        # Build the command
-        CMD="python3 ../experimental_simulation.py $MAP_NR $GAME_VERSION $CURRENT_TRAINING_ID $CHECKPOINT_NUMBER $OPTIONAL_ARGS"
-        
-        # Launch simulation in background
-        nohup bash -c "$CMD" > "$LOG_FILE" 2>&1 &
-        PID=$!
-        PIDS+=($PID)
-        
-        echo "  Simulation $i started with PID: $PID"
-        echo "  Log file: $LOG_FILE"
-        
-        # Update the running count
-        RUNNING_COUNT=$(jobs -p | wc -l)
-        
-        sleep 5 # Small delay
     done
 done
 
-# === FINAL WAIT ===
+if [[ "$TOTAL_LAUNCHED" -eq 0 ]]; then
+    echo "Error: no simulations were launched."
+    exit 1
+fi
+
 echo ""
 echo "=================================================="
-echo "All simulations have been launched."
-echo "Total: $((NUM_SIMULATIONS * ${#TRAINING_IDS[@]})) simulations across ${#TRAINING_IDS[@]} training(s)"
-echo "Waiting for all remaining simulations to complete..."
+echo "All simulations launched. Total jobs: $TOTAL_LAUNCHED"
+echo "Waiting for remaining jobs to finish..."
 echo "=================================================="
 
-# Wait for ALL remaining background processes to finish
 wait
 
 echo ""
 echo "=================================================="
-echo "All simulations completed successfully."
+echo "All simulations completed."
 echo "Process IDs: ${PIDS[*]}"
+echo "Checkpoint files: $CHECKPOINT_CONFIG_DIR"
+echo "Logs: $LOG_DIR"
 echo "=================================================="
-echo "Log files are in: $LOG_DIR/"

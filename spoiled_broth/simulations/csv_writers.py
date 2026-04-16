@@ -76,6 +76,23 @@ def create_counter_writer(simulation_dir: Path, counter_positions: List):
     return counter_file, counter_writer, counter_csv_path
 
 
+def create_counter_full_writer(simulation_dir: Path, counter_positions: List):
+    """Create and initialize full-history counter CSV writer."""
+    counter_csv_path = simulation_dir / "counters_full.csv"
+    counter_file = open(counter_csv_path, "w", newline="")
+    counter_writer = csv.writer(counter_file)
+
+    # Header: frame, second, adjusted_second, then per-counter item_id + item snapshot
+    header = ["frame", "second", "adjusted_second"]
+    for x, y in counter_positions:
+        header.append(f"counter_{x}_{y}_id")
+        header.append(f"counter_{x}_{y}_item_json")
+    counter_writer.writerow(header)
+    counter_file.flush()
+
+    return counter_file, counter_writer, counter_csv_path
+
+
 def create_human_action_writer(simulation_dir: Path, agent_id: str):
     """Create and initialize human-readable action CSV writer for a specific agent."""
     return create_agent_action_writer(simulation_dir, agent_id)
@@ -87,14 +104,14 @@ def create_agent_action_writer(simulation_dir: Path, agent_id: str):
     fh = open(path, "w", newline="")
     writer = csv.writer(fh)
     writer.writerow([
-        'second', 'item', 'item_id', 'action', 'target_type', 'target_position',
+        'init_second', 'finish_second', 'item', 'item_id', 'action', 'target_type', 'target_position',
         'action_long', 'player_id', 'map_name', 'game_id',
         'distance_walked', 'distance_walked_since_last_action',
         'overall_score', 'player_score_change', 'player_score',
         'walking_speed', 'cutting_speed', 'start_pos',
-        'last_touched', 'touched_list',
+        'last_touched', 'touched_list', 'touched_list_history',
         'tomato_id', 'plate_id', 'tomato_cut_id', 'tomato_salad_id',
-        'is_item_collaboration', 'is_exchange_collaboration',
+        'is_item_collaboration', 'is_history_collaboration',
         'who_picked_tomato', 'who_picked_plate', 'who_cutted', 'who_assembled', 'who_delivered',
         'number_of_counters_used', 'proportion_of_collaboration', 'cancelled_by_collision'
     ])

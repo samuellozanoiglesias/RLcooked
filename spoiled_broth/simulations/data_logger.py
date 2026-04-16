@@ -2,9 +2,10 @@
 Enhanced data logger with built-in item tracking for human-readable outputs.
 
 Records CSV files during simulation (no post-processing needed):
-  - actions.csv          : basic action log with collision tracking
-  - positions_{id}.csv   : basic position log  
-  - counters.csv         : counter state log with item_id tracking
+    - actions.csv          : basic action log with collision tracking
+    - positions_{id}.csv   : basic position log  
+    - counters.csv         : counter state log with item_id tracking
+    - items.csv            : item ledger with lineage snapshots
     - human_like_actions_{agent_id}.csv  : human-readable actions with collaboration tracking
     - human_like_positions_{agent_id}.csv : human-readable positions with distances
 
@@ -99,6 +100,15 @@ class DataLogger:
         self._actions_file, self._actions_writer, self.actions_csv_path = (
             csv_writers.create_actions_writer(self.simulation_dir)
         )
+        self._actions_header = [
+            "tick", "second",
+            "agent_id", "action_idx", "action_name", "action_type",
+            "agent_tile_x", "agent_tile_y",
+            "tile_x", "tile_y", "action_performed", "action_execution_status",
+            "cancelled_by_collision", "collision_detected", "collision_rerouted",
+        ]
+        self._actions_rows: List[List[Any]] = []
+        self._last_pending_action_row_by_agent: Dict[str, int] = {}
 
         # Collision CSV (one row per frame)
         self._collisions_file, self._collisions_writer, self.collisions_csv_path = (
@@ -118,9 +128,22 @@ class DataLogger:
         # Human-readable CSV writers
         self._human_action_writers: Dict[str, csv.writer] = {}
         self._human_action_files: Dict[str, Any] = {}
+        self._human_action_header = [
+            'init_second', 'finish_second', 'item', 'item_id', 'action', 'target_type', 'target_position',
+            'action_long', 'player_id', 'map_name', 'game_id',
+            'distance_walked', 'distance_walked_since_last_action',
+            'overall_score', 'player_score_change', 'player_score',
+            'walking_speed', 'cutting_speed', 'start_pos',
+            'last_touched', 'touched_list', 'touched_list_history',
+            'tomato_id', 'plate_id', 'tomato_cut_id', 'tomato_salad_id',
+            'is_item_collaboration', 'is_history_collaboration',
+            'who_picked_tomato', 'who_picked_plate', 'who_cutted', 'who_assembled', 'who_delivered',
+            'number_of_counters_used', 'proportion_of_collaboration', 'cancelled_by_collision'
+        ]
+        self._human_action_rows: Dict[str, List[List[Any]]] = {}
+        self._pending_human_actions: Dict[str, Dict[str, Any]] = {}
         self._human_position_writers: Dict[str, csv.writer] = {}
         self._human_position_files: Dict[str, Any] = {}
-        self._reconstructed_action_agents: List[str] = []
         self.items_csv_path = self.simulation_dir / "items.csv"
         
         # Per-agent tracking for human-readable outputs
@@ -137,6 +160,8 @@ class DataLogger:
         self._previous_tracker_tick: Optional[int] = None
         self._previous_tracker_agent_holding: Dict[str, str] = {}
         self._previous_tracker_counter_items: Dict[Tuple[int, int], str] = {}
+        self._pending_cut_pickup_rows: Dict[str, List[Any]] = {}
+        self._pending_salad_assemblies: List[Dict[str, Any]] = []
         
         self._create_config_file()
 
@@ -170,6 +195,84 @@ class DataLogger:
             fh, writer = csv_writers.create_human_action_writer(self.simulation_dir, agent_id)
             self._human_action_files[agent_id] = fh
             self._human_action_writers[agent_id] = writer
+        if agent_id not in self._human_action_rows:
+            self._human_action_rows[agent_id] = []
+
+    @staticmethod
+    def _should_track_row_for_late_collision(
+        action_type: str,
+        action_name: str,
+        cancelled_by_collision: bool,
+    ) -> bool:
+        """Return True when a row represents an ongoing action that may fail later."""
+        action_type = (action_type or '').lower()
+        action_name = (action_name or '').lower()
+
+        if cancelled_by_collision:
+            return False
+        if action_type in {'inaccessible_tile', 'blocked', 'collision_event'}:
+            return False
+        if action_name == 'do_nothing':
+            return False
+        return True
+
+    def _append_human_action_row(self, agent_id: str, row_values: List[Any]) -> int:
+        """Append one row to per-agent human action CSV and in-memory cache."""
+        self._ensure_human_action_writer(agent_id)
+        self._human_action_writers[agent_id].writerow(row_values)
+        self._human_action_rows[agent_id].append(list(row_values))
+        return len(self._human_action_rows[agent_id]) - 1
+
+    @staticmethod
+    def _is_agent_idle_state(state: Dict[str, Any]) -> bool:
+        """Return True when the env state indicates the action is fully finished."""
+        return (
+            state.get('current_action') is None
+            and float(state.get('interaction_timer', 0.0) or 0.0) <= 0.0
+            and len(state.get('current_path') or []) == 0
+        )
+
+    def _register_pending_human_action(
+        self,
+        agent_id: str,
+        action_data: Dict[str, Any],
+        init_second: float,
+        previous_agent_holding: Dict[str, str],
+        previous_counter_items: Dict[Tuple[int, int], str],
+    ):
+        """Store action context so the human-like row can be emitted on finish."""
+        self._pending_human_actions[agent_id] = {
+            'action_data': dict(action_data),
+            'init_second': init_second,
+            'previous_agent_holding': dict(previous_agent_holding),
+            'previous_counter_items': dict(previous_counter_items),
+        }
+
+    def _backfill_latest_cancelled_action(self, agent_id: str):
+        """Backfill cancellation flags onto the previously logged ongoing action row."""
+        action_row_index = self._last_pending_action_row_by_agent.pop(agent_id, None)
+        if action_row_index is not None and 0 <= action_row_index < len(self._actions_rows):
+            row = self._actions_rows[action_row_index]
+            row[10] = False  # action_performed
+            row[11] = 'cancelled_collision'  # action_execution_status
+            row[12] = True  # cancelled_by_collision
+            row[13] = True  # collision_detected
+            row[14] = False  # collision_rerouted
+
+    def _rewrite_actions_csv(self):
+        """Rewrite actions.csv from in-memory rows (used for cancellation backfills)."""
+        with open(self.actions_csv_path, 'w', newline='') as fh:
+            writer = csv.writer(fh)
+            writer.writerow(self._actions_header)
+            writer.writerows(self._actions_rows)
+
+    def _rewrite_human_action_csv(self, agent_id: str):
+        """Rewrite one human_like_actions_{agent}.csv from in-memory rows."""
+        path = self.simulation_dir / f"human_like_actions_{agent_id}.csv"
+        with open(path, 'w', newline='') as fh:
+            writer = csv.writer(fh)
+            writer.writerow(self._human_action_header)
+            writer.writerows(self._human_action_rows.get(agent_id, []))
 
     def _get_action_execution_status(self, action_type: str, action_name: str, cancelled_by_collision: bool) -> Tuple[bool, str]:
         """Map the logger's action metadata to an execution outcome."""
@@ -191,55 +294,6 @@ class DataLogger:
         if action_type.startswith('destructive_'):
             return True, 'performed_destructive'
         return True, 'performed'
-
-    @staticmethod
-    def _is_salad_assembly_action(action_type: str, action_name: str) -> bool:
-        """Return True when an action likely assembled salad on a counter."""
-        action_type = (action_type or '').lower()
-        action_name = (action_name or '').lower()
-
-        if 'salad_assembly' in action_type:
-            return True
-
-        return (
-            'pick_up_plate_from_counter' in action_name
-            or 'pick_up_tomato_cut_from_counter' in action_name
-        )
-
-    def _infer_salad_origins_from_transition(
-        self,
-        agent_id: str,
-        location: Tuple[int, int],
-        previous_agent_holding: Dict[str, str],
-        previous_counter_items: Dict[Tuple[int, int], str],
-    ) -> Tuple[Optional[str], Dict[str, str]]:
-        """Infer salad lineage using only local transition evidence.
-
-        Uses the acting agent's previous hand and the previous item on the
-        interacted counter tile. Does not use global fallbacks to avoid
-        assigning unrelated plate/tomato_cut IDs across different salads.
-        """
-        salad_item_id = self.item_tracker.counter_items.get(location)
-        if not salad_item_id or salad_item_id not in self.item_tracker.items:
-            return None, {}
-        if self.item_tracker.items[salad_item_id].get('type') != 'tomato_salad':
-            return None, {}
-
-        prev_counter_item_id = previous_counter_items.get(location)
-        prev_agent_item_id = previous_agent_holding.get(agent_id)
-        if not prev_counter_item_id or not prev_agent_item_id:
-            return None, {}
-        if prev_counter_item_id not in self.item_tracker.items or prev_agent_item_id not in self.item_tracker.items:
-            return None, {}
-
-        prev_counter_type = self.item_tracker.items[prev_counter_item_id]['type']
-        prev_agent_type = self.item_tracker.items[prev_agent_item_id]['type']
-
-        if prev_counter_type == 'plate' and prev_agent_type == 'tomato_cut':
-            return salad_item_id, {'plate_id': prev_counter_item_id, 'tomato_cut_id': prev_agent_item_id}
-        if prev_counter_type == 'tomato_cut' and prev_agent_type == 'plate':
-            return salad_item_id, {'plate_id': prev_agent_item_id, 'tomato_cut_id': prev_counter_item_id}
-        return None, {}
 
     def _infer_salad_origins_from_counter_appearance(
         self,
@@ -280,11 +334,133 @@ class DataLogger:
             return current_salad_id, {'plate_id': prev_agent_id, 'tomato_cut_id': prev_counter_id}
         return None, {}
 
-    def log_actions(self, tick: int, tick_rate: int, logging_actions: Dict[str, Any], game: Any = None):
+    @staticmethod
+    def _is_pickup_counter_assembly_action(action_name: str, previous_item_type: str) -> bool:
+        """Return True when a counter pickup action implies salad assembly intent."""
+        action_name = (action_name or '').lower()
+        previous_item_type = (previous_item_type or '').lower()
+
+        if 'pick_up_tomato_cut_from_counter' in action_name and previous_item_type == 'plate':
+            return True
+        if 'pick_up_plate_from_counter' in action_name and previous_item_type == 'tomato_cut':
+            return True
+        return False
+
+    def _extract_counter_assembly_origins(
+        self,
+        agent_id: str,
+        location: Tuple[int, int],
+        previous_agent_holding: Dict[str, str],
+        previous_counter_items: Dict[Tuple[int, int], str],
+    ) -> Dict[str, str]:
+        """Extract local plate/tomato_cut origin IDs for a counter assembly interaction."""
+        prev_counter_id = previous_counter_items.get(location)
+        prev_agent_id = previous_agent_holding.get(agent_id)
+        if not prev_counter_id or not prev_agent_id:
+            return {}
+        if prev_counter_id not in self.item_tracker.items or prev_agent_id not in self.item_tracker.items:
+            return {}
+
+        prev_counter_type = self.item_tracker.items[prev_counter_id]['type']
+        prev_agent_type = self.item_tracker.items[prev_agent_id]['type']
+
+        if prev_counter_type == 'plate' and prev_agent_type == 'tomato_cut':
+            return {'plate_id': prev_counter_id, 'tomato_cut_id': prev_agent_id}
+        if prev_counter_type == 'tomato_cut' and prev_agent_type == 'plate':
+            return {'plate_id': prev_agent_id, 'tomato_cut_id': prev_counter_id}
+        return {}
+
+    def _queue_pending_salad_assembly(
+        self,
+        agent_id: str,
+        tick: int,
+        location: Tuple[int, int],
+        previous_agent_holding: Dict[str, str],
+        previous_counter_items: Dict[Tuple[int, int], str],
+    ):
+        """Queue a local assembly intent so who_assembled can be stamped on the created salad."""
+        origins = self._extract_counter_assembly_origins(
+            agent_id,
+            location,
+            previous_agent_holding,
+            previous_counter_items,
+        )
+        if not origins:
+            return
+
+        plate_id = origins.get('plate_id', '')
+        tomato_cut_id = origins.get('tomato_cut_id', '')
+        if not plate_id or not tomato_cut_id:
+            return
+
+        for pending in self._pending_salad_assemblies:
+            if (
+                pending.get('agent_id') == agent_id
+                and pending.get('plate_id') == plate_id
+                and pending.get('tomato_cut_id') == tomato_cut_id
+            ):
+                pending['tick'] = tick
+                return
+
+        self._pending_salad_assemblies.append({
+            'agent_id': agent_id,
+            'tick': tick,
+            'plate_id': plate_id,
+            'tomato_cut_id': tomato_cut_id,
+        })
+
+    def _resolve_pending_salad_assemblies(self):
+        """Apply queued who_assembled to matching tomato_salad items once they exist."""
+        if not self._pending_salad_assemblies:
+            return
+
+        unresolved: List[Dict[str, Any]] = []
+
+        for pending in self._pending_salad_assemblies:
+            agent_id = pending.get('agent_id', '')
+            plate_id = pending.get('plate_id', '')
+            tomato_cut_id = pending.get('tomato_cut_id', '')
+            matched_item_id = None
+
+            for item_id, item in self.item_tracker.items.items():
+                if item.get('type') != 'tomato_salad':
+                    continue
+                item_origins = item.get('origins', {})
+                if item_origins.get('plate_id') != plate_id:
+                    continue
+                if item_origins.get('tomato_cut_id') != tomato_cut_id:
+                    continue
+                matched_item_id = item_id
+                break
+
+            if not matched_item_id:
+                unresolved.append(pending)
+                continue
+
+            salad_item = self.item_tracker.items[matched_item_id]
+            if agent_id and not salad_item.get('who_assembled'):
+                salad_item['who_assembled'] = agent_id
+            if agent_id and not salad_item.get('created_by'):
+                salad_item['created_by'] = agent_id
+
+        self._pending_salad_assemblies = unresolved
+
+    def log_actions(
+        self,
+        tick: int,
+        tick_rate: int,
+        logging_actions: Dict[str, Any],
+        game: Any = None,
+        env: Any = None,
+    ):
         """
         Write one row per agent that was assigned a *new* action this tick.
         Also tracks items and writes to human-readable action CSVs.
         """
+        logging_actions = logging_actions or {}
+        if game is None and env is not None:
+            game = getattr(env, 'game', None)
+
         second = tick / tick_rate
         if second >= self._init_period and game is not None:
             self._sync_tracker_with_game_state(tick, game)
@@ -297,6 +473,9 @@ class DataLogger:
             previous_agent_holding = dict(self.item_tracker.agent_holding)
             previous_counter_items = dict(self.item_tracker.counter_items)
         
+        # Track agents whose pending action was cancelled this tick.
+        cancelled_pending_agents = set()
+
         for agent_id, data in logging_actions.items():
             # Internal coordinates in logging_actions are 0-indexed (grid space).
             # actions.csv is written as 1-indexed to match positions_{agent}.csv.
@@ -306,17 +485,24 @@ class DataLogger:
             csv_tile_y = tile_y + 1 if tile_y >= 0 else tile_y
             agent_tile_x = data.get("agent_tile_x", -1)
             agent_tile_y = data.get("agent_tile_y", -1)
-            cancelled = data.get("cancelled_by_collision", False)
+            action_type_raw = data.get("action_type", "")
+            cancelled = data.get("cancelled_by_collision", False) or action_type_raw == "blocked"
             collision_detected = data.get("collision_detected", False)
             collision_rerouted = data.get("collision_rerouted", False)
+
+            # A collision cancellation can arrive N ticks after assignment via
+            # synthetic collision_event rows. Backfill the original action row.
+            if action_type_raw == 'collision_event' and cancelled:
+                self._backfill_latest_cancelled_action(agent_id)
+
             action_performed, action_execution_status = self._get_action_execution_status(
-                data.get("action_type", ""),
+                action_type_raw,
                 data.get("action_name", ""),
                 cancelled,
             )
             
             # Write to basic actions.csv
-            self._actions_writer.writerow([
+            action_row = [
                 tick,
                 f"{second:.3f}",
                 agent_id,
@@ -332,24 +518,91 @@ class DataLogger:
                 cancelled,
                 collision_detected,
                 collision_rerouted,
-            ])
-            
-            # Track items and write to human-readable CSV (only during gameplay)
-            # Skip item tracking for cancelled actions
-            if (
-                second >= self._init_period
-                and game is not None
-                and data.get("action_type", "") != "collision_event"
-            ):
+            ]
+            self._actions_writer.writerow(action_row)
+            self._actions_rows.append(list(action_row))
+
+            if action_type_raw != 'collision_event':
+                if self._should_track_row_for_late_collision(
+                    action_type_raw,
+                    data.get("action_name", ""),
+                    cancelled,
+                ):
+                    self._last_pending_action_row_by_agent[agent_id] = len(self._actions_rows) - 1
+                else:
+                    self._last_pending_action_row_by_agent.pop(agent_id, None)
+
+            # Human-like rows are emitted on finish/cancellation, not assignment.
+            if second >= self._init_period and game is not None:
+                if action_type_raw != 'collision_event':
+                    self._register_pending_human_action(
+                        agent_id,
+                        data,
+                        init_second=second - self._init_period,
+                        previous_agent_holding=previous_agent_holding,
+                        previous_counter_items=previous_counter_items,
+                    )
+                    if cancelled:
+                        pending = self._pending_human_actions.pop(agent_id, None)
+                        if pending is not None:
+                            cancelled_pending_agents.add(agent_id)
+                            cancelled_action_data = dict(pending.get('action_data', {}))
+                            cancelled_action_data['cancelled_by_collision'] = True
+                            cancelled_action_data['collision_detected'] = bool(data.get('collision_detected', False))
+                            cancelled_action_data['collision_rerouted'] = bool(data.get('collision_rerouted', False))
+                            self._track_and_log_human_action(
+                                agent_id,
+                                cancelled_action_data,
+                                tick,
+                                second,
+                                game,
+                                pending.get('previous_agent_holding', previous_agent_holding),
+                                pending.get('previous_counter_items', previous_counter_items),
+                                init_second=pending.get('init_second', second - self._init_period),
+                            )
+                elif cancelled:
+                    pending = self._pending_human_actions.pop(agent_id, None)
+                    if pending is not None:
+                        cancelled_pending_agents.add(agent_id)
+                        cancelled_action_data = dict(pending.get('action_data', {}))
+                        cancelled_action_data['cancelled_by_collision'] = True
+                        cancelled_action_data['collision_detected'] = True
+                        cancelled_action_data['collision_rerouted'] = bool(data.get('collision_rerouted', False))
+                        self._track_and_log_human_action(
+                            agent_id,
+                            cancelled_action_data,
+                            tick,
+                            second,
+                            game,
+                            pending.get('previous_agent_holding', previous_agent_holding),
+                            pending.get('previous_counter_items', previous_counter_items),
+                            init_second=pending.get('init_second', second - self._init_period),
+                        )
+
+        # Flush completed pending actions using current env state.
+        if second >= self._init_period and game is not None and env is not None:
+            env_agent_state = getattr(env, 'agent_state', {}) or {}
+            for agent_id in list(self._pending_human_actions.keys()):
+                if agent_id in cancelled_pending_agents:
+                    continue
+                pending = self._pending_human_actions.get(agent_id)
+                if pending is None:
+                    continue
+                state = env_agent_state.get(agent_id, {})
+                if not self._is_agent_idle_state(state):
+                    continue
+
                 self._track_and_log_human_action(
                     agent_id,
-                    data,
+                    pending.get('action_data', {}),
                     tick,
                     second,
                     game,
-                    previous_agent_holding,
-                    previous_counter_items,
+                    pending.get('previous_agent_holding', previous_agent_holding),
+                    pending.get('previous_counter_items', previous_counter_items),
+                    init_second=pending.get('init_second', second - self._init_period),
                 )
+                self._pending_human_actions.pop(agent_id, None)
         
         self._actions_file.flush()
 
@@ -386,6 +639,7 @@ class DataLogger:
         game: Any,
         previous_agent_holding: Dict[str, str],
         previous_counter_items: Dict[Tuple[int, int], str],
+        init_second: Optional[float] = None,
     ):
         """Track item changes and log to human-readable action CSV."""
         action_type = action_data.get("action_type", "").lower()
@@ -393,7 +647,7 @@ class DataLogger:
         tile_x = action_data.get("x", -1)
         tile_y = action_data.get("y", -1)
         location = (tile_x, tile_y)
-        cancelled_by_collision = action_data.get("cancelled_by_collision", False)
+        cancelled_by_collision = action_data.get("cancelled_by_collision", False) or action_type == 'blocked'
         
         # Get current item from game object
         current_item = ""
@@ -404,6 +658,14 @@ class DataLogger:
         # Use tracker state synced from game (do not mutate on action assignment).
         item_id = self.item_tracker.agent_holding.get(agent_id)
         action_name_lower = action_name.lower()
+        delivered_source_id: Optional[str] = None
+        inferred_salad_item_id: Optional[str] = None
+        inferred_salad_assembly = False
+        previous_item_id = previous_agent_holding.get(agent_id)
+        previous_item_type = ''
+        if previous_item_id and previous_item_id in self.item_tracker.items:
+            previous_item_type = self.item_tracker.items[previous_item_id].get('type', '')
+        assembly_intent = self._is_pickup_counter_assembly_action(action_name, previous_item_type)
 
         # ------------------------------------------------------------------ #
         # GUARD: Skip tracking for actions that didn't execute successfully  #
@@ -414,7 +676,8 @@ class DataLogger:
         # ------------------------------------------------------------------ #
         tracking_should_update = (
             action_type != 'inaccessible_tile'
-            and action_name_lower != 'do_nothing'
+            and action_type != 'blocked'
+            and action_type != 'collision_event'
             and not cancelled_by_collision  # NEW: Don't track cancelled actions
             and location != (-1, -1)  # extra safety: inaccessible always has -1,-1
         )
@@ -429,44 +692,25 @@ class DataLogger:
                 previous_counter_items,
             )
 
-            if not salad_item_id and self._is_salad_assembly_action(action_type, action_name):
-                salad_item_id, origins = self._infer_salad_origins_from_transition(
+            if salad_item_id and origins:
+                self.item_tracker.backfill_item_origins(
+                    salad_item_id,
+                    origins,
+                    agent_id=agent_id,
+                )
+                inferred_salad_item_id = salad_item_id
+                inferred_salad_assembly = assembly_intent
+
+            if assembly_intent and not inferred_salad_item_id:
+                self._queue_pending_salad_assembly(
                     agent_id,
+                    tick,
                     location,
                     previous_agent_holding,
                     previous_counter_items,
                 )
 
-            if salad_item_id:
-                created_source = 'counter_appearance_assembly'
-                if self._is_salad_assembly_action(action_type, action_name):
-                    created_source = 'salad_assembly' if 'salad_assembly' in action_type else 'counter_pickup_assembly'
-                self.item_tracker.annotate_item(
-                    salad_item_id,
-                    created_by=agent_id,
-                    created_tick=tick,
-                    created_second=second,
-                    created_source=created_source,
-                    origins=origins,
-                    touched_by=agent_id,
-                )
-
-            elif 'use_cutting_board' in action_name_lower and 'useful_cutting' in action_type:
-                cut_item_id = self.item_tracker.counter_items.get(location) or self.item_tracker.agent_holding.get(agent_id)
-                if cut_item_id and cut_item_id in self.item_tracker.items:
-                    tomato_origin_id = previous_agent_holding.get(agent_id)
-                    if tomato_origin_id and tomato_origin_id in self.item_tracker.items:
-                        if self.item_tracker.items[tomato_origin_id]['type'] == 'tomato':
-                            self.item_tracker.annotate_item(
-                                cut_item_id,
-                                created_by=agent_id,
-                                created_tick=tick,
-                                created_second=second,
-                                created_source='cutting_board',
-                                origins={'tomato_id': tomato_origin_id},
-                                touched_by=agent_id,
-                            )
-            elif 'deliver' in action_name_lower or 'delivery' in action_type:
+            if 'deliver' in action_name_lower or 'delivery' in action_type:
                 delivered_source_id = previous_agent_holding.get(agent_id)
                 if delivered_source_id and delivered_source_id in self.item_tracker.items:
                     delivered_source = self.item_tracker.items[delivered_source_id]
@@ -477,6 +721,11 @@ class DataLogger:
                             tick=tick,
                             second=second,
                         )
+
+        # Resolve pending assembly intents as soon as matching salads appear
+        # in the live tracker so both items.csv and tomato_salad rows carry
+        # who_assembled consistently.
+        self._resolve_pending_salad_assemblies()
         
         # Get position/distance/score data
         if agent_id not in self._agent_data:
@@ -511,34 +760,92 @@ class DataLogger:
         
         # Get item data
         item_data = self.item_tracker.get_item_data(item_id)
+        row_item_id = item_id or ''
+        action_long = action_name
+
+        if inferred_salad_assembly and inferred_salad_item_id:
+            # Assembly is inferred from state transition (counter item + held item -> salad).
+            item_data = dict(self.item_tracker.get_item_data(inferred_salad_item_id))
+            if not item_data.get('who_assembled'):
+                item_data['who_assembled'] = agent_id
+            row_item_id = inferred_salad_item_id
+            action_long = 'assemble salad'
+        elif assembly_intent:
+            # Intent-based fallback when salad appears after this assignment row.
+            action_long = 'assemble salad'
+
+        # Delivery actions consume the held salad, so post-action item_id is often empty.
+        # Use the pre-action held salad to keep lineage/roles (including who_delivered)
+        # visible in human_like_actions_{agent}.csv.
+        if delivered_source_id and delivered_source_id in self.item_tracker.items:
+            delivered_source = self.item_tracker.items[delivered_source_id]
+            if delivered_source.get('type') == 'tomato_salad':
+                item_data = dict(self.item_tracker.get_item_data(delivered_source_id))
+                item_data['who_delivered'] = agent_id
+                row_item_id = delivered_source_id
+
+        if not inferred_salad_assembly and not assembly_intent:
+            if 'pick_up_tomato_from_dispenser' in action_name_lower:
+                action_long = 'pick up tomato from dispenser'
+            elif 'pick_up_plate_from_dispenser' in action_name_lower:
+                action_long = 'pick up plate from dispenser'
+            elif 'use_cutting_board' in action_name_lower and previous_item_type == 'tomato':
+                action_long = 'start cutting tomato'
+            elif 'pick_up_tomato_salad_from_counter' in action_name_lower:
+                action_long = 'pick up tomato_salad from counter'
+            elif 'pick_up_tomato_cut_from_counter' in action_name_lower:
+                action_long = 'pick up tomato_cut from counter'
+            elif 'pick_up_tomato_from_counter' in action_name_lower:
+                action_long = 'pick up tomato from counter'
+            elif 'pick_up_plate_from_counter' in action_name_lower:
+                action_long = 'pick up plate from counter'
+            elif 'use_delivery' in action_name_lower or 'delivery' in action_type:
+                action_long = 'deliver tomato_salad'
+            elif 'put_down_item_on_free_counter' in action_name_lower:
+                counter_drop_map = {
+                    'plate': 'put down plate on counter',
+                    'tomato': 'put down tomato on counter',
+                    'tomato_cut': 'put down tomato_cut on counter',
+                    'tomato_salad': 'put down tomato_salad on counter',
+                }
+                action_long = counter_drop_map.get(previous_item_type, action_long)
+
+        current_item_type = ''
+        if row_item_id and row_item_id in self.item_tracker.items:
+            current_item_type = self.item_tracker.items[row_item_id].get('type', '')
+        elif current_item:
+            current_item_type = current_item
         
         # Determine target type
         target_type = ''
-        if 'counter' in action_type:
-            target_type = 'counter'
-        elif 'cutting' in action_type:
-            target_type = 'cuttingboard'
-        elif 'delivery' in action_type:
+        if 'delivery' in action_type or 'deliver' in action_name_lower:
             target_type = 'delivery'
+        elif 'dispenser' in action_type or 'dispenser' in action_name_lower:
+            target_type = 'dispenser'
+        elif 'counter' in action_type or 'counter' in action_name_lower:
+            target_type = 'counter'
+        elif 'cutting' in action_type or 'cutting' in action_name_lower:
+            target_type = 'cuttingboard'
         
         # Write to human-readable CSV
         self._ensure_human_action_writer(agent_id)
-        writer = self._human_action_writers[agent_id]
         
-        # Adjust second to account for init period
-        adjusted_second = second - self._init_period
+        # Human-like rows use finish time and explicit init time.
+        finish_second = second - self._init_period
+        row_init_second = finish_second if init_second is None else init_second
         
         # Compute proportion_of_collaboration from item role breakdown
         proportion_str = self._compute_proportion_of_collaboration(item_data)
 
-        writer.writerow([
-            f"{adjusted_second:.3f}",
+        row_values = [
+            f"{row_init_second:.3f}",
+            f"{finish_second:.3f}",
             current_item,
-            item_id or '',
+            row_item_id,
             action_name,
             target_type,
             f"({tile_x}, {tile_y})",
-            action_name,
+            action_long,
             agent_id,
             self._map_name,
             self._game_id,
@@ -552,12 +859,13 @@ class DataLogger:
             tracking['start_pos'],
             item_data['last_touched'],
             item_data['touched_list'],
+            item_data['touched_list_history'],
             item_data['tomato_id'],
             item_data['plate_id'],
             item_data['tomato_cut_id'],
             item_data['tomato_salad_id'],
             item_data['is_item_collaboration'],
-            item_data['is_exchange_collaboration'],
+            item_data['is_history_collaboration'],
             item_data['who_picked_tomato'],
             item_data['who_picked_plate'],
             item_data['who_cutted'],
@@ -566,7 +874,64 @@ class DataLogger:
             item_data['number_of_counters_used'],
             proportion_str,
             cancelled_by_collision
-        ])
+        ]
+
+        # After a previous "start cutting tomato", emit a synthetic
+        # pickup-from-cuttingboard row when the corresponding tomato_cut
+        # is observed in-hand. Build the row from current state so item
+        # metadata stays consistent.
+        pending_cut_row = self._pending_cut_pickup_rows.get(agent_id)
+        pending_tomato_id = ''
+        if pending_cut_row is not None and len(pending_cut_row) > 22:
+            pending_tomato_id = pending_cut_row[22] or ''
+        current_tomato_id = item_data.get('tomato_id', '')
+        lineage_matches_pending_cut = (
+            not pending_tomato_id
+            or not current_tomato_id
+            or pending_tomato_id == current_tomato_id
+        )
+        should_emit_cut_pickup = (
+            tracking_should_update
+            and pending_cut_row is not None
+            and current_item_type == 'tomato_cut'
+            and lineage_matches_pending_cut
+        )
+        if should_emit_cut_pickup:
+            cutting_pickup_row = list(row_values)
+            cutting_pickup_row[4] = 'pick_up_tomato_cut_from_cuttingboard'  # action
+            cutting_pickup_row[5] = 'cuttingboard'  # target_type
+            if len(pending_cut_row) > 6:
+                cutting_pickup_row[6] = pending_cut_row[6]  # target_position
+            cutting_pickup_row[7] = 'pick up tomato_cut from cuttingboard'  # action_long
+            self._append_human_action_row(agent_id, cutting_pickup_row)
+            self._pending_cut_pickup_rows.pop(agent_id, None)
+
+        # If picking from dispenser while already holding an item, prepend a
+        # synthetic "put down ... on dispenser" row using the same row context.
+        dispenser_drop_action_long = ''
+        if tracking_should_update and (
+            'pick_up_tomato_from_dispenser' in action_name_lower
+            or 'pick_up_plate_from_dispenser' in action_name_lower
+        ):
+            dispenser_drop_map = {
+                'tomato': 'put down tomato on dispenser',
+                'plate': 'put down plate on dispenser',
+                'tomato_cut': 'put down tomato_cut on dispenser',
+                'tomato_salad': 'put down tomato_salad on dispenser',
+            }
+            dispenser_drop_action_long = dispenser_drop_map.get(previous_item_type, '')
+
+        if dispenser_drop_action_long:
+            dispenser_row = list(row_values)
+            dispenser_row[7] = dispenser_drop_action_long  # action_long
+            self._append_human_action_row(agent_id, dispenser_row)
+            self._append_human_action_row(agent_id, row_values)
+        else:
+            self._append_human_action_row(agent_id, row_values)
+
+        if tracking_should_update and action_long == 'start cutting tomato':
+            self._pending_cut_pickup_rows[agent_id] = list(row_values)
+
         self._human_action_files[agent_id].flush()
 
     def _compute_proportion_of_collaboration(self, item_data: Dict) -> str:
@@ -812,8 +1177,8 @@ class DataLogger:
             "#   Written every tick",
             "# counters.csv: frame, second, counter_X_Y, ...",
             "#   Written every tick; X_Y are 1-indexed tile coordinates",
-            "# items.csv: item_id, item_type, touched_by, last_touched, and lineage metadata",
-            "# human_like_actions_{agent_id}.csv: derived per-agent action table enriched with item lineage",
+            "# items.csv: item_id, item_type, touched_list, touched_list_history, last_touched, and lineage metadata",
+            "# human_like_actions_{agent_id}.csv: derived per-agent action table (init_second, finish_second) enriched with item lineage",
             "# human_like_positions_{agent_id}.csv: per-agent human-readable position table",
         ]
         try:
@@ -830,6 +1195,10 @@ class DataLogger:
     def close(self):
         """Flush and close all open file handles."""
         self._actions_file.close()
+        try:
+            self._rewrite_actions_csv()
+        except Exception as exc:
+            print(f"Warning: could not rewrite actions.csv: {exc}")
         self._collisions_file.close()
         if self._counter_file is not None:
             self._counter_file.close()
@@ -837,482 +1206,17 @@ class DataLogger:
             fh.close()
         for fh in self._human_action_files.values():
             fh.close()
+        for agent_id in self._human_action_rows:
+            try:
+                self._rewrite_human_action_csv(agent_id)
+            except Exception as exc:
+                print(f"Warning: could not rewrite human_like_actions_{agent_id}.csv: {exc}")
         for fh in self._human_position_files.values():
             fh.close()
         try:
             self.item_tracker.export_items(self.items_csv_path)
         except Exception as exc:
             print(f"Warning: could not export items.csv: {exc}")
-        try:
-            self._rebuild_agent_action_tables()
-        except Exception as exc:
-            print(f"Warning: could not rebuild human_like_actions_{{agent}}.csv: {exc}")
-
-    @staticmethod
-    def _safe_int(value: Any, default: int = 0) -> int:
-        try:
-            return int(float(value))
-        except (TypeError, ValueError):
-            return default
-
-    @staticmethod
-    def _safe_float(value: Any, default: float = 0.0) -> float:
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return default
-
-    @staticmethod
-    def _safe_bool(value: Any) -> bool:
-        if isinstance(value, bool):
-            return value
-        return str(value).strip().lower() in {"true", "1", "yes", "y"}
-
-    def _rebuild_agent_action_tables(self):
-        """Reconstruct human_like_actions_{agent}.csv using actions/positions/counters/items CSVs."""
-        actions_path = self.actions_csv_path
-        if not actions_path or not Path(actions_path).exists():
-            return
-
-        with open(actions_path, "r", newline="") as fh:
-            action_rows = list(csv.DictReader(fh))
-
-        if not action_rows:
-            return
-
-        # Load positions per agent and compute distance timeline.
-        positions_by_agent: Dict[str, List[Dict[str, Any]]] = {}
-        distance_by_agent_tick: Dict[str, Dict[int, float]] = {}
-        score_by_agent_tick: Dict[str, Dict[int, int]] = {}
-        start_pos_by_agent: Dict[str, str] = {}
-
-        for pos_path in self.simulation_dir.glob("positions_ai_rl_*.csv"):
-            agent_id = pos_path.stem.replace("positions_", "", 1)
-            with open(pos_path, "r", newline="") as fh:
-                rows = list(csv.DictReader(fh))
-            rows.sort(key=lambda row: self._safe_int(row.get("frame", 0)))
-            positions_by_agent[agent_id] = rows
-
-            cumulative = 0.0
-            prev_x = None
-            prev_y = None
-            distance_timeline: Dict[int, float] = {}
-            score_timeline: Dict[int, int] = {}
-            for row in rows:
-                frame = self._safe_int(row.get("frame", 0))
-                px = self._safe_float(row.get("pixel_x", 0.0))
-                py = self._safe_float(row.get("pixel_y", 0.0))
-                if prev_x is not None and prev_y is not None:
-                    cumulative += math.sqrt((px - prev_x) ** 2 + (py - prev_y) ** 2)
-                prev_x, prev_y = px, py
-                distance_timeline[frame] = cumulative
-                score_timeline[frame] = self._safe_int(row.get("score", 0))
-
-            distance_by_agent_tick[agent_id] = distance_timeline
-            score_by_agent_tick[agent_id] = score_timeline
-
-            if rows:
-                first = rows[0]
-                start_pos_by_agent[agent_id] = f"({self._safe_int(first.get('tile_x', 0))}, {self._safe_int(first.get('tile_y', 0))})"
-            else:
-                start_pos_by_agent[agent_id] = "(0, 0)"
-
-        # Load counter timeline.
-        counters_by_tick: Dict[int, Dict[str, str]] = {}
-        if self.counter_csv_path and Path(self.counter_csv_path).exists():
-            with open(self.counter_csv_path, "r", newline="") as fh:
-                for row in csv.DictReader(fh):
-                    counters_by_tick[self._safe_int(row.get("frame", 0))] = row
-
-        # Load item metadata and index by creation (tick, agent).
-        items_by_id: Dict[str, Dict[str, str]] = {}
-        created_items: Dict[Tuple[int, str], List[Dict[str, str]]] = {}
-        if Path(self.items_csv_path).exists():
-            with open(self.items_csv_path, "r", newline="") as fh:
-                for row in csv.DictReader(fh):
-                    item_id = row.get("item_id", "")
-                    if item_id:
-                        items_by_id[item_id] = row
-                    tick = row.get("created_tick", "")
-                    creator = row.get("created_by", "")
-                    if tick != "" and creator:
-                        key = (self._safe_int(tick, -1), creator)
-                        created_items.setdefault(key, []).append(row)
-
-        def latest_row_for_tick(rows: List[Dict[str, Any]], tick: int) -> Optional[Dict[str, Any]]:
-            latest = None
-            for row in rows:
-                frame = self._safe_int(row.get("frame", 0))
-                if frame <= tick:
-                    latest = row
-                else:
-                    break
-            return latest
-
-        def value_at_tick(timeline: Dict[int, Any], tick: int, default: Any):
-            latest_key = None
-            for key in sorted(timeline.keys()):
-                if key <= tick:
-                    latest_key = key
-                else:
-                    break
-            return timeline[latest_key] if latest_key is not None else default
-
-        def value_before_tick(timeline: Dict[int, Any], tick: int, default: Any):
-            latest_key = None
-            for key in sorted(timeline.keys()):
-                if key < tick:
-                    latest_key = key
-                else:
-                    break
-            return timeline[latest_key] if latest_key is not None else default
-
-        def _split_agents(value: Any) -> List[str]:
-            if value is None:
-                return []
-            if isinstance(value, list):
-                return [str(v).strip() for v in value if str(v).strip()]
-            text = str(value).strip()
-            if not text:
-                return []
-            return [part.strip() for part in text.split(';') if part.strip()]
-
-        def _is_exchange_collaboration_from_item_data(item_data: Dict[str, Any]) -> bool:
-            raw = item_data.get('is_exchange_collaboration', None)
-            if raw not in (None, ''):
-                return self._safe_bool(raw)
-            touched_agents = set(_split_agents(item_data.get('touched_list', '')))
-            return len(touched_agents) > 1
-
-        def counter_item_before_tick(counter_x: int, counter_y: int, tick: int) -> str:
-            if counter_x <= 0 or counter_y <= 0:
-                return ""
-            counter_key = f"counter_{counter_x}_{counter_y}_id"
-            prev_row = counters_by_tick.get(tick - 1)
-            if prev_row:
-                return prev_row.get(counter_key, "") or ""
-            # Fallback if exact tick-1 row is missing.
-            candidate_tick = None
-            for key in sorted(counters_by_tick.keys()):
-                if key < tick:
-                    candidate_tick = key
-                else:
-                    break
-            if candidate_tick is None:
-                return ""
-            return counters_by_tick[candidate_tick].get(counter_key, "") or ""
-
-        # Rebuild per-agent files.
-        action_rows.sort(key=lambda row: (self._safe_int(row.get("tick", 0)), row.get("agent_id", "")))
-        action_agents = sorted({row.get("agent_id", "") for row in action_rows if row.get("agent_id", "").startswith("ai_rl_")})
-        self._reconstructed_action_agents = action_agents
-
-        last_action_distance = {agent: 0.0 for agent in action_agents}
-        last_action_score = {agent: 0 for agent in action_agents}
-        pending_cut_origin_by_agent: Dict[str, str] = {}
-        pending_cut_queue_by_agent: Dict[str, List[str]] = {agent: [] for agent in action_agents}
-        last_seen_tomato_by_agent: Dict[str, str] = {}
-        last_seen_cut_by_agent: Dict[str, str] = {}
-        last_seen_plate_by_agent: Dict[str, str] = {}
-        inferred_item_overrides: Dict[str, Dict[str, str]] = {}
-        reconstructed_lineage_by_item: Dict[str, Dict[str, str]] = {}
-
-        writers: Dict[str, csv.writer] = {}
-        files: Dict[str, Any] = {}
-        for agent in action_agents:
-            fh, writer = csv_writers.create_agent_action_writer(self.simulation_dir, agent)
-            files[agent] = fh
-            writers[agent] = writer
-
-        try:
-            for row in action_rows:
-                agent_id = row.get("agent_id", "")
-                if agent_id not in writers:
-                    continue
-
-                tick = self._safe_int(row.get("tick", 0))
-                second = self._safe_float(row.get("second", 0.0))
-                action_type = row.get("action_type", "")
-                action_name = row.get("action_name", "")
-                tile_x = self._safe_int(row.get("tile_x", -1))
-                tile_y = self._safe_int(row.get("tile_y", -1))
-                cancelled_by_collision = self._safe_bool(row.get("cancelled_by_collision", False))
-                action_performed = self._safe_bool(row.get("action_performed", False))
-                action_type_lower = action_type.lower()
-
-                pos_row = latest_row_for_tick(positions_by_agent.get(agent_id, []), tick)
-                item_id = (pos_row or {}).get("item_id", "") if pos_row else ""
-
-                created_key = (tick, agent_id)
-                created_candidates = created_items.get(created_key, [])
-                if created_candidates and action_performed:
-                    preferred_type = None
-                    if "cutting" in action_type:
-                        preferred_type = "tomato_cut"
-                    elif (
-                        "salad_assembly" in action_type
-                        or "pick_up_plate_from_counter" in action_name.lower()
-                        or "pick_up_tomato_cut_from_counter" in action_name.lower()
-                    ):
-                        preferred_type = "tomato_salad"
-                    elif "delivery" in action_type or "deliver" in action_name.lower():
-                        preferred_type = "tomato_delivered"
-                    if preferred_type:
-                        typed = [candidate for candidate in created_candidates if candidate.get("item_type") == preferred_type]
-                        if typed:
-                            item_id = typed[-1].get("item_id", item_id)
-                    if not item_id and created_candidates:
-                        item_id = created_candidates[-1].get("item_id", "")
-
-                if not item_id and tile_x > 0 and tile_y > 0:
-                    counter_row = counters_by_tick.get(tick, {})
-                    item_id = counter_row.get(f"counter_{tile_x}_{tile_y}_id", "")
-
-                def _infer_item_type(item_identifier: str) -> str:
-                    if item_identifier.startswith("tomato_cut_"):
-                        return "tomato_cut"
-                    if item_identifier.startswith("tomato_salad_"):
-                        return "tomato_salad"
-                    if item_identifier.startswith("tomato_delivered_"):
-                        return "tomato_delivered"
-                    if item_identifier.startswith("plate_"):
-                        return "plate"
-                    if item_identifier.startswith("tomato_"):
-                        return "tomato"
-                    return ""
-
-                item_data = items_by_id.get(item_id, {
-                    'item_type': _infer_item_type(item_id),
-                    'last_touched': '', 'touched_list': '',
-                    'tomato_id': '', 'plate_id': '', 'tomato_cut_id': '', 'tomato_salad_id': '',
-                    'is_item_collaboration': 'False', 'is_exchange_collaboration': 'False',
-                    'who_picked_tomato': '', 'who_picked_plate': '', 'who_cutted': '',
-                    'who_assembled': '', 'who_delivered': '', 'number_of_counters_used': 0,
-                })
-
-                if item_id and item_id in reconstructed_lineage_by_item:
-                    merged = dict(item_data)
-                    merged.update(reconstructed_lineage_by_item[item_id])
-                    item_data = merged
-
-                if item_id in inferred_item_overrides:
-                    merged = dict(item_data)
-                    merged.update(inferred_item_overrides[item_id])
-                    item_data = merged
-
-                item_type = item_data.get('item_type', _infer_item_type(item_id))
-
-                # Capture chronological hints for lineage inference.
-                if item_type == 'tomato' and item_id:
-                    last_seen_tomato_by_agent[agent_id] = item_id
-                elif item_type == 'tomato_cut' and item_id:
-                    last_seen_cut_by_agent[agent_id] = item_id
-                elif item_type == 'plate' and item_id:
-                    last_seen_plate_by_agent[agent_id] = item_id
-
-                action_name_lower = action_name.lower()
-
-                # Rebuild touched_list / last_touched from executed actions so the
-                # fallback can repair incomplete items.csv interaction histories.
-                touchworthy_action = (
-                    item_id
-                    and action_performed
-                    and not cancelled_by_collision
-                    and action_name_lower != 'do_nothing'
-                    and action_type_lower not in {'inaccessible_tile', 'blocked', 'collision_event'}
-                )
-                if touchworthy_action:
-                    override = inferred_item_overrides.setdefault(item_id, {})
-                    current_touched = override.get('touched_list', item_data.get('touched_list', ''))
-                    touched_agents = _split_agents(current_touched)
-                    if agent_id not in touched_agents:
-                        touched_agents.append(agent_id)
-                    override['touched_list'] = ';'.join(touched_agents)
-                    override['last_touched'] = agent_id
-                    if len(set(touched_agents)) > 1:
-                        override['is_exchange_collaboration'] = True
-                    merged = dict(item_data)
-                    merged.update(override)
-                    item_data = merged
-
-                if action_performed and 'use_cutting_board' in action_name_lower and item_type == 'tomato' and item_id:
-                    pending_cut_origin_by_agent[agent_id] = item_id
-                    pending_cut_queue_by_agent.setdefault(agent_id, []).append(item_id)
-
-                if action_performed and item_type == 'tomato' and 'pick_up_tomato' in action_name_lower:
-                    override = inferred_item_overrides.setdefault(item_id, {})
-                    override['who_picked_tomato'] = override.get('who_picked_tomato', '') or agent_id
-                    merged = dict(item_data)
-                    merged.update(override)
-                    item_data = merged
-
-                if action_performed and item_type == 'plate' and 'pick_up_plate' in action_name_lower:
-                    override = inferred_item_overrides.setdefault(item_id, {})
-                    override['who_picked_plate'] = override.get('who_picked_plate', '') or agent_id
-                    merged = dict(item_data)
-                    merged.update(override)
-                    item_data = merged
-
-                # If a tomato_cut has missing tomato origin, infer it from the executed cut history.
-                if item_type == 'tomato_cut' and item_id and not item_data.get('tomato_id'):
-                    cut_queue = pending_cut_queue_by_agent.get(agent_id, [])
-                    inferred_tomato = cut_queue.pop(0) if cut_queue else None
-                    if not inferred_tomato:
-                        inferred_tomato = pending_cut_origin_by_agent.get(agent_id) or last_seen_tomato_by_agent.get(agent_id)
-                    if inferred_tomato:
-                        override = inferred_item_overrides.setdefault(item_id, {})
-                        override['tomato_id'] = inferred_tomato
-                        source = items_by_id.get(inferred_tomato, {})
-                        source_lineage = reconstructed_lineage_by_item.get(inferred_tomato, {})
-                        picked_by = source_lineage.get('who_picked_tomato', '') or source.get('who_picked_tomato', '')
-                        if picked_by:
-                            override['who_picked_tomato'] = picked_by
-                        override['who_cutted'] = override.get('who_cutted', '') or agent_id
-                        pending_cut_origin_by_agent.pop(agent_id, None)
-                        merged = dict(item_data)
-                        merged.update(override)
-                        item_data = merged
-
-                # Lightweight fallback for salads with missing links.
-                if item_type == 'tomato_salad' and item_id:
-                    override = inferred_item_overrides.setdefault(item_id, {})
-
-                    # Primary reconstruction: salad appears on counter at tick T.
-                    # Ingredient on counter is what was there at tick T-1 on the target tile,
-                    # and the complementary ingredient should be in the assembler's hand just before T.
-                    counter_prev_item_id = counter_item_before_tick(tile_x, tile_y, tick)
-                    agent_prev_row = latest_row_for_tick(positions_by_agent.get(agent_id, []), max(tick - 1, 0))
-                    agent_prev_item_id = (agent_prev_row or {}).get('item_id', '') if agent_prev_row else ''
-
-                    counter_prev_type = _infer_item_type(counter_prev_item_id)
-                    agent_prev_type = _infer_item_type(agent_prev_item_id)
-
-                    if counter_prev_type == 'plate' and not (override.get('plate_id') or item_data.get('plate_id')):
-                        override['plate_id'] = counter_prev_item_id
-                    if counter_prev_type == 'tomato_cut' and not (override.get('tomato_cut_id') or item_data.get('tomato_cut_id')):
-                        override['tomato_cut_id'] = counter_prev_item_id
-
-                    if agent_prev_type == 'plate' and not (override.get('plate_id') or item_data.get('plate_id')):
-                        override['plate_id'] = agent_prev_item_id
-                    if agent_prev_type == 'tomato_cut' and not (override.get('tomato_cut_id') or item_data.get('tomato_cut_id')):
-                        override['tomato_cut_id'] = agent_prev_item_id
-
-                    # Only stamp assembler when we have concrete local ingredient evidence.
-                    has_local_pair = bool(
-                        (override.get('plate_id') or item_data.get('plate_id'))
-                        and (override.get('tomato_cut_id') or item_data.get('tomato_cut_id'))
-                    )
-                    if has_local_pair and not item_data.get('who_assembled'):
-                        override['who_assembled'] = agent_id
-
-                    cut_ref = override.get('tomato_cut_id') or item_data.get('tomato_cut_id', '')
-                    if cut_ref:
-                        cut_lineage = reconstructed_lineage_by_item.get(cut_ref, items_by_id.get(cut_ref, {}))
-                        if cut_lineage.get('tomato_id') and not (override.get('tomato_id') or item_data.get('tomato_id')):
-                            override['tomato_id'] = cut_lineage.get('tomato_id', '')
-                        if cut_lineage.get('who_picked_tomato') and not (override.get('who_picked_tomato') or item_data.get('who_picked_tomato')):
-                            override['who_picked_tomato'] = cut_lineage.get('who_picked_tomato', '')
-                        if cut_lineage.get('who_cutted') and not (override.get('who_cutted') or item_data.get('who_cutted')):
-                            override['who_cutted'] = cut_lineage.get('who_cutted', '')
-
-                    plate_ref = override.get('plate_id') or item_data.get('plate_id', '')
-                    if plate_ref:
-                        plate_lineage = reconstructed_lineage_by_item.get(plate_ref, items_by_id.get(plate_ref, {}))
-                        if plate_lineage.get('who_picked_plate') and not (override.get('who_picked_plate') or item_data.get('who_picked_plate')):
-                            override['who_picked_plate'] = plate_lineage.get('who_picked_plate', '')
-                    if override:
-                        merged = dict(item_data)
-                        merged.update(override)
-                        item_data = merged
-
-                if item_type == 'tomato_delivered' and item_id and action_performed:
-                    override = inferred_item_overrides.setdefault(item_id, {})
-                    override['who_delivered'] = override.get('who_delivered', '') or agent_id
-                    salad_ref = item_data.get('tomato_salad_id', '')
-                    if salad_ref:
-                        salad_lineage = reconstructed_lineage_by_item.get(salad_ref, items_by_id.get(salad_ref, {}))
-                        for key in ['tomato_id', 'plate_id', 'tomato_cut_id', 'who_picked_tomato', 'who_picked_plate', 'who_cutted', 'who_assembled']:
-                            if salad_lineage.get(key) and not (override.get(key) or item_data.get(key)):
-                                override[key] = salad_lineage.get(key, '')
-                    merged = dict(item_data)
-                    merged.update(override)
-                    item_data = merged
-
-                if item_id:
-                    reconstructed_lineage_by_item[item_id] = {
-                        'item_type': item_type,
-                        'last_touched': item_data.get('last_touched', ''),
-                        'touched_list': item_data.get('touched_list', ''),
-                        'tomato_id': item_data.get('tomato_id', ''),
-                        'plate_id': item_data.get('plate_id', ''),
-                        'tomato_cut_id': item_data.get('tomato_cut_id', ''),
-                        'tomato_salad_id': item_data.get('tomato_salad_id', ''),
-                        'who_picked_tomato': item_data.get('who_picked_tomato', ''),
-                        'who_picked_plate': item_data.get('who_picked_plate', ''),
-                        'who_cutted': item_data.get('who_cutted', ''),
-                        'who_assembled': item_data.get('who_assembled', ''),
-                        'who_delivered': item_data.get('who_delivered', ''),
-                    }
-
-                distance = float(value_at_tick(distance_by_agent_tick.get(agent_id, {}), tick, 0.0))
-                distance_since_last = distance - last_action_distance.get(agent_id, 0.0)
-                last_action_distance[agent_id] = distance
-
-                player_score = int(value_at_tick(score_by_agent_tick.get(agent_id, {}), tick, 0))
-                overall_score = sum(int(value_at_tick(score_by_agent_tick.get(agent, {}), tick, 0)) for agent in action_agents)
-                score_change = player_score - last_action_score.get(agent_id, 0)
-                last_action_score[agent_id] = player_score
-
-                proportion_str = self._compute_proportion_of_collaboration(item_data)
-
-                target_type = ''
-                if 'counter' in action_type:
-                    target_type = 'counter'
-                elif 'cutting' in action_type:
-                    target_type = 'cuttingboard'
-                elif 'delivery' in action_type:
-                    target_type = 'delivery'
-
-                writers[agent_id].writerow([
-                    f"{second - self._init_period:.3f}",
-                    (pos_row or {}).get("item", "") if pos_row else "",
-                    item_id,
-                    action_name,
-                    target_type,
-                    f"({tile_x}, {tile_y})",
-                    action_name,
-                    agent_id,
-                    self._map_name,
-                    self._game_id,
-                    distance,
-                    round(distance_since_last, 4),
-                    overall_score,
-                    score_change,
-                    player_score,
-                    self._walking_speeds.get(agent_id, 1.0),
-                    self._cutting_speeds.get(agent_id, 1.0),
-                    start_pos_by_agent.get(agent_id, '(0, 0)'),
-                    item_data.get('last_touched', ''),
-                    item_data.get('touched_list', ''),
-                    item_data.get('tomato_id', ''),
-                    item_data.get('plate_id', ''),
-                    item_data.get('tomato_cut_id', ''),
-                    item_data.get('tomato_salad_id', ''),
-                    self._safe_bool(item_data.get('is_item_collaboration', False)),
-                    _is_exchange_collaboration_from_item_data(item_data),
-                    item_data.get('who_picked_tomato', ''),
-                    item_data.get('who_picked_plate', ''),
-                    item_data.get('who_cutted', ''),
-                    item_data.get('who_assembled', ''),
-                    item_data.get('who_delivered', ''),
-                    self._safe_int(item_data.get('number_of_counters_used', 0), 0),
-                    proportion_str,
-                    cancelled_by_collision,
-                ])
-        finally:
-            for fh in files.values():
-                fh.flush()
-                fh.close()
 
     def get_output_paths(self) -> Dict[str, Path]:
         """Return a dict of output file paths."""
@@ -1328,8 +1232,7 @@ class DataLogger:
             paths[f"positions_{agent_id}"] = (
                 self.simulation_dir / f"positions_{agent_id}.csv"
             )
-        action_agents = set(self._human_action_writers.keys()) | set(self._reconstructed_action_agents)
-        for agent_id in action_agents:
+        for agent_id in self._human_action_writers:
             paths[f"human_like_actions_{agent_id}"] = (
                 self.simulation_dir / f"human_like_actions_{agent_id}.csv"
             )

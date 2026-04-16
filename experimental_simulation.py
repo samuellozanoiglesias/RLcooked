@@ -189,7 +189,9 @@ def main():
             print(f"  Actions CSV (basic): {output_paths.get('actions_csv', 'N/A')}")
             print(f"  Collisions CSV: {output_paths.get('collisions_csv', 'N/A')}")
             print(f"  Items CSV: {output_paths.get('items_csv', 'N/A')}")
+            print(f"  Items full CSV: {output_paths.get('items_full_csv', 'N/A')}")
             print(f"  Counters CSV: {output_paths.get('counter_csv', 'N/A')}")
+            print(f"  Counters full CSV: {output_paths.get('counter_full_csv', 'N/A')}")
             
             # Basic position files (one per agent)
             print("\n  Basic position files:")

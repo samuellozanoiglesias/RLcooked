@@ -206,12 +206,12 @@ class SimulationRunner:
                 data_logger.log_positions(tick, 1.0 / TICK_DURATION, env.game)
                 data_logger.log_counters(tick, 1.0 / TICK_DURATION, env.game)
 
-                # _logging_actions populated by env.step for idle agents that
-                # received a valid (non–do_nothing) action this tick
-                if hasattr(env, "_logging_actions") and env._logging_actions:
-                    data_logger.log_actions(
-                        tick, 1.0 / TICK_DURATION, env._logging_actions, env.game
-                    )
+                # log_actions runs every tick so DataLogger can emit human-like
+                # rows when pending actions finish/cancel (not only on assignment).
+                logging_actions = getattr(env, "_logging_actions", {}) or {}
+                data_logger.log_actions(
+                    tick, 1.0 / TICK_DURATION, logging_actions, env.game, env
+                )
 
             # ---- 8d. Progress report ----------------------------------------
             if tick % max(1, total_ticks // 20) == 0:

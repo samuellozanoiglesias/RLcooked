@@ -1,0 +1,6 @@
+policy_ai_rl_1
+0
+/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-41-56/
+policy_ai_rl_2
+0
+/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-41-56/

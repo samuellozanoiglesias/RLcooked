@@ -583,6 +583,7 @@ class GameEnv(ParallelEnv):
                     agent_penalties[agent_id] += self.penalties_cfg["destructive_action"] + destroyed_item_penalty
             
             # Store for logging
+            is_blocked_action = action_type == "blocked"
             self._logging_actions[agent_id] = {
                 'elapsed_time': self._elapsed_time,
                 'action_idx': action_idx,
@@ -593,7 +594,9 @@ class GameEnv(ParallelEnv):
                 'agent_tile_y': getattr(agent, 'slot_y', -1),
                 'x': logging_x,
                 'y': logging_y,
-                'cancelled_by_collision': False,  # Will be set to True if collision cancels action
+                # blocked actions are failed due to occupancy conflict and should
+                # be represented as collision-cancelled in downstream logs.
+                'cancelled_by_collision': is_blocked_action,
                 'collision_detected': False,
                 'collision_rerouted': False
             }
