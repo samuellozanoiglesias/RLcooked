@@ -12,4 +12,4 @@ source ~/.bashrc
 conda activate RLcooked 
 
 # Ejecutar el script (secuencial, uno a uno)
-nohup python ../analysis_classic.py encouraged_division_of_labor_large --game_type classic_collision --individual_training yes --init_type empty_init --cluster brigit > analysis_classic.log 2>&1 &
+nohup python ../analysis_classic.py encouraged_division_of_labor_large --game_type classic_collision --individual_training yes --init_type empty_init --cluster brigit > analysis_classic.log 2>&1
