@@ -63,7 +63,6 @@ class PathManager:
     def setup_paths(self, map_nr: str, num_agents: int,
                    game_version: str, training_id: str,
                    checkpoint_number: str, study_name: str = 'default',
-                   game_type: str = '',
                    synergy_folder: str = None,
                    specialization_folder: str = None) -> Dict[str, Path]:
         """
@@ -81,21 +80,18 @@ class PathManager:
         Returns:
             Dictionary containing all relevant paths
         """
-        # Updated path structure: 
-        # Base: /data/samuel_lozano/cooked/{game_type}/map_{map_nr}/
+        # Updated path structure:
+        # Base: /data/samuel_lozano/cooked/{game_version}/map_{map_nr}/
         # With synergy/spec: .../synergy_X.XX/specialized_X.XX/simulations/Training_{training_id}/checkpoint_{checkpoint_number}/
         # Training data: .../synergy_X.XX/specialized_X.XX/Training_{training_id}/
-        # Note: game_type (e.g., 'classic', 'classic_collision') determines folder, while game_version affects game logic
         if num_agents == 1:
-            if game_type:
-                base_path = Path(f"{self.config.local_path}/data/samuel_lozano/cooked/pretraining/{game_type}/map_{map_nr}")
-            else:
-                base_path = Path(f"{self.config.local_path}/data/samuel_lozano/cooked/pretraining/map_{map_nr}")
+            base_path = Path(
+                f"{self.config.local_path}/data/samuel_lozano/cooked/pretraining/{game_version}/map_{map_nr}"
+            )
         else:
-            if game_type:
-                base_path = Path(f"{self.config.local_path}/data/samuel_lozano/cooked/{game_type}/map_{map_nr}")
-            else:
-                base_path = Path(f"{self.config.local_path}/data/samuel_lozano/cooked/map_{map_nr}")
+            base_path = Path(
+                f"{self.config.local_path}/data/samuel_lozano/cooked/{game_version}/map_{map_nr}"
+            )
 
         # Add synergy and specialization folders if provided
         if synergy_folder and specialization_folder:

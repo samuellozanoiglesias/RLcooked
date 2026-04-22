@@ -76,7 +76,6 @@ nohup python experimental_simulation.py encouraged_division_of_labor_large class
 # --duration 180
 # --agent_initialization_period 15
 # --study_name collision_test
-# --game_type classic_collision (for folder organization)
 """
 
 import sys
@@ -150,7 +149,6 @@ def main():
     print(f"Tick rate: {args.tick_rate} FPS")
     print(f"Checkpoint config: {args.custom_checkpoints}")
     print(f"Study name: {args.study_name}")
-    print(f"Game type (folder): {args.game_type}")
     print(f"Note: First {args.agent_initialization_period} seconds are agent initialization period (no actions)")
     print(f"Note: Requested duration refers to active gameplay time, not total simulation time")
     print("=" * 50)
@@ -172,7 +170,6 @@ def main():
             agent_initialization_period=args.agent_initialization_period,
             custom_checkpoints=args.custom_checkpoints,
             study_name=args.study_name,
-            game_type=args.game_type
         )
         
         # Setup logging to save in simulation directory

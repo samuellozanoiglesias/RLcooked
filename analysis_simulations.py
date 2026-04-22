@@ -48,7 +48,7 @@ def main():
     parser.add_argument('--cluster', type=str, default='cuenca',
                        help='Base cluster (default: cuenca)')
     parser.add_argument('--game_version', type=str, default='classic', 
-                       choices=['classic', 'competition'],
+                       choices=['classic', 'competition', 'classic_collision'],
                        help='Game version (default: classic)')
     parser.add_argument('--num_agents', type=int, default=2, choices=[1, 2],
                        help='Number of agents (default: 2)')
@@ -60,11 +60,14 @@ def main():
                        help='Optional: specific training ID for detailed simulation analysis')
     parser.add_argument('--checkpoint_number', type=str, default=None,
                        help='Optional: specific checkpoint for detailed simulation analysis (e.g., "final", "50")')
-    parser.add_argument('--study_name', type=str, default='default',
-                       help='Study name for simulation folders (default: default)')
+    parser.add_argument('--study_name', type=str, default='',
+                       help='Study name for simulation folders (default: empty, use /simulations/ directly)')
     parser.add_argument('--game_type', type=str, default='classic',
                        help='Game type for folder organization (default: classic)')
-
+    parser.add_argument('--synergy', type=str, default=None,
+                       help='Optional synergy folder value (e.g., 1.70 -> synergy_1.70)')
+    parser.add_argument('--specialization', type=str, default=None,
+                       help='Optional specialization folder value (e.g., 0.05 -> specialized_0.05)')
     args = parser.parse_args()
 
     # Set base cluster directory
@@ -79,6 +82,8 @@ def main():
         return 1
 
     # Create orchestrator and run comprehensive analysis
+    study_name = (args.study_name or '').strip()
+
     orchestrator = ComprehensiveAnalysisOrchestrator(
         base_cluster_dir=base_cluster_dir,
         map_nr=args.map_nr,
@@ -87,8 +92,10 @@ def main():
         training_id=args.training_id,
         checkpoint_number=args.checkpoint_number,
         output_dir=args.output_dir,
-        study_name=args.study_name,
-        game_type=args.game_type
+        study_name=study_name,
+        game_type=args.game_type,
+        synergy=args.synergy,
+        specialization=args.specialization
     )
 
     simulations_success, checkpoint_success = orchestrator.run_comprehensive_analysis()

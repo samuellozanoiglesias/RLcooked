@@ -13,7 +13,6 @@ from .simulation_config import SimulationConfig
 from .simulation_runner import SimulationRunner
 from .path_manager import PathManager
 
-
 def setup_simulation_argument_parser() -> argparse.ArgumentParser:
     """
     Set up command line argument parser for simulations.
@@ -119,13 +118,6 @@ def setup_simulation_argument_parser() -> argparse.ArgumentParser:
         help='Study name for organizing simulations (e.g., "speeds", "collision"). If empty, simulations are saved directly under /simulations/ without study subfolder.'
     )
     
-    parser.add_argument(
-        '--game_type',
-        type=str,
-        default='',
-        help='Game type for folder organization (e.g., "classic", "classic_collision"). If empty, no game_type subfolder is used.'
-    )
-    
     return parser
 
 
@@ -136,8 +128,7 @@ def main_simulation_pipeline(map_nr: str, num_agents: int,
                            tick_rate: int = 24, video_fps: int = 24,
                            agent_initialization_period: float = 15.0,
                            custom_checkpoints: str = 'none',
-                           study_name: str = 'default',
-                           game_type: str = '') -> Dict[str, Path]:
+                           study_name: str = '') -> Dict[str, Path]:
     """
     Main simulation pipeline that can be used by different simulation scripts.
 
@@ -254,8 +245,14 @@ def main_simulation_pipeline(map_nr: str, num_agents: int,
     else:
         # Load speeds from the specified training path (original behavior)
         temp_paths = temp_path_manager.setup_paths(
-            map_nr, num_agents, game_version, training_id, checkpoint_number, study_name, game_type,
-            synergy_folder, specialization_folder
+            map_nr=map_nr,
+            num_agents=num_agents,
+            game_version=game_version,
+            training_id=training_id,
+            checkpoint_number=checkpoint_number,
+            study_name=study_name,
+            synergy_folder=synergy_folder,
+            specialization_folder=specialization_folder,
         )
         walking_speeds, cutting_speeds = temp_path_manager.load_agent_speeds_from_training(
             temp_paths['training_path'], num_agents
@@ -287,7 +284,6 @@ def main_simulation_pipeline(map_nr: str, num_agents: int,
         checkpoint_number=checkpoint_number,
         timestamp=timestamp,
         study_name=study_name,
-        game_type=game_type,
         synergy_folder=synergy_folder,
         specialization_folder=specialization_folder,
     )

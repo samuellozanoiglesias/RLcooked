@@ -2,12 +2,12 @@
 """
 Comprehensive simulation analysis script for spoiled_broth experiments.
 
-This script analyzes simulation.csv and meaningful_actions.csv files from all simulations
+This script analyzes simulation/action files from all simulations
 to generate aggregated and non-aggregated plots for understanding agent behavior and performance.
 
 The script expects the following data structure:
-- simulation.csv: agent_id, frame, second, x, y, tile_x, tile_y, item, score
-- meaningful_actions.csv: Contains action_category_name and other action metadata
+- Legacy exports: simulation.csv + meaningful_actions.csv
+- Current exports: positions_<agent>.csv + human_like_actions_<agent>.csv (or actions.csv)
 
 Usage:
 nohup python3 analysis_individual_simulations.py --cluster cuenca --map_nr baseline_division_of_labor --training_id 2025-09-13_13-27-52 --checkpoint_number final > log_analysis_simulations.out 2>&1 &
@@ -72,6 +72,10 @@ class SimulationAnalyzer:
         """
         if self.checkpoint_number != "final":
             return self.checkpoint_number
+
+        # If checkpoint_final exists, keep it to match on-disk folder names.
+        if (Path(training_dir) / "checkpoint_final").exists():
+            return "final"
             
         training_stats_path = Path(training_dir) / "training_stats.csv"
         
@@ -131,6 +135,136 @@ class SimulationAnalyzer:
                     
         print(f"Found {len(simulation_dirs)} simulation directories")
         return simulation_dirs
+
+    def _extract_agent_id_from_filename(self, file_path, prefixes):
+        """Extract agent id from filename prefixes like positions_*.csv."""
+        stem = file_path.stem
+        for prefix in prefixes:
+            if stem.startswith(prefix):
+                return stem[len(prefix):]
+        return stem
+
+    def _normalize_positions_dataframe(self, positions_data):
+        """Normalize position columns across legacy and current schemas."""
+        positions_data = positions_data.copy()
+
+        if 'x' not in positions_data.columns:
+            if 'tile_x' in positions_data.columns:
+                positions_data['x'] = positions_data['tile_x']
+            elif 'pixel_x' in positions_data.columns:
+                positions_data['x'] = positions_data['pixel_x']
+
+        if 'y' not in positions_data.columns:
+            if 'tile_y' in positions_data.columns:
+                positions_data['y'] = positions_data['tile_y']
+            elif 'pixel_y' in positions_data.columns:
+                positions_data['y'] = positions_data['pixel_y']
+
+        if 'frame' not in positions_data.columns and 'tick' in positions_data.columns:
+            positions_data['frame'] = positions_data['tick']
+
+        return positions_data
+
+    def _normalize_actions_dataframe(self, actions_data):
+        """Normalize action columns across legacy and current schemas."""
+        if actions_data is None:
+            return pd.DataFrame(columns=['agent_id', 'action_category_name'])
+
+        actions_data = actions_data.copy()
+
+        if 'agent_id' not in actions_data.columns:
+            if 'player_id' in actions_data.columns:
+                actions_data['agent_id'] = actions_data['player_id']
+            else:
+                actions_data['agent_id'] = 'unknown'
+
+        if 'action_category_name' not in actions_data.columns:
+            actions_data['action_category_name'] = np.nan
+
+        for candidate_col in ['action_long', 'action_name', 'action_type', 'action']:
+            if candidate_col in actions_data.columns:
+                actions_data['action_category_name'] = actions_data['action_category_name'].fillna(actions_data[candidate_col])
+
+        actions_data['action_category_name'] = actions_data['action_category_name'].fillna('unknown')
+        return actions_data
+
+    def _load_simulation_dataframe(self, sim_dir):
+        """Load simulation dataframe from legacy or current file layout."""
+        sim_csv = sim_dir / "simulation.csv"
+        if sim_csv.exists():
+            sim_data = pd.read_csv(sim_csv)
+            return self._normalize_positions_dataframe(sim_data)
+
+        position_files = sorted(sim_dir.glob("positions_*.csv"))
+        if not position_files:
+            position_files = sorted(sim_dir.glob("human_like_positions_*.csv"))
+
+        if not position_files:
+            return None
+
+        all_positions = []
+        for position_file in position_files:
+            try:
+                position_data = pd.read_csv(position_file)
+            except Exception as e:
+                print(f"  Warning: Could not read {position_file.name}: {e}")
+                continue
+
+            if 'agent_id' not in position_data.columns:
+                position_data['agent_id'] = self._extract_agent_id_from_filename(
+                    position_file,
+                    prefixes=['positions_', 'human_like_positions_'],
+                )
+
+            position_data = self._normalize_positions_dataframe(position_data)
+            all_positions.append(position_data)
+
+        if not all_positions:
+            return None
+
+        return pd.concat(all_positions, ignore_index=True, sort=False)
+
+    def _load_actions_dataframe(self, sim_dir):
+        """Load actions dataframe from legacy or current file layout."""
+        meaningful_actions = sim_dir / "meaningful_actions.csv"
+        if meaningful_actions.exists():
+            try:
+                return self._normalize_actions_dataframe(pd.read_csv(meaningful_actions))
+            except Exception as e:
+                print(f"  Warning: Could not read meaningful_actions.csv: {e}")
+
+        human_like_action_files = sorted(sim_dir.glob("human_like_actions_*.csv"))
+        if human_like_action_files:
+            all_actions = []
+            for action_file in human_like_action_files:
+                try:
+                    action_data = pd.read_csv(action_file)
+                except Exception as e:
+                    print(f"  Warning: Could not read {action_file.name}: {e}")
+                    continue
+
+                if 'agent_id' not in action_data.columns:
+                    if 'player_id' in action_data.columns:
+                        action_data['agent_id'] = action_data['player_id']
+                    else:
+                        action_data['agent_id'] = self._extract_agent_id_from_filename(
+                            action_file,
+                            prefixes=['human_like_actions_'],
+                        )
+
+                all_actions.append(action_data)
+
+            if all_actions:
+                return self._normalize_actions_dataframe(pd.concat(all_actions, ignore_index=True, sort=False))
+
+        actions_csv = sim_dir / "actions.csv"
+        if actions_csv.exists():
+            try:
+                return self._normalize_actions_dataframe(pd.read_csv(actions_csv))
+            except Exception as e:
+                print(f"  Warning: Could not read actions.csv: {e}")
+
+        return pd.DataFrame(columns=['agent_id', 'action_category_name'])
     
     def read_config_file(self, sim_dir):
         """Read config.txt file and extract AGENT_INITIALIZATION_PERIOD."""
@@ -178,55 +312,70 @@ class SimulationAnalyzer:
             return sim_data
     
     def load_simulation_data(self, simulation_dirs):
-        """Load all simulation and meaningful actions data."""
+        """Load all simulation and action data."""
         for sim_dir, metadata in simulation_dirs:
             try:
-                # Load simulation.csv
-                sim_csv = sim_dir / "simulation.csv"
-                actions_csv = sim_dir / "meaningful_actions.csv"
-                
-                if sim_csv.exists() and actions_csv.exists():
-                    sim_data = pd.read_csv(sim_csv)
-                    actions_data = pd.read_csv(actions_csv)
-                    
-                    # Read config file to get initialization period
-                    initialization_period = self.read_config_file(sim_dir)
-                    
-                    # Convert frames to adjusted seconds
-                    sim_data = self.convert_frames_to_seconds(sim_data, initialization_period)
-                    
-                    # Create a unique key for this simulation
-                    sim_key = f"{metadata.get('simulation_timestamp', 'unknown')}"
-                    
-                    self.simulation_data[sim_key] = {
-                        'simulation': sim_data,
-                        'actions': actions_data,
-                        'metadata': metadata,
-                        'path': sim_dir,
-                        'initialization_period': initialization_period
-                    }
-                    
-                    print(f"Loaded data for {sim_key}")
-                    print(f"  - Simulation data: {len(sim_data)} rows")
-                    print(f"  - Actions data: {len(actions_data)} rows")
-                else:
-                    missing_files = []
-                    if not sim_csv.exists():
-                        missing_files.append("simulation.csv")
-                    if not actions_csv.exists():
-                        missing_files.append("meaningful_actions.csv")
-                    print(f"Missing files in {sim_dir}: {', '.join(missing_files)}")
+                sim_data = self._load_simulation_dataframe(sim_dir)
+                actions_data = self._load_actions_dataframe(sim_dir)
+
+                if sim_data is None or sim_data.empty:
+                    print(f"Missing simulation position files in {sim_dir}")
+                    continue
+
+                # Read config file to get initialization period
+                initialization_period = self.read_config_file(sim_dir)
+
+                # Convert frames to adjusted seconds
+                sim_data = self.convert_frames_to_seconds(sim_data, initialization_period)
+
+                if 'agent_id' not in sim_data.columns:
+                    sim_data['agent_id'] = 'agent_1'
+
+                sim_data['agent_id'] = sim_data['agent_id'].astype(str)
+                actions_data = self._normalize_actions_dataframe(actions_data)
+                actions_data['agent_id'] = actions_data['agent_id'].astype(str)
+
+                # Create a unique key for this simulation
+                sim_key = f"{metadata.get('simulation_timestamp', 'unknown')}"
+
+                self.simulation_data[sim_key] = {
+                    'simulation': sim_data,
+                    'actions': actions_data,
+                    'metadata': metadata,
+                    'path': sim_dir,
+                    'initialization_period': initialization_period
+                }
+
+                print(f"Loaded data for {sim_key}")
+                print(f"  - Simulation data: {len(sim_data)} rows")
+                print(f"  - Actions data: {len(actions_data)} rows")
                     
             except Exception as e:
                 print(f"Error loading data from {sim_dir}: {e}")
     
     def compute_deliveries(self, sim_data):
         """Compute delivery counts over time from simulation data."""
+        if sim_data is None or sim_data.empty or 'score' not in sim_data.columns:
+            return pd.DataFrame()
+
+        sim_data = sim_data.copy()
+        if 'agent_id' not in sim_data.columns:
+            sim_data['agent_id'] = 'agent_1'
+
         # Use adjusted_second instead of frame for time axis
-        time_column = 'adjusted_second' if 'adjusted_second' in sim_data.columns else 'frame'
+        if 'adjusted_second' in sim_data.columns:
+            time_column = 'adjusted_second'
+        elif 'frame' in sim_data.columns:
+            time_column = 'frame'
+        else:
+            sim_data['frame'] = np.arange(len(sim_data))
+            time_column = 'frame'
         
         # Deliveries are typically tracked through score increases
         deliveries = sim_data.groupby(['agent_id', time_column])['score'].max().reset_index()
+
+        if deliveries.empty:
+            return pd.DataFrame()
         
         # Calculate delivery events (score increases)
         delivery_events = []
@@ -238,6 +387,16 @@ class SimulationAnalyzer:
             delivery_events.append(agent_data)
         
         return pd.concat(delivery_events, ignore_index=True)
+
+    def _get_total_deliveries(self, deliveries):
+        """Get total deliveries as the sum of deliveries from all agents."""
+        if deliveries is None or deliveries.empty:
+            return 0
+        if 'deliveries' in deliveries.columns:
+            return int(deliveries.groupby('agent_id')['deliveries'].sum().sum())
+        if 'cumulative_deliveries' in deliveries.columns:
+            return int(deliveries.groupby('agent_id')['cumulative_deliveries'].max().sum())
+        return 0
     
     def compute_agent_distance(self, sim_data):
         """Compute distance between agents over time."""
@@ -257,11 +416,79 @@ class SimulationAnalyzer:
                         distances.append({time_column: time_point, 'distance': dist})
         
         return pd.DataFrame(distances)
+
+    def _compute_cumulative_distance_per_agent(self, sim_data):
+        """Compute cumulative distance traveled over time for each agent."""
+        if sim_data is None or sim_data.empty:
+            return None, {}
+
+        sim_data = sim_data.copy()
+        if 'agent_id' not in sim_data.columns:
+            sim_data['agent_id'] = 'agent_1'
+        sim_data['agent_id'] = sim_data['agent_id'].astype(str)
+
+        if 'adjusted_second' in sim_data.columns:
+            time_column = 'adjusted_second'
+        elif 'frame' in sim_data.columns:
+            time_column = 'frame'
+        else:
+            sim_data['frame'] = np.arange(len(sim_data))
+            time_column = 'frame'
+
+        if 'x' not in sim_data.columns or 'y' not in sim_data.columns:
+            return time_column, {}
+
+        cumulative_distances = {}
+        for agent_id in sorted(sim_data['agent_id'].dropna().unique()):
+            agent_data = sim_data[sim_data['agent_id'] == agent_id].sort_values(time_column)
+            if agent_data.empty:
+                continue
+
+            # Keep one position per timepoint before integrating movement.
+            agent_positions = agent_data.groupby(time_column)[['x', 'y']].first().sort_index()
+            if agent_positions.empty:
+                continue
+
+            x_diff = agent_positions['x'].diff().fillna(0.0)
+            y_diff = agent_positions['y'].diff().fillna(0.0)
+            step_distance = np.sqrt(x_diff**2 + y_diff**2)
+            cumulative_distances[agent_id] = step_distance.cumsum()
+
+        return time_column, cumulative_distances
+
+    def _average_cumulative_series(self, series_list):
+        """Align cumulative series in time and return monotonic mean trajectory."""
+        if not series_list:
+            return [], []
+
+        all_times = set()
+        for series in series_list:
+            if series is not None and len(series) > 0:
+                all_times.update(series.index)
+
+        if not all_times:
+            return [], []
+
+        all_times = sorted(all_times)
+        aligned_data = []
+        for series in series_list:
+            if series is None or len(series) == 0:
+                aligned_data.append(np.zeros(len(all_times)))
+                continue
+
+            aligned_series = pd.Series(series).sort_index().reindex(all_times).ffill().fillna(0.0)
+            aligned_data.append(aligned_series.values.astype(float))
+
+        mean_values = np.mean(aligned_data, axis=0)
+        mean_values = np.maximum.accumulate(mean_values)
+        return all_times, mean_values
     
     def plot_deliveries_over_time(self, save_dir):
         """Plot 1: Number of deliveries over time for each simulation."""
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
+        individual_save_dir = save_dir / 'individual_simulations'
+        individual_save_dir.mkdir(parents=True, exist_ok=True)
         
         # Individual simulations - create separate plot for each
         for sim_key in self.simulation_data.keys():
@@ -281,7 +508,13 @@ class SimulationAnalyzer:
                        label=f'Agent {agent_id}', linewidth=2)
             
             # Plot total deliveries
-            total_deliveries = deliveries.groupby(time_column)['cumulative_deliveries'].sum().reset_index()
+            total_deliveries = (
+                deliveries.groupby(time_column)['deliveries']
+                .sum()
+                .sort_index()
+                .cumsum()
+                .reset_index(name='cumulative_deliveries')
+            )
             ax.plot(total_deliveries[time_column], total_deliveries['cumulative_deliveries'], 
                    label='Total', linewidth=3, linestyle='--', color='black')
             
@@ -294,7 +527,7 @@ class SimulationAnalyzer:
             # Save individual plot
             safe_sim_key = sim_key.replace('/', '_').replace(':', '_')
             plt.tight_layout()
-            plt.savefig(save_dir / f'deliveries_over_time_{safe_sim_key}.png', dpi=300, bbox_inches='tight')
+            plt.savefig(individual_save_dir / f'deliveries_over_time_{safe_sim_key}.png', dpi=300, bbox_inches='tight')
             plt.close()
         
         # Aggregated plot by training_id and map
@@ -314,7 +547,12 @@ class SimulationAnalyzer:
             if time_column is None:
                 time_column = 'adjusted_second' if 'adjusted_second' in deliveries.columns else 'frame'
             
-            total_deliveries = deliveries.groupby(time_column)['cumulative_deliveries'].sum()
+            total_deliveries = (
+                deliveries.groupby(time_column)['deliveries']
+                .sum()
+                .sort_index()
+                .cumsum()
+            )
             
             aggregated_deliveries[key].append(total_deliveries)
         
@@ -355,6 +593,9 @@ class SimulationAnalyzer:
     def plot_action_histograms(self, save_dir):
         """Plot 2: Histogram of action categories."""
         save_dir = Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        individual_save_dir = save_dir / 'individual_simulations'
+        individual_save_dir.mkdir(parents=True, exist_ok=True)
         
         # Collect all action categories
         all_actions = []
@@ -366,7 +607,7 @@ class SimulationAnalyzer:
                 all_actions.append(actions_with_sim)
         
         if not all_actions:
-            print("No action_category_name column found in meaningful_actions.csv files")
+            print("No action categories found in action files")
             return
         
         all_actions_df = pd.concat(all_actions, ignore_index=True)
@@ -381,12 +622,14 @@ class SimulationAnalyzer:
             if 'agent_id' in sim_actions.columns:
                 # Create grouped bar chart with agents as different bars for each action
                 action_counts = sim_actions.groupby(['action_category_name', 'agent_id']).size().unstack(fill_value=0)
+                action_counts = action_counts.loc[action_counts.sum(axis=1).sort_values(ascending=False).index]
                 action_counts.plot(kind='bar', ax=ax)
                 ax.set_title(f'Action Categories\n{sim_key}')
                 ax.set_xlabel('Action Category')
                 ax.legend(title='Agent ID', bbox_to_anchor=(1.05, 1), loc='upper left')
             else:
                 action_counts = sim_actions['action_category_name'].value_counts()
+                action_counts = action_counts.sort_values(ascending=False)
                 action_counts.plot(kind='bar', ax=ax)
                 ax.set_title(f'Action Categories\n{sim_key}')
                 ax.set_xlabel('Action Category')
@@ -397,13 +640,14 @@ class SimulationAnalyzer:
             # Save individual plot
             safe_sim_key = sim_key.replace('/', '_').replace(':', '_')
             plt.tight_layout()
-            plt.savefig(save_dir / f'action_histograms_{safe_sim_key}.png', dpi=300, bbox_inches='tight')
+            plt.savefig(individual_save_dir / f'action_histograms_{safe_sim_key}.png', dpi=300, bbox_inches='tight')
             plt.close()
         
         # Aggregated histogram by training_id and map
         fig, ax = plt.subplots(figsize=(14, 8))
         
         training_map_actions = all_actions_df.groupby(['action_category_name', 'training_map']).size().unstack(fill_value=0)
+        training_map_actions = training_map_actions.loc[training_map_actions.sum(axis=1).sort_values(ascending=False).index]
         training_map_actions.plot(kind='bar', ax=ax)
         
         ax.set_title('Aggregated Action Categories by Training ID and Map')
@@ -429,7 +673,7 @@ class SimulationAnalyzer:
             
             # Calculate total deliveries
             deliveries = self.compute_deliveries(sim_data)
-            total_deliveries = deliveries['cumulative_deliveries'].max()
+            total_deliveries = self._get_total_deliveries(deliveries)
             
             # Calculate action counts
             if 'action_category_name' in actions_data.columns:
@@ -603,6 +847,9 @@ class SimulationAnalyzer:
     def plot_distance_and_deliveries(self, save_dir):
         """Plot 5: Agent distance over time with deliveries."""
         save_dir = Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        individual_save_dir = save_dir / 'individual_simulations'
+        individual_save_dir.mkdir(parents=True, exist_ok=True)
         
         # Individual simulations - create separate plot for each
         for sim_key in self.simulation_data.keys():
@@ -612,14 +859,19 @@ class SimulationAnalyzer:
             
             if not distances.empty and not deliveries.empty:
                 fig, ax1 = plt.subplots(figsize=(12, 8))
-                
-                # Calculate deliveries per frame
-                frame_deliveries = deliveries.groupby('frame')['deliveries'].sum().reset_index()
-                
+
                 # Determine time column to use
                 time_column = 'adjusted_second' if 'adjusted_second' in distances.columns else 'frame'
                 time_label = 'Time (seconds)' if time_column == 'adjusted_second' else 'Frame'
                 delivery_label = 'Deliveries per second' if time_column == 'adjusted_second' else 'Deliveries per frame'
+
+                if time_column in deliveries.columns:
+                    time_deliveries = deliveries.groupby(time_column)['deliveries'].sum().reset_index()
+                    delivery_time_col = time_column
+                else:
+                    fallback_time_col = 'frame' if 'frame' in deliveries.columns else deliveries.columns[0]
+                    time_deliveries = deliveries.groupby(fallback_time_col)['deliveries'].sum().reset_index()
+                    delivery_time_col = fallback_time_col
                 
                 # Plot distance
                 color = 'tab:blue'
@@ -633,10 +885,8 @@ class SimulationAnalyzer:
                 ax2 = ax1.twinx()
                 color = 'tab:red'
                 ax2.set_ylabel(delivery_label, color=color)
-                
-                # Use same time column for deliveries
-                frame_deliveries_time_col = time_column if time_column in frame_deliveries.columns else 'frame'
-                bars = ax2.bar(frame_deliveries[frame_deliveries_time_col], frame_deliveries['deliveries'], 
+
+                bars = ax2.bar(time_deliveries[delivery_time_col], time_deliveries['deliveries'], 
                              alpha=0.6, color=color, label=delivery_label)
                 ax2.tick_params(axis='y', labelcolor=color)
                 
@@ -650,102 +900,135 @@ class SimulationAnalyzer:
                 # Save individual plot
                 safe_sim_key = sim_key.replace('/', '_').replace(':', '_')
                 plt.tight_layout()
-                plt.savefig(save_dir / f'distance_and_deliveries_{safe_sim_key}.png', dpi=300, bbox_inches='tight')
+                plt.savefig(individual_save_dir / f'distance_and_deliveries_{safe_sim_key}.png', dpi=300, bbox_inches='tight')
                 plt.close()
         
-        # Aggregated plot - average over frames
+        # Aggregated plot: cumulative deliveries and cumulative traveled distance.
         fig, ax1 = plt.subplots(figsize=(14, 8))
-        
-        aggregated_distances = defaultdict(list)
-        aggregated_deliveries = defaultdict(list)
+        ax2 = ax1.twinx()
+
+        aggregated_metrics = defaultdict(lambda: {
+            'total_deliveries': [],
+            'agent_1_deliveries': [],
+            'agent_2_deliveries': [],
+            'agent_1_distance': [],
+            'agent_2_distance': [],
+            'agent_labels': None,
+            'time_column': None,
+        })
         
         for sim_key, data in self.simulation_data.items():
             metadata = data['metadata']
             key = f"{metadata['training_id']}_{metadata['map']}"
             
             sim_data = data['simulation']
-            distances = self.compute_agent_distance(sim_data)
             deliveries = self.compute_deliveries(sim_data)
+            distance_time_column, cumulative_distances = self._compute_cumulative_distance_per_agent(sim_data)
             
-            if not distances.empty and not deliveries.empty:
-                # Determine time column to use
-                time_column = 'adjusted_second' if 'adjusted_second' in distances.columns else 'frame'
-                
-                # Get time-based deliveries
-                time_deliveries = deliveries.groupby(time_column)['deliveries'].sum().reset_index()
-                
-                # Align distances and deliveries by time
-                merged_data = distances.merge(time_deliveries, on=time_column, how='inner')
-                
-                aggregated_distances[key].append(merged_data)
+            if deliveries.empty:
+                continue
+
+            time_column = 'adjusted_second' if 'adjusted_second' in deliveries.columns else 'frame'
+            agent_ids = sorted(deliveries['agent_id'].astype(str).dropna().unique())
+            if not agent_ids:
+                continue
+
+            agent_1_id = agent_ids[0]
+            agent_2_id = agent_ids[1] if len(agent_ids) > 1 else None
+
+            total_deliveries = (
+                deliveries.groupby(time_column)['deliveries']
+                .sum()
+                .sort_index()
+                .cumsum()
+            )
+            agent_1_deliveries = (
+                deliveries[deliveries['agent_id'].astype(str) == agent_1_id]
+                .groupby(time_column)['deliveries']
+                .sum()
+                .sort_index()
+                .cumsum()
+            )
+
+            if agent_2_id is not None:
+                agent_2_deliveries = (
+                    deliveries[deliveries['agent_id'].astype(str) == agent_2_id]
+                    .groupby(time_column)['deliveries']
+                    .sum()
+                    .sort_index()
+                    .cumsum()
+                )
+            else:
+                agent_2_deliveries = pd.Series(dtype=float)
+
+            agent_1_distance = cumulative_distances.get(agent_1_id, pd.Series(dtype=float))
+            if agent_2_id is not None:
+                agent_2_distance = cumulative_distances.get(agent_2_id, pd.Series(dtype=float))
+            else:
+                agent_2_distance = pd.Series(dtype=float)
+
+            metrics = aggregated_metrics[key]
+            metrics['total_deliveries'].append(total_deliveries)
+            metrics['agent_1_deliveries'].append(agent_1_deliveries)
+            metrics['agent_2_deliveries'].append(agent_2_deliveries)
+            metrics['agent_1_distance'].append(agent_1_distance)
+            metrics['agent_2_distance'].append(agent_2_distance)
+            metrics['time_column'] = time_column or distance_time_column
+
+            if metrics['agent_labels'] is None:
+                metrics['agent_labels'] = {
+                    'agent_1': agent_1_id,
+                    'agent_2': agent_2_id if agent_2_id is not None else 'agent_2',
+                }
+
+        if not aggregated_metrics:
+            plt.close(fig)
+            return
+
+        used_time_column = next(iter(aggregated_metrics.values()))['time_column'] or 'frame'
+        multiple_keys = len(aggregated_metrics) > 1
         
-        # Plot mean distances and deliveries over frames
-        for key, data_list in aggregated_distances.items():
-            if data_list:
-                # Combine all simulations for this training_map
-                time_column = 'adjusted_second' if 'adjusted_second' in data_list[0].columns else 'frame'
-                all_frames = set()
-                for df in data_list:
-                    all_frames.update(df[time_column])
-                all_frames = sorted(all_frames)
-                
-                # Determine time column from first dataset
-                time_column = 'adjusted_second' if 'adjusted_second' in data_list[0].columns else 'frame'
-                
-                # Average distances and deliveries across simulations
-                avg_distances = []
-                avg_deliveries = []
-                
-                for time_point in all_frames:
-                    time_distances = []
-                    time_deliveries = []
-                    
-                    for df in data_list:
-                        time_data = df[df[time_column] == time_point]
-                        if not time_data.empty:
-                            time_distances.append(time_data['distance'].iloc[0])
-                            time_deliveries.append(time_data['deliveries'].iloc[0])
-                    
-                    if time_distances:
-                        avg_distances.append(np.mean(time_distances))
-                        avg_deliveries.append(np.mean(time_deliveries))
-                    else:
-                        avg_distances.append(np.nan)
-                        avg_deliveries.append(np.nan)
-                
-                # Plot distance
-                ax1.plot(all_frames, avg_distances, label=f'{key} - Distance', linewidth=2)
-        
-                # Plot deliveries on second y-axis\n        ax2 = ax1.twinx()\n        for key, data_list in aggregated_distances.items():\n            if data_list:\n                # Same calculation as above for deliveries\n                time_column = 'adjusted_second' if 'adjusted_second' in data_list[0].columns else 'frame'\n                all_frames = set()\n                for df in data_list:\n                    all_frames.update(df[time_column])\n                all_frames = sorted(all_frames)
-                
-                avg_deliveries = []
-                for time_point in all_frames:
-                    time_deliveries = []
-                    for df in data_list:
-                        time_data = df[df[time_column] == time_point]
-                        if not time_data.empty:
-                            time_deliveries.append(time_data['deliveries'].iloc[0])
-                    
-                    if time_deliveries:
-                        avg_deliveries.append(np.mean(time_deliveries))
-                    else:
-                        avg_deliveries.append(np.nan)
-                
-                ax2.plot(all_frames, avg_deliveries, '--', label=f'{key} - Deliveries', linewidth=2)
+        # Plot mean cumulative trajectories for each training_map key.
+        for key, metrics in aggregated_metrics.items():
+            label_prefix = f"{key} - " if multiple_keys else ""
+            agent_labels = metrics['agent_labels'] or {'agent_1': 'agent_1', 'agent_2': 'agent_2'}
+
+            total_time, total_vals = self._average_cumulative_series(metrics['total_deliveries'])
+            a1_del_time, a1_del_vals = self._average_cumulative_series(metrics['agent_1_deliveries'])
+            a2_del_time, a2_del_vals = self._average_cumulative_series(metrics['agent_2_deliveries'])
+            a1_dist_time, a1_dist_vals = self._average_cumulative_series(metrics['agent_1_distance'])
+            a2_dist_time, a2_dist_vals = self._average_cumulative_series(metrics['agent_2_distance'])
+
+            if total_time:
+                ax2.plot(total_time, total_vals, linestyle='--', linewidth=2.8,
+                         label=f"{label_prefix}Cumulative Total Deliveries", color='black')
+            if a1_del_time:
+                ax2.plot(a1_del_time, a1_del_vals, linestyle='--', linewidth=2.0,
+                         label=f"{label_prefix}Cumulative Deliveries Agent 1 ({agent_labels['agent_1']})")
+            if a2_del_time:
+                ax2.plot(a2_del_time, a2_del_vals, linestyle='--', linewidth=2.0,
+                         label=f"{label_prefix}Cumulative Deliveries Agent 2 ({agent_labels['agent_2']})")
+
+            if a1_dist_time:
+                ax1.plot(a1_dist_time, a1_dist_vals, linewidth=2.2,
+                         label=f"{label_prefix}Cumulative Distance Agent 1 ({agent_labels['agent_1']})")
+            if a2_dist_time:
+                ax1.plot(a2_dist_time, a2_dist_vals, linewidth=2.2,
+                         label=f"{label_prefix}Cumulative Distance Agent 2 ({agent_labels['agent_2']})")
         
         # Determine label based on time column used
-        time_label = 'Time (seconds)' if time_column == 'adjusted_second' else 'Frame'
-        delivery_label = 'Deliveries per Second' if time_column == 'adjusted_second' else 'Deliveries per Frame'
+        time_label = 'Time (seconds)' if used_time_column == 'adjusted_second' else 'Frame'
+        delivery_label = 'Cumulative Deliveries'
         
         ax1.set_xlabel(time_label)
-        ax1.set_ylabel('Average Distance', color='blue')
+        ax1.set_ylabel('Cumulative Distance Traveled', color='blue')
         ax1.tick_params(axis='y', labelcolor='blue')
         ax1.grid(True, alpha=0.3)
         
         ax2.set_ylabel(delivery_label, color='red')
         ax2.tick_params(axis='y', labelcolor='red')
         
-        ax1.set_title('Aggregated Distance & Deliveries Over Time by Training & Map')
+        ax1.set_title('Aggregated Cumulative Distance Traveled and Deliveries Over Time by Training & Map')
         
         # Combine legends
         lines1, labels1 = ax1.get_legend_handles_labels()
@@ -769,7 +1052,7 @@ class SimulationAnalyzer:
             
             if not distances.empty and not deliveries.empty:
                 avg_distance = distances['distance'].mean()
-                total_deliveries = deliveries['deliveries'].sum()
+                total_deliveries = self._get_total_deliveries(deliveries)
                 
                 scatter_data.append({
                     'sim_key': sim_key,
@@ -875,7 +1158,7 @@ class SimulationAnalyzer:
             # Deliveries
             deliveries = self.compute_deliveries(sim_data)
             if not deliveries.empty:
-                total_deliveries.append(deliveries['deliveries'].sum())
+                total_deliveries.append(self._get_total_deliveries(deliveries))
             
             # Distances
             distances = self.compute_agent_distance(sim_data)
@@ -915,10 +1198,12 @@ class SimulationAnalyzer:
         
         # Count different types of plots
         plot_files = list(save_dir.glob('*.png'))
+        individual_plot_dir = save_dir / 'individual_simulations'
+        individual_plot_files = list(individual_plot_dir.glob('*.png')) if individual_plot_dir.exists() else []
         plot_counts = {
-            'deliveries_over_time': len([f for f in plot_files if 'deliveries_over_time_' in f.name and 'aggregated' not in f.name]),
-            'action_histograms': len([f for f in plot_files if 'action_histograms_' in f.name and 'aggregated' not in f.name]),
-            'distance_and_deliveries': len([f for f in plot_files if 'distance_and_deliveries_' in f.name and 'aggregated' not in f.name]),
+            'deliveries_over_time': len([f for f in individual_plot_files if 'deliveries_over_time_' in f.name and 'aggregated' not in f.name]),
+            'action_histograms': len([f for f in individual_plot_files if 'action_histograms_' in f.name and 'aggregated' not in f.name]),
+            'distance_and_deliveries': len([f for f in individual_plot_files if 'distance_and_deliveries_' in f.name and 'aggregated' not in f.name]),
             'markov_matrices': len([f for f in plot_files if 'markov_matrix_agent_' in f.name]),
         }
         
@@ -927,6 +1212,7 @@ class SimulationAnalyzer:
         summary.append(f"- Action histogram plots: {plot_counts['action_histograms']}")
         summary.append(f"- Distance and deliveries plots: {plot_counts['distance_and_deliveries']}")
         summary.append(f"- Markov matrix plots (by agent): {plot_counts['markov_matrices']}")
+        summary.append(f"- Individual simulation folder: {individual_plot_dir}")
         summary.append("")
         
         # List aggregated plots
@@ -991,7 +1277,7 @@ class SimulationAnalyzer:
         
         if not self.simulation_data:
             print("No valid simulation data loaded!")
-            print("Please verify that simulation.csv and meaningful_actions.csv files exist in the simulation directories.")
+            print("Please verify that simulation/action files exist in the simulation directories.")
             return
         
         print("3. Generating plots...")
@@ -1035,12 +1321,14 @@ def main():
     parser.add_argument('--cluster', type=str, default='cuenca',
                        help='Base cluster (default: cuenca)')
     parser.add_argument('--game_version', type=str, default='classic', 
-                       choices=['classic', 'competition'],
+                       choices=['classic', 'competition', 'classic_collision'],
                        help='Game version (default: classic)')
     parser.add_argument('--num_agents', type=int, default=2,
                        help='Number of agents in the simulation (default: 2)')
-    parser.add_argument('--study_name', type=str, default='default',
-                       help='Study name for simulation folders (default: default)')
+    parser.add_argument('--base_dir', type=str, default=None,
+                       help='Optional explicit map base directory containing simulations/ and simulation_figures/')
+    parser.add_argument('--study_name', type=str, default='',
+                       help='Study name for simulation folders (default: empty, use /simulations/ directly)')
     parser.add_argument('--game_type', type=str, default='classic',
                        help='Game type for folder organization (default: classic)')
     
@@ -1053,13 +1341,39 @@ def main():
     elif args.cluster.lower() == 'local':
         base_cluster_dir = "C:/OneDrive - Universidad Complutense de Madrid (UCM)/Doctorado"
 
-    # Updated for new folder structure: /data/.../map_{map_nr}/simulations/{study_name}/Training_{training_id}/checkpoint_{checkpoint_number}/
-    if args.num_agents == 1:
-        base_dir = f"{base_cluster_dir}/data/samuel_lozano/cooked/pretraining/{args.game_type}/map_{args.map_nr}"
+    # Updated for new folder structure: /data/.../{game_version}/map_{map_nr}/simulations/{study_name}/Training_{training_id}/checkpoint_{checkpoint_number}/
+    if args.base_dir:
+        base_dir = args.base_dir
     else:
-        base_dir = f"{base_cluster_dir}/data/samuel_lozano/cooked/{args.game_type}/map_{args.map_nr}"
-    training_dir = f"{base_dir}/simulations/{args.study_name}/Training_{args.training_id}/"
-    simulation_dir = f"{training_dir}/checkpoint_{args.checkpoint_number}/"
+        candidate_base_dirs = []
+        if args.num_agents == 1:
+            candidate_base_dirs.append(
+                f"{base_cluster_dir}/data/samuel_lozano/cooked/pretraining/{args.game_version}/map_{args.map_nr}"
+            )
+            candidate_base_dirs.append(
+                f"{base_cluster_dir}/data/samuel_lozano/cooked/pretraining/map_{args.map_nr}"
+            )
+        else:
+            candidate_base_dirs.append(
+                f"{base_cluster_dir}/data/samuel_lozano/cooked/{args.game_version}/map_{args.map_nr}"
+            )
+            candidate_base_dirs.append(
+                f"{base_cluster_dir}/data/samuel_lozano/cooked/map_{args.map_nr}"
+            )
+
+        base_dir = candidate_base_dirs[0]
+        for candidate in candidate_base_dirs:
+            if Path(candidate).exists():
+                base_dir = candidate
+                break
+
+    study_name = (args.study_name or '').strip()
+    simulations_root = Path(base_dir) / "simulations"
+    if study_name:
+        simulations_root = simulations_root / study_name
+
+    training_dir = str(simulations_root / f"Training_{args.training_id}") + "/"
+    requested_checkpoint_dir = Path(training_dir) / f"checkpoint_{args.checkpoint_number}"
     
     # Create a temporary analyzer to resolve checkpoint number if needed
     temp_analyzer = SimulationAnalyzer(
@@ -1071,6 +1385,11 @@ def main():
     
     # Resolve checkpoint number (handles "final" case)
     resolved_checkpoint = temp_analyzer.resolve_checkpoint_number(training_dir)
+
+    if args.checkpoint_number == 'final' and not requested_checkpoint_dir.exists() and resolved_checkpoint != 'final':
+        simulation_dir = f"{training_dir}/checkpoint_{resolved_checkpoint}/"
+    else:
+        simulation_dir = str(requested_checkpoint_dir) + "/"
     
     output_dir = f"{base_dir}/simulation_figures/Training_{args.training_id}"
 

@@ -177,3 +177,4 @@ output*
 *.log
 *.err
 logs*spoiled_broth/llm/api/_secrets.py
+cuenca/experimental_checkpoints/

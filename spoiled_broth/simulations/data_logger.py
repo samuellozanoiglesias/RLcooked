@@ -1134,7 +1134,6 @@ class DataLogger:
             f"NUM_AGENTS: {self.simulation_config.get('NUM_AGENTS', 'unknown')}",
             f"GAME_VERSION: {self.simulation_config.get('GAME_VERSION', 'unknown')}",
             f"TRAINING_ID: {self.simulation_config.get('TRAINING_ID', 'unknown')}",
-            f"GAME_TYPE: {self.simulation_config.get('GAME_TYPE', 'unknown')}",
             f"COLLISION_ENABLED: {self.simulation_config.get('COLLISION_ENABLED', False)}",
             "",
             "[TIMING_CONFIGURATION]",

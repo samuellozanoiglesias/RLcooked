@@ -7,7 +7,6 @@ This runner bypasses the Flask/engine layer entirely and instead:
   3. Runs the tick-based step loop (env.step), logging every tick
   4. Optionally records a video by rendering game state directly
 
-Collision support:  pass game_type containing 'collision' to enable.
 Author: Samuel Lozano
 """
 
@@ -52,7 +51,6 @@ class SimulationRunner:
         checkpoint_number: str,
         timestamp: str,
         study_name: str = "default",
-        game_type: str = "",
         synergy_folder: str = None,
         specialization_folder: str = None,
     ) -> Dict[str, Path]:
@@ -62,7 +60,7 @@ class SimulationRunner:
         try:
             return self._run(
                 map_nr, num_agents, game_version, training_id,
-                checkpoint_number, timestamp, study_name, game_type,
+                checkpoint_number, timestamp, study_name,
                 synergy_folder, specialization_folder,
             )
         finally:
@@ -81,7 +79,6 @@ class SimulationRunner:
         checkpoint_number: str,
         timestamp: str,
         study_name: str,
-        game_type: str,
         synergy_folder: str,
         specialization_folder: str,
     ) -> Dict[str, Path]:
@@ -89,15 +86,14 @@ class SimulationRunner:
         # --- 1. Resolve paths ------------------------------------------------
         paths = self.path_manager.setup_paths(
             map_nr, num_agents, game_version, training_id,
-            checkpoint_number, study_name, game_type,
+            checkpoint_number, study_name,
             synergy_folder, specialization_folder,
         )
         grid_size = self.path_manager.get_grid_size_from_map(paths["map_txt_path"])
 
         # --- 2. Determine game mode and collision flag -----------------------
         game_mode = "competition" if game_version.upper() == "COMPETITION" else "classic"
-        # Check both game_type and game_version for collision flag
-        collision_enabled = "collision" in game_type.lower() or "collision" in game_version.lower()
+        collision_enabled = "collision" in game_version.lower()
         print(f"Game mode: {game_mode} | Collision: {collision_enabled}")
 
         # --- 3. Create DataLogger -------------------------------------------
@@ -106,7 +102,6 @@ class SimulationRunner:
             "NUM_AGENTS": num_agents,
             "GAME_VERSION": game_version,
             "TRAINING_ID": training_id,
-            "GAME_TYPE": game_type,
             "CLUSTER": self.config.cluster,
             "DURATION": self.config.duration_seconds,
             "TICK_RATE": 1.0 / TICK_DURATION,  # steps per second (for config logging)

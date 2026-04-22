@@ -11,7 +11,8 @@ class ComprehensiveAnalysisOrchestrator:
     """Main class that orchestrates both simulation and checkpoint analyses."""
     
     def __init__(self, base_cluster_dir="", map_nr=None, game_version="classic", num_agents=2,
-                 training_id=None, checkpoint_number=None, output_dir=None, study_name='default', game_type='classic'):
+                 training_id=None, checkpoint_number=None, output_dir=None, study_name='', game_type='classic',
+                 synergy=None, specialization=None):
         """
         Initialize the comprehensive analysis orchestrator.
         
@@ -23,8 +24,10 @@ class ComprehensiveAnalysisOrchestrator:
             training_id: Optional specific training ID for detailed analysis
             checkpoint_number: Optional specific checkpoint for detailed analysis
             output_dir: Custom output directory
-            study_name: Study name for simulation folders (default: 'default')
+            study_name: Study name for simulation folders (default: empty, use /simulations/ directly)
             game_type: Game type for folder organization (default: 'classic')
+            synergy: Optional synergy folder value (e.g., "1.70")
+            specialization: Optional specialization folder value (e.g., "0.05")
         """
         self.base_cluster_dir = base_cluster_dir
         self.map_nr = map_nr
@@ -33,18 +36,18 @@ class ComprehensiveAnalysisOrchestrator:
         self.training_id = training_id
         self.checkpoint_number = checkpoint_number
         self.output_dir = output_dir
-        self.study_name = study_name
+        self.study_name = (study_name or "").strip()
         self.game_type = game_type
+        self.synergy = (str(synergy).strip() if synergy is not None else None)
+        self.specialization = (str(specialization).strip() if specialization is not None else None)
         
-        # Determine the output directory
+        # Determine the map base directory and output directory
         if output_dir is None:
-            if num_agents == 1:
-                self.map_base_dir = Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/pretraining/{game_type}/map_{map_nr}/")
-            else:
-                self.map_base_dir = Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/{game_type}/map_{map_nr}/")
+            self.map_base_dir = self._resolve_map_base_dir()
             # Output figures should be one level up from the simulations directory
             self.output_dir = self.map_base_dir / "simulation_figures"
         else:
+            self.map_base_dir = self._resolve_map_base_dir()
             self.output_dir = Path(output_dir)
         
         # Ensure output directory exists
@@ -57,10 +60,235 @@ class ComprehensiveAnalysisOrchestrator:
         
         # Initialize simulation results data storage
         self.simulation_results = []
+
+    def _resolve_map_base_dir(self):
+        """Resolve map base dir across known layout variants."""
+        candidates = []
+
+        def _append_synergy_variants(base_path):
+            if self.synergy and self.specialization:
+                candidates.append(base_path / f"synergy_{self.synergy}" / f"specialized_{self.specialization}")
+            elif self.synergy:
+                candidates.append(base_path / f"synergy_{self.synergy}")
+            elif self.specialization:
+                candidates.append(base_path / f"specialized_{self.specialization}")
+            candidates.append(base_path)
+
+        root_candidates = []
+        if self.num_agents == 1:
+            root_candidates.append(
+                Path(
+                    f"{self.base_cluster_dir}/data/samuel_lozano/cooked/pretraining/{self.game_version}/map_{self.map_nr}"
+                )
+            )
+            root_candidates.append(
+                Path(
+                    f"{self.base_cluster_dir}/data/samuel_lozano/cooked/pretraining/map_{self.map_nr}"
+                )
+            )
+        else:
+            root_candidates.append(
+                Path(
+                    f"{self.base_cluster_dir}/data/samuel_lozano/cooked/{self.game_version}/map_{self.map_nr}"
+                )
+            )
+            root_candidates.append(
+                Path(
+                    f"{self.base_cluster_dir}/data/samuel_lozano/cooked/map_{self.map_nr}"
+                )
+            )
+
+        for root_candidate in root_candidates:
+            _append_synergy_variants(root_candidate)
+
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+
+        # Fallback for layouts like map_<name>/synergy_x/specialized_y/simulations.
+        for map_root in root_candidates:
+            if not map_root.exists():
+                continue
+
+            if (map_root / "simulations").exists():
+                return map_root
+
+            nested_sim_dirs = sorted(map_root.glob("synergy_*/specialized_*/simulations"))
+            if not nested_sim_dirs:
+                nested_sim_dirs = sorted(map_root.glob("synergy_*/simulations"))
+            if not nested_sim_dirs:
+                nested_sim_dirs = sorted(map_root.glob("specialized_*/simulations"))
+
+            if nested_sim_dirs:
+                selected = nested_sim_dirs[0].parent
+                if len(nested_sim_dirs) > 1:
+                    print(f"Warning: Multiple simulation roots found under {map_root}. Using: {selected}")
+                return selected
+
+        # Last resort: return the first default candidate
+        return candidates[0]
+
+    def _simulations_root_dir(self):
+        """Return simulations root, with optional study subdirectory."""
+        simulations_root = self.map_base_dir / "simulations"
+        if self.study_name:
+            return simulations_root / self.study_name
+        return simulations_root
+
+    def _training_dir(self, training_id):
+        """Return the directory for a training id under simulations."""
+        return self._simulations_root_dir() / f"Training_{training_id}"
+
+    def _checkpoint_dir(self, training_id, checkpoint_number):
+        """Return checkpoint directory path for a training/checkpoint pair."""
+        return self._training_dir(training_id) / f"checkpoint_{checkpoint_number}"
+
+    def _extract_agent_id_from_filename(self, file_path, prefixes):
+        """Extract agent id from filename prefixes like positions_*.csv."""
+        stem = file_path.stem
+        for prefix in prefixes:
+            if stem.startswith(prefix):
+                return stem[len(prefix):]
+        return stem
+
+    def _load_simulation_dataframe(self, simulation_path):
+        """
+        Load simulation dataframe supporting both legacy and current exports.
+
+        Supported layouts:
+        - Legacy: simulation.csv
+        - Current: positions_<agent>.csv (or human_like_positions_<agent>.csv)
+        """
+        sim_csv_path = simulation_path / "simulation.csv"
+        if sim_csv_path.exists():
+            sim_data = pd.read_csv(sim_csv_path)
+            if 'x' not in sim_data.columns and 'tile_x' in sim_data.columns:
+                sim_data['x'] = sim_data['tile_x']
+            if 'y' not in sim_data.columns and 'tile_y' in sim_data.columns:
+                sim_data['y'] = sim_data['tile_y']
+            if 'frame' not in sim_data.columns and 'tick' in sim_data.columns:
+                sim_data['frame'] = sim_data['tick']
+            return sim_data
+
+        position_files = sorted(simulation_path.glob("positions_*.csv"))
+        if not position_files:
+            position_files = sorted(simulation_path.glob("human_like_positions_*.csv"))
+
+        if not position_files:
+            return None
+
+        position_frames = []
+        for position_file in position_files:
+            try:
+                position_data = pd.read_csv(position_file)
+            except Exception as e:
+                print(f"  Warning: Could not read {position_file.name}: {e}")
+                continue
+
+            if 'agent_id' not in position_data.columns:
+                agent_id = self._extract_agent_id_from_filename(
+                    position_file,
+                    prefixes=["positions_", "human_like_positions_"],
+                )
+                position_data['agent_id'] = agent_id
+
+            if 'x' not in position_data.columns:
+                if 'tile_x' in position_data.columns:
+                    position_data['x'] = position_data['tile_x']
+                elif 'pixel_x' in position_data.columns:
+                    position_data['x'] = position_data['pixel_x']
+
+            if 'y' not in position_data.columns:
+                if 'tile_y' in position_data.columns:
+                    position_data['y'] = position_data['tile_y']
+                elif 'pixel_y' in position_data.columns:
+                    position_data['y'] = position_data['pixel_y']
+
+            if 'frame' not in position_data.columns and 'tick' in position_data.columns:
+                position_data['frame'] = position_data['tick']
+
+            position_frames.append(position_data)
+
+        if not position_frames:
+            return None
+
+        return pd.concat(position_frames, ignore_index=True, sort=False)
+
+    def _normalize_actions_dataframe(self, actions_data):
+        """Normalize action columns across legacy and current exports."""
+        if actions_data is None:
+            return pd.DataFrame(columns=['agent_id', 'action_category_name'])
+
+        actions_data = actions_data.copy()
+
+        if 'agent_id' not in actions_data.columns:
+            if 'player_id' in actions_data.columns:
+                actions_data['agent_id'] = actions_data['player_id']
+            else:
+                actions_data['agent_id'] = 'unknown'
+
+        if 'action_category_name' not in actions_data.columns:
+            actions_data['action_category_name'] = np.nan
+
+        for candidate_col in ['action_long', 'action_name', 'action_type', 'action']:
+            if candidate_col in actions_data.columns:
+                actions_data['action_category_name'] = actions_data['action_category_name'].fillna(actions_data[candidate_col])
+
+        actions_data['action_category_name'] = actions_data['action_category_name'].fillna('unknown')
+        return actions_data
+
+    def _load_actions_dataframe(self, simulation_path):
+        """
+        Load actions dataframe supporting both legacy and current exports.
+
+        Supported layouts:
+        - Legacy: meaningful_actions.csv
+        - Current: human_like_actions_<agent>.csv (preferred), fallback actions.csv
+        """
+        meaningful_actions_path = simulation_path / "meaningful_actions.csv"
+        if meaningful_actions_path.exists():
+            try:
+                meaningful_actions = pd.read_csv(meaningful_actions_path)
+                return self._normalize_actions_dataframe(meaningful_actions)
+            except Exception as e:
+                print(f"  Warning: Could not read meaningful_actions.csv in {simulation_path}: {e}")
+
+        human_like_action_files = sorted(simulation_path.glob("human_like_actions_*.csv"))
+        if human_like_action_files:
+            action_frames = []
+            for action_file in human_like_action_files:
+                try:
+                    action_data = pd.read_csv(action_file)
+                except Exception as e:
+                    print(f"  Warning: Could not read {action_file.name}: {e}")
+                    continue
+
+                if 'agent_id' not in action_data.columns:
+                    if 'player_id' in action_data.columns:
+                        action_data['agent_id'] = action_data['player_id']
+                    else:
+                        action_data['agent_id'] = self._extract_agent_id_from_filename(
+                            action_file,
+                            prefixes=["human_like_actions_"],
+                        )
+                action_frames.append(action_data)
+
+            if action_frames:
+                return self._normalize_actions_dataframe(pd.concat(action_frames, ignore_index=True, sort=False))
+
+        actions_csv_path = simulation_path / "actions.csv"
+        if actions_csv_path.exists():
+            try:
+                actions_data = pd.read_csv(actions_csv_path)
+                return self._normalize_actions_dataframe(actions_data)
+            except Exception as e:
+                print(f"  Warning: Could not read actions.csv in {simulation_path}: {e}")
+
+        return pd.DataFrame(columns=['agent_id', 'action_category_name'])
     
     def find_all_training_directories(self):
         """Find all training directories for the specified map."""
-        base_map_dir = Path(f"{self.map_base_dir}/simulations/{self.study_name}")
+        base_map_dir = self._simulations_root_dir()
         
         training_dirs = []
         
@@ -82,7 +310,7 @@ class ComprehensiveAnalysisOrchestrator:
     
     def find_all_checkpoints_for_training(self, training_id):
         """Find all checkpoint directories for a specific training."""
-        training_dir = Path(f"{self.map_base_dir}/simulations/{self.study_name}/Training_{training_id}")
+        training_dir = self._training_dir(training_id)
         
         checkpoints = []
         
@@ -121,17 +349,27 @@ class ComprehensiveAnalysisOrchestrator:
             Dictionary with simulation metrics or None if extraction fails
         """
         try:
-            sim_csv_path = simulation_path / "simulation.csv"
-            actions_csv_path = simulation_path / "meaningful_actions.csv"
             config_path = simulation_path / "config.txt"
-            
-            if not (sim_csv_path.exists() and actions_csv_path.exists()):
-                print(f"  Missing required files in {simulation_path}")
+
+            sim_data = self._load_simulation_dataframe(simulation_path)
+            actions_data = self._load_actions_dataframe(simulation_path)
+
+            if sim_data is None or sim_data.empty:
+                print(f"  Missing simulation position files in {simulation_path}")
                 return None
-            
-            # Load simulation data
-            sim_data = pd.read_csv(sim_csv_path)
-            actions_data = pd.read_csv(actions_csv_path)
+
+            if 'agent_id' not in sim_data.columns or 'score' not in sim_data.columns:
+                print(f"  Missing required columns (agent_id/score) in simulation data for {simulation_path}")
+                return None
+
+            sim_data = sim_data.copy()
+            sim_data['agent_id'] = sim_data['agent_id'].astype(str)
+
+            if actions_data is None or actions_data.empty:
+                actions_data = pd.DataFrame(columns=['agent_id', 'action_category_name'])
+            else:
+                actions_data = self._normalize_actions_dataframe(actions_data)
+                actions_data['agent_id'] = actions_data['agent_id'].astype(str)
             
             # Extract simulation ID from path
             simulation_id = simulation_path.name.replace('simulation_', '')
@@ -151,20 +389,35 @@ class ComprehensiveAnalysisOrchestrator:
             # Convert frames to adjusted seconds
             if 'second' in sim_data.columns:
                 sim_data['adjusted_second'] = (sim_data['second'] - initialization_period).clip(lower=0)
-            else:
+            elif 'frame' in sim_data.columns:
                 # Assume 30 FPS if no seconds column
                 sim_data['adjusted_second'] = (sim_data['frame'] / 30.0 - initialization_period).clip(lower=0)
+            else:
+                sim_data['adjusted_second'] = 0.0
             
             # Compute deliveries (score increases)
             deliveries_data = []
-            for agent_id in sim_data['agent_id'].unique():
+            unique_agent_ids = list(sim_data['agent_id'].dropna().unique())
+            for agent_id in unique_agent_ids:
                 agent_data = sim_data[sim_data['agent_id'] == agent_id].sort_values('adjusted_second')
                 agent_data['score_diff'] = agent_data['score'].diff().fillna(0)
                 agent_data['deliveries'] = (agent_data['score_diff'] > 0).astype(int)
                 agent_data['cumulative_deliveries'] = agent_data['deliveries'].cumsum()
                 deliveries_data.append(agent_data)
-            
-            all_deliveries = pd.concat(deliveries_data, ignore_index=True)
+
+            if deliveries_data:
+                all_deliveries = pd.concat(deliveries_data, ignore_index=True)
+            else:
+                all_deliveries = pd.DataFrame(columns=['agent_id', 'adjusted_second', 'deliveries', 'cumulative_deliveries'])
+
+            score_over_time = sim_data.groupby('adjusted_second')['score'].max().sort_index()
+            if not score_over_time.empty:
+                team_score_diff = score_over_time.diff().fillna(0)
+                total_deliveries = int((team_score_diff > 0).sum())
+                final_score = float(score_over_time.iloc[-1])
+            else:
+                total_deliveries = 0
+                final_score = 0.0
             
             # Compute agent distances (for multi-agent scenarios)
             distances = []
@@ -186,15 +439,15 @@ class ComprehensiveAnalysisOrchestrator:
                 'checkpoint_number': checkpoint_number,
                 'map_name': self.map_nr,
                 'game_version': self.game_version,
-                'num_agents': len(sim_data['agent_id'].unique()),
+                'num_agents': len(unique_agent_ids),
                 'simulation_duration_seconds': sim_data['adjusted_second'].max(),
                 'initialization_period': initialization_period,
                 
                 # Delivery metrics
-                'total_deliveries': all_deliveries['deliveries'].sum(),
-                'final_score': sim_data['score'].max(),
-                'deliveries_per_agent': all_deliveries.groupby('agent_id')['deliveries'].sum().tolist(),
-                'deliveries_per_second': all_deliveries['deliveries'].sum() / max(sim_data['adjusted_second'].max(), 1),
+                'total_deliveries': total_deliveries,
+                'final_score': final_score,
+                'deliveries_per_agent': all_deliveries.groupby('agent_id')['deliveries'].sum().tolist() if not all_deliveries.empty else [],
+                'deliveries_per_second': total_deliveries / max(sim_data['adjusted_second'].max(), 1),
                 
                 # Action metrics
                 'total_actions': len(actions_data),
@@ -209,13 +462,13 @@ class ComprehensiveAnalysisOrchestrator:
                 'std_agent_distance': np.std(distances) if distances else 0,
                 
                 # Efficiency metrics
-                'actions_per_delivery': len(actions_data) / max(all_deliveries['deliveries'].sum(), 1),
-                'score_per_action': sim_data['score'].max() / max(len(actions_data), 1),
+                'actions_per_delivery': len(actions_data) / max(total_deliveries, 1),
+                'score_per_action': final_score / max(len(actions_data), 1),
                 'time_to_first_delivery': all_deliveries[all_deliveries['deliveries'] > 0]['adjusted_second'].min() if any(all_deliveries['deliveries'] > 0) else None,
             }
             
             # Add per-agent metrics
-            for agent_id in sim_data['agent_id'].unique():
+            for agent_id in unique_agent_ids:
                 agent_sim_data = sim_data[sim_data['agent_id'] == agent_id]
                 agent_deliveries = all_deliveries[all_deliveries['agent_id'] == agent_id]
                 agent_actions = actions_data[actions_data['agent_id'] == agent_id] if 'agent_id' in actions_data.columns else pd.DataFrame()
@@ -254,7 +507,7 @@ class ComprehensiveAnalysisOrchestrator:
             training_id: Training ID
             checkpoint_number: Checkpoint number (resolved)
         """
-        checkpoint_dir = Path(f"{self.map_base_dir}/simulations/{self.study_name}/Training_{training_id}/checkpoint_{checkpoint_number}")
+        checkpoint_dir = self._checkpoint_dir(training_id, checkpoint_number)
         
         if not checkpoint_dir.exists():
             print(f"  Checkpoint directory does not exist: {checkpoint_dir}")
@@ -455,8 +708,13 @@ class ComprehensiveAnalysisOrchestrator:
         """
         if checkpoint_number != "final":
             return checkpoint_number
-            
-        training_dir = Path(f"{self.map_base_dir}/Training_{training_id}")
+
+        training_dir = self._training_dir(training_id)
+
+        # If explicit checkpoint_final exists, keep it to match on-disk folders.
+        if (training_dir / "checkpoint_final").exists():
+            return "final"
+
         training_stats_path = training_dir / "training_stats.csv"
         
         if not training_stats_path.exists():
@@ -507,9 +765,12 @@ class ComprehensiveAnalysisOrchestrator:
             "--checkpoint_number", resolved_checkpoint,
             "--game_version", self.game_version,
             "--num_agents", str(self.num_agents),
-            "--study_name", self.study_name,
+            "--base_dir", str(self.map_base_dir),
             "--game_type", self.game_type,
         ]
+
+        if self.study_name:
+            cmd.extend(["--study_name", self.study_name])
         
         # Determine cluster argument
         if self.base_cluster_dir == "":
@@ -648,9 +909,12 @@ class ComprehensiveAnalysisOrchestrator:
             "--game_version", self.game_version,
             "--output_dir", str(self.output_dir),
             "--num_agents", str(self.num_agents),
-            "--study_name", self.study_name,
+            "--base_dir", str(self.map_base_dir),
             "--game_type", self.game_type,
         ]
+
+        if self.study_name:
+            cmd.extend(["--study_name", self.study_name])
         
         # Determine cluster argument
         if self.base_cluster_dir == "":
@@ -792,7 +1056,7 @@ class ComprehensiveAnalysisOrchestrator:
         summary.append("This comprehensive analysis was executed by calling:")
         if simulations_success:
             summary.append("1. `analysis_simulations.py` - for detailed simulation analysis")
-            summary.append("   - Extracts metrics from each simulation.csv and meaningful_actions.csv")
+            summary.append("   - Extracts metrics from simulation.csv/positions_*.csv and meaningful_actions.csv/human_like_actions_*.csv")
             summary.append("   - Computes aggregate statistics and creates simulation_results.csv")
             summary.append("   - Generates individual and comparative visualization plots")
         if checkpoint_success:

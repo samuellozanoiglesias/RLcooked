@@ -6,7 +6,11 @@ This script analyzes simulation data across all training_ids and checkpoints for
 to generate a figure comparing averaged deliveries in the last frame over checkpoint numbers.
 
 The script expects the following directory structure:
-/data/samuel_lozano/cooked/{game_version}/map_{map_nr}/simulations/Training_{training_id}/checkpoint_{checkpoint}/
+/data/samuel_lozano/cooked/map_{map_nr}/.../simulations/Training_{training_id}/checkpoint_{checkpoint}/
+
+Supported simulation files:
+- Legacy: simulation.csv
+- Current: positions_<agent>.csv (or human_like_positions_<agent>.csv)
 
 Usage:
 nohup python3 analysis_checkpoint_comparison.py --cluster cuenca --map_nr baseline_division_of_labor --game_version classic > log_analysis_checkpoint_comparison.out 2>&1 &
@@ -33,7 +37,7 @@ sns.set_palette("husl")
 class CheckpointDeliveryAnalyzer:
     """Main class for analyzing deliveries across checkpoints and training_ids."""
     
-    def __init__(self, base_cluster_dir="", map_nr=None, game_version="classic", num_agents=2, study_name='default', game_type='classic'):
+    def __init__(self, base_cluster_dir="", map_nr=None, game_version="classic", num_agents=2, study_name='', game_type='classic', base_dir=None):
         """
         Initialize the analyzer with specific parameters.
         
@@ -42,21 +46,53 @@ class CheckpointDeliveryAnalyzer:
             map_nr: Map number/name (e.g., "baseline_division_of_labor")
             game_version: Game version ("classic" or "competition")
             num_agents: Number of agents in the simulation (1 or 2)
-            study_name: Study name for simulation folders (default: 'default')
+            study_name: Study name for simulation folders (default: empty, use /simulations/ directly)
             game_type: Game type for folder organization (default: 'classic')
+            base_dir: Optional explicit map base directory containing simulations/
         """
         self.base_cluster_dir = base_cluster_dir
         self.map_nr = map_nr
         self.game_version = game_version
         self.num_agents = num_agents
-        self.study_name = study_name
+        self.study_name = (study_name or "").strip()
         self.game_type = game_type
         
         # Construct the base map directory path - updated for new structure with study_name
-        if self.num_agents == 1:
-            self.base_map_dir = Path(f"{base_cluster_dir}/data/samuel_lozano/pretraining/cooked/{game_type}/map_{map_nr}/simulations/{study_name}")
+        if base_dir:
+            self.base_map_dir = Path(base_dir) / "simulations"
         else:
-            self.base_map_dir = Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/{game_type}/map_{map_nr}/simulations/{study_name}")
+            candidate_base_dirs = []
+            if self.num_agents == 1:
+                candidate_base_dirs.append(
+                    Path(
+                        f"{base_cluster_dir}/data/samuel_lozano/cooked/pretraining/{game_version}/map_{map_nr}/simulations"
+                    )
+                )
+                candidate_base_dirs.append(
+                    Path(
+                        f"{base_cluster_dir}/data/samuel_lozano/cooked/pretraining/map_{map_nr}/simulations"
+                    )
+                )
+            else:
+                candidate_base_dirs.append(
+                    Path(
+                        f"{base_cluster_dir}/data/samuel_lozano/cooked/{game_version}/map_{map_nr}/simulations"
+                    )
+                )
+                candidate_base_dirs.append(
+                    Path(
+                        f"{base_cluster_dir}/data/samuel_lozano/cooked/map_{map_nr}/simulations"
+                    )
+                )
+
+            self.base_map_dir = candidate_base_dirs[0]
+            for candidate in candidate_base_dirs:
+                if candidate.exists():
+                    self.base_map_dir = candidate
+                    break
+
+        if self.study_name:
+            self.base_map_dir = self.base_map_dir / self.study_name
 
         self.checkpoint_data = {}  # {training_id: {checkpoint: delivery_data}}
         
@@ -90,6 +126,69 @@ class CheckpointDeliveryAnalyzer:
                 checkpoints.append((checkpoint_dir, checkpoint_name))
         
         return checkpoints
+
+    def _extract_agent_id_from_filename(self, file_path, prefixes):
+        """Extract agent id from filename prefixes like positions_*.csv."""
+        stem = file_path.stem
+        for prefix in prefixes:
+            if stem.startswith(prefix):
+                return stem[len(prefix):]
+        return stem
+
+    def _normalize_positions_dataframe(self, sim_data):
+        """Normalize position columns across legacy and current schemas."""
+        sim_data = sim_data.copy()
+
+        if 'x' not in sim_data.columns:
+            if 'tile_x' in sim_data.columns:
+                sim_data['x'] = sim_data['tile_x']
+            elif 'pixel_x' in sim_data.columns:
+                sim_data['x'] = sim_data['pixel_x']
+
+        if 'y' not in sim_data.columns:
+            if 'tile_y' in sim_data.columns:
+                sim_data['y'] = sim_data['tile_y']
+            elif 'pixel_y' in sim_data.columns:
+                sim_data['y'] = sim_data['pixel_y']
+
+        if 'frame' not in sim_data.columns and 'tick' in sim_data.columns:
+            sim_data['frame'] = sim_data['tick']
+
+        return sim_data
+
+    def _load_simulation_dataframe(self, sim_dir):
+        """Load simulation dataframe from legacy or current file layout."""
+        sim_csv = sim_dir / "simulation.csv"
+        if sim_csv.exists():
+            return self._normalize_positions_dataframe(pd.read_csv(sim_csv))
+
+        position_files = sorted(sim_dir.glob("positions_*.csv"))
+        if not position_files:
+            position_files = sorted(sim_dir.glob("human_like_positions_*.csv"))
+
+        if not position_files:
+            return None
+
+        all_positions = []
+        for position_file in position_files:
+            try:
+                position_data = pd.read_csv(position_file)
+            except Exception as e:
+                print(f"Error reading {position_file}: {e}")
+                continue
+
+            if 'agent_id' not in position_data.columns:
+                position_data['agent_id'] = self._extract_agent_id_from_filename(
+                    position_file,
+                    prefixes=['positions_', 'human_like_positions_'],
+                )
+
+            all_positions.append(self._normalize_positions_dataframe(position_data))
+
+        if not all_positions:
+            return None
+
+        return pd.concat(all_positions, ignore_index=True, sort=False)
     
     def read_config_file(self, sim_dir):
         """Read config.txt file and extract AGENT_INITIALIZATION_PERIOD."""
@@ -124,12 +223,16 @@ class CheckpointDeliveryAnalyzer:
             # Ensure we don't have negative seconds (clamp to 0)
             sim_data['adjusted_second'] = sim_data['adjusted_second'].clip(lower=0)
             return sim_data
-        else:
+        elif 'frame' in sim_data.columns:
             # If no seconds column, create one assuming some frame rate (e.g., 30 FPS)
             sim_data = sim_data.copy()
             assumed_fps = 30
             sim_data['adjusted_second'] = (sim_data['frame'] / assumed_fps) - initialization_period
             sim_data['adjusted_second'] = sim_data['adjusted_second'].clip(lower=0)
+            return sim_data
+        else:
+            sim_data = sim_data.copy()
+            sim_data['adjusted_second'] = 0.0
             return sim_data
     
     def compute_deliveries(self, sim_data):
@@ -158,37 +261,35 @@ class CheckpointDeliveryAnalyzer:
         # Find all simulation directories within this checkpoint
         for sim_dir in checkpoint_dir.glob("simulation_*"):
             if sim_dir.is_dir():
-                sim_csv = sim_dir / "simulation.csv"
-                
-                if sim_csv.exists():
-                    try:
-                        sim_data = pd.read_csv(sim_csv)
-                        
-                        # Read config file to get initialization period
-                        initialization_period = self.read_config_file(sim_dir)
-                        
-                        # Convert frames to adjusted seconds
-                        sim_data = self.convert_frames_to_seconds(sim_data, initialization_period)
-                        
-                        deliveries = self.compute_deliveries(sim_data)
-                        
-                        if not deliveries.empty:
-                            # Determine time column
-                            time_column = 'adjusted_second' if 'adjusted_second' in deliveries.columns else 'frame'
-                            
-                            # Get the final time deliveries (last time point, total across all agents)
-                            final_time = deliveries[time_column].max()
-                            final_time_data = deliveries[deliveries[time_column] == final_time]
-                            total_final_deliveries = final_time_data['cumulative_deliveries'].sum()
-                            
-                            final_deliveries.append({
-                                'simulation': sim_dir.name,
-                                'final_deliveries': total_final_deliveries,
-                                'final_time': final_time
-                            })
-                        
-                    except Exception as e:
-                        print(f"Error processing {sim_csv}: {e}")
+                try:
+                    sim_data = self._load_simulation_dataframe(sim_dir)
+                    if sim_data is None or sim_data.empty or 'score' not in sim_data.columns:
+                        continue
+
+                    # Read config file to get initialization period
+                    initialization_period = self.read_config_file(sim_dir)
+
+                    # Convert frames to adjusted seconds
+                    sim_data = self.convert_frames_to_seconds(sim_data, initialization_period)
+
+                    time_column = 'adjusted_second' if 'adjusted_second' in sim_data.columns else 'frame'
+                    score_over_time = sim_data.groupby(time_column)['score'].max().sort_index()
+
+                    if score_over_time.empty:
+                        continue
+
+                    score_diff = score_over_time.diff().fillna(0)
+                    total_final_deliveries = int((score_diff > 0).sum())
+                    final_time = score_over_time.index.max()
+
+                    final_deliveries.append({
+                        'simulation': sim_dir.name,
+                        'final_deliveries': total_final_deliveries,
+                        'final_time': final_time
+                    })
+
+                except Exception as e:
+                    print(f"Error processing {sim_dir}: {e}")
         
         return final_deliveries
     
@@ -820,14 +921,16 @@ def main():
     parser.add_argument('--cluster', type=str, default='cuenca',
                        help='Base cluster (default: cuenca)')
     parser.add_argument('--game_version', type=str, default='classic', 
-                       choices=['classic', 'competition'],
+                       choices=['classic', 'competition', 'classic_collision'],
                        help='Game version (default: classic)')
     parser.add_argument('--output_dir', type=str, default=None,
                        help='Output directory for results (default: map directory)')
     parser.add_argument('--num_agents', type=int, default=2,
                        help='Number of agents in the simulation (default: 2)')
-    parser.add_argument('--study_name', type=str, default='default',
-                       help='Study name for simulation folders (default: default)')
+    parser.add_argument('--base_dir', type=str, default=None,
+                       help='Optional explicit map base directory containing simulations/ and simulation_figures/')
+    parser.add_argument('--study_name', type=str, default='',
+                       help='Study name for simulation folders (default: empty, use /simulations/ directly)')
     parser.add_argument('--game_type', type=str, default='classic',
                        help='Game type for folder organization (default: classic)')
 
@@ -845,13 +948,16 @@ def main():
         return
 
     # Create analyzer and run analysis
+    study_name = (args.study_name or '').strip()
+
     analyzer = CheckpointDeliveryAnalyzer(
         base_cluster_dir=base_cluster_dir,
         map_nr=args.map_nr,
         game_version=args.game_version,
         num_agents=args.num_agents,
-        study_name=args.study_name,
-        game_type=args.game_type
+        study_name=study_name,
+        game_type=args.game_type,
+        base_dir=args.base_dir
     )
 
     analyzer.run_analysis(args.output_dir)
