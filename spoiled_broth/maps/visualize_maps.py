@@ -9,6 +9,7 @@ from pathlib import Path
 from PIL import Image
 import glob
 import os
+from map_paths import iter_maps_txt_dirs
 
 
 def show_map_from_txt(txt_path, output_name):
@@ -52,33 +53,32 @@ def show_map_from_txt(txt_path, output_name):
     for y, line in enumerate(map_lines):
         for x, char in enumerate(line):
             tile_type = char_to_tile.get(char, 'Floor')
-            
+
             if tile_type not in asset_map:
                 print(f"Warning: Unknown tile type '{tile_type}' for char '{char}', using Floor")
                 tile_type = 'Floor'
-            
-            sprite_paths = asset_map[tile_type]['paths']
-            
+
+            sprite_paths = asset_map[tile_type]["paths"]
+
             for i, sprite_path in enumerate(sprite_paths):
                 if not sprite_path.exists():
                     print(f"Warning: Sprite not found: {sprite_path}")
                     continue
-                
-                # Load sprite with alpha channel
+
                 sprite_image = Image.open(sprite_path).convert("RGBA")
-                
+
                 # Crop specific regions for dispensers
                 if tile_type == "Dispenser_tomato" and i == 1:
                     sprite_image = sprite_image.crop((0, 0, 16, 16))
                 elif tile_type == "Dispenser_plate" and i == 1:
                     sprite_image = sprite_image.crop((0, 48, 16, 64))
                 elif tile_type == "Dispenser_pumpkin" and i == 1:
-                    sprite_image = sprite_image.crop((16, 0, 32, 16))
+                    sprite_image = sprite_image.crop((0, 16, 16, 32))
                 elif tile_type == "Dispenser_cabbage" and i == 1:
                     sprite_image = sprite_image.crop((32, 0, 48, 16))
                 else:
                     sprite_image = sprite_image.crop((0, 0, 16, 16))
-                
+
                 # Paste sprite onto canvas
                 canvas.paste(sprite_image, (x * 16, y * 16), sprite_image)
     
@@ -136,14 +136,15 @@ asset_map = {
 
 if __name__ == "__main__":
     # Setup paths
-    maps_dir = Path(__file__).parent / "maps_txt"
     output_dir = Path(__file__).parent / "maps_png"
     
     # Create output directory if it doesn't exist
     output_dir.mkdir(exist_ok=True)
     
-    # Find all .txt map files (exclude info files)
-    txt_files = glob.glob(str(maps_dir / "*.txt"))
+    # Find all .txt map files from the named map folders (exclude info files)
+    txt_files = []
+    for maps_dir in iter_maps_txt_dirs():
+        txt_files.extend(glob.glob(str(maps_dir / "*.txt")))
     txt_files = [f for f in txt_files if not f.endswith('_info.txt')]
     
     print(f"Found {len(txt_files)} map files")

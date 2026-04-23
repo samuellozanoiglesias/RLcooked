@@ -28,6 +28,7 @@ import numpy as np
 from PIL import Image
 
 from .video_recorder import VideoRecorder
+from spoiled_broth.maps.map_paths import get_map_txt_path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -372,13 +373,9 @@ class SimulationReplay:
         if not self.map_nr:
             return []
 
-        candidates = [
-            MAPS_ROOT / "maps_txt" / f"{self.map_nr}.txt",
-            MAPS_ROOT / f"{self.map_nr}.txt",
-        ]
-        for candidate in candidates:
-            if candidate.exists():
-                return [line.rstrip("\n") for line in candidate.read_text(encoding="utf-8").splitlines()]
+        candidate = get_map_txt_path(self.map_nr, game_version=self.game_version)
+        if candidate.exists():
+            return [line.rstrip("\n") for line in candidate.read_text(encoding="utf-8").splitlines()]
         return []
 
     def _load_map_image(self) -> Optional[Image.Image]:

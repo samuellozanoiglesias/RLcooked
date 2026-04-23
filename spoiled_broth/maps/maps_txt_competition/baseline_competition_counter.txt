@@ -1,0 +1,9 @@
+WWWXXXWWW
+W1     2W
+W       W
+B   M   B
+T   M   T
+P   M   P
+W       W
+W       W
+WWDDDDDWW

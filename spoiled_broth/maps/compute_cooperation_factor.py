@@ -13,6 +13,7 @@ import json
 import glob
 import numpy as np
 from pathlib import Path
+from spoiled_broth.maps.map_paths import iter_maps_txt_dirs
 from collections import deque
 
 # A* from the engine (same algorithm used to build the distance cache)
@@ -539,11 +540,12 @@ def calculate_cooperation_factor_expensive(map_nr, maps_directory):
 def compute_all_cooperation_factors():
     """Compute cooperation factors for all map files in the maps directory."""
     
-    maps_txt_dir = Path(__file__).parent / "maps_txt"
     output_file = Path(__file__).parent / 'cooperation_factors.json'
     
     print("Scanning for map files...")
-    map_files = glob.glob(str(maps_txt_dir / "*.txt"))
+    map_files = []
+    for maps_txt_dir in iter_maps_txt_dirs():
+        map_files.extend(glob.glob(str(maps_txt_dir / "*.txt")))
     map_files = [f for f in map_files if not f.endswith('_info.txt')]  # Exclude info files
     
     cooperation_factors = {}
@@ -558,7 +560,7 @@ def compute_all_cooperation_factors():
             print(f"\nProcessing: {map_name}")
             
             # Calculate cooperation factor using the expensive method
-            cooperation_factor = calculate_cooperation_factor_expensive(map_name, str(maps_txt_dir))
+            cooperation_factor = calculate_cooperation_factor_expensive(map_name, str(Path(map_file).parent))
             
             cooperation_factors[map_name] = cooperation_factor
             print(f"✓ {map_name}: {cooperation_factor:.3f}")

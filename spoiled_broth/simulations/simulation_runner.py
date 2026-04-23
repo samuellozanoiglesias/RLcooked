@@ -92,8 +92,23 @@ class SimulationRunner:
         grid_size = self.path_manager.get_grid_size_from_map(paths["map_txt_path"])
 
         # --- 2. Determine game mode and collision flag -----------------------
-        game_mode = "competition" if game_version.upper() == "COMPETITION" else "classic"
-        collision_enabled = "collision" in game_version.lower()
+        game_version_normalized = game_version.lower()
+        collision_enabled = game_version_normalized.endswith("_collision")
+        base_game_mode = (
+            game_version_normalized.replace("_collision", "")
+            if collision_enabled
+            else game_version_normalized
+        )
+
+        if base_game_mode == "competition":
+            game_mode = "competition"
+        elif base_game_mode == "classic":
+            game_mode = "classic"
+        else:
+            raise ValueError(
+                f"Unknown game_version '{game_version}'. "
+                "Expected classic, classic_collision, competition, or competition_collision."
+            )
         print(f"Game mode: {game_mode} | Collision: {collision_enabled}")
 
         # --- 3. Create DataLogger -------------------------------------------

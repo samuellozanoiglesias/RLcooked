@@ -3,6 +3,7 @@
 
 import os
 import sys
+from spoiled_broth.maps.map_paths import get_map_txt_path
 from spoiled_broth.rl.make_train_rllib import make_train_rllib
 import ray
 import torch
@@ -183,7 +184,7 @@ if CHECKPOINT_PATHS != "none":
                     pretrained_policies[f"ai_rl_{i+1}"] = None
 
 # Determine grid size from map file
-map_txt_path = os.path.join(os.path.dirname(__file__), 'spoiled_broth', 'maps', f'{MAP_NR}.txt')
+map_txt_path = get_map_txt_path(MAP_NR, game_version=GAME_VERSION)
 if not os.path.exists(map_txt_path):
     raise FileNotFoundError(f"Map file {map_txt_path} not found.")
 with open(map_txt_path, 'r') as f:

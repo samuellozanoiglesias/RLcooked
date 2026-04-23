@@ -172,7 +172,6 @@ def get_action_type_competition(tile, agent, own_food, x, y, accessibility_map):
         return ACTION_TYPE_INACCESSIBLE
 
     holding_item = getattr(agent, "item", None)
-    other_food = None
 
     # Tile type 0: floor
     if tile._type == 0:
@@ -211,16 +210,19 @@ def get_action_type_competition(tile, agent, own_food, x, y, accessibility_map):
                 return ACTION_TYPE_USEFUL_PLATE_DISPENSER
             else:
                 return ACTION_TYPE_USELESS_PLATE_DISPENSER
-        elif disp_item == own_food:
-            if holding_item is None:
-                return ACTION_TYPE_OWN_USEFUL_FOOD_DISPENSER
+        elif disp_item in ["tomato", "pumpkin", "cabbage"]:
+            if disp_item == own_food:
+                if holding_item is None:
+                    return ACTION_TYPE_OWN_USEFUL_FOOD_DISPENSER
+                else:
+                    return ACTION_TYPE_OWN_USELESS_FOOD_DISPENSER
             else:
-                return ACTION_TYPE_OWN_USELESS_FOOD_DISPENSER
-        elif disp_item == other_food:
-            if holding_item is None:
-                return ACTION_TYPE_OTHER_USEFUL_FOOD_DISPENSER
-            else:
-                return ACTION_TYPE_OTHER_USELESS_FOOD_DISPENSER
+                if holding_item is None:
+                    return ACTION_TYPE_OTHER_USEFUL_FOOD_DISPENSER
+                else:
+                    return ACTION_TYPE_OTHER_USELESS_FOOD_DISPENSER
+        else:
+            return ACTION_TYPE_OTHER_USELESS_FOOD_DISPENSER
             
     # Tile type 4: cutting board
     if tile._type == 4:

@@ -16,6 +16,7 @@ import matplotlib.patches as mpatches
 import numpy as np
 from typing import Dict, Set, Tuple
 from spoiled_broth.game import SpoiledBroth
+from spoiled_broth.maps.map_paths import get_maps_txt_dir
 
 def create_accessibility_map(grid) -> Dict[Tuple[int, int], Set[Tuple[int, int]]]:
     """Creates a dictionary mapping each tile to its accessible neighbors"""
@@ -83,9 +84,9 @@ def create_accessibility_map(grid) -> Dict[Tuple[int, int], Set[Tuple[int, int]]
     return accessibility
 
 
-def generate_map_from_file(filename: str) -> Tuple[Dict[Tuple[int, int], Set[Tuple[int, int]]], any]:
+def generate_map_from_file(filename: str, game_version: str = None, maps_folder: str = None) -> Tuple[Dict[Tuple[int, int], Set[Tuple[int, int]]], any]:
     """Generate accessibility map from a map file"""
-    maps_dir = os.path.join(os.path.dirname(__file__), "maps_txt")
+    maps_dir = get_maps_txt_dir(game_version=game_version, maps_folder=maps_folder)
     full_path = os.path.join(maps_dir, f"{filename}.txt")
 
     with open(full_path, "r") as f:
@@ -94,7 +95,7 @@ def generate_map_from_file(filename: str) -> Tuple[Dict[Tuple[int, int], Set[Tup
         width = max(len(line) for line in lines) if lines else 0
 
     grid_size = (width, height)
-    game = SpoiledBroth(filename, grid_size=grid_size)
+    game = SpoiledBroth(filename, grid_size=grid_size, game_version=game_version, maps_folder=maps_folder)
     return create_accessibility_map(game.grid), game.grid
 
 
@@ -176,9 +177,9 @@ def plot_accessibility_grid_and_save(grid, accessibility, filename):
     plt.close()
 
 
-def save_accessibility_maps():
+def save_accessibility_maps(game_version: str = None, maps_folder: str = None):
     """Generate and save accessibility maps for all text map files"""
-    maps_txt_dir = os.path.join(os.path.dirname(__file__), "maps_txt")
+    maps_txt_dir = get_maps_txt_dir(game_version=game_version, maps_folder=maps_folder)
     output_file = os.path.join(os.path.dirname(__file__), 'precomputed_accessibility.json')
 
     all_maps = {}
@@ -188,7 +189,7 @@ def save_accessibility_maps():
             try:
                 name_only = os.path.splitext(filename)[0]
                 print(f"Processing {name_only}...")
-                accessibility_map, grid = generate_map_from_file(name_only)
+                accessibility_map, grid = generate_map_from_file(name_only, game_version=game_version, maps_folder=maps_folder)
                 all_maps[name_only] = serialize_map(accessibility_map)
 
                 # NEW: Save image of accessibility map
@@ -206,7 +207,7 @@ def save_accessibility_maps():
 
 MAP_ACCESSIBILITY = {}
 
-def get_accessibility_map(map_name: str) -> Dict[Tuple[int, int], Set[Tuple[int, int]]]:
+def get_accessibility_map(map_name: str, game_version: str = None, maps_folder: str = None) -> Dict[Tuple[int, int], Set[Tuple[int, int]]]:
     if map_name not in MAP_ACCESSIBILITY:
         maps_dir = os.path.dirname(__file__)
         json_path = os.path.join(maps_dir, 'precomputed_accessibility.json')
@@ -218,7 +219,14 @@ def get_accessibility_map(map_name: str) -> Dict[Tuple[int, int], Set[Tuple[int,
             all_maps = json.load(f)
 
         if map_name not in all_maps:
-            raise KeyError(f"No accessibility map found for {map_name}")
+            # Fallback: lazily generate and cache missing map accessibility.
+            try:
+                generated_map, _ = generate_map_from_file(map_name, game_version=game_version, maps_folder=maps_folder)
+                all_maps[map_name] = serialize_map(generated_map)
+                with open(json_path, 'w') as f:
+                    json.dump(all_maps, f)
+            except Exception as e:
+                raise KeyError(f"No accessibility map found for {map_name}") from e
 
         MAP_ACCESSIBILITY[map_name] = deserialize_map(all_maps[map_name])
 

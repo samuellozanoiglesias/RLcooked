@@ -16,7 +16,7 @@
 #
 # Arguments:
 #   MAP_NR            Map name used by experimental_simulation.py
-#   GAME_VERSION      Game version (classic, classic_collision, competition)
+#   GAME_VERSION      Game version (classic, classic_collision, competition, competition_collision)
 #   NUM_SIMULATIONS   Number of runs per (configuration, checkpoint)
 #   MAX_PARALLEL      Optional max parallel jobs (default: 5)
 #
@@ -72,7 +72,7 @@ print_usage() {
     echo ""
     echo "Arguments:"
     echo "  MAP_NR            Map name"
-    echo "  GAME_VERSION      classic | classic_collision | competition"
+    echo "  GAME_VERSION      classic | classic_collision | competition | competition_collision"
     echo "  NUM_SIMULATIONS   Positive integer"
     echo "  MAX_PARALLEL      Optional positive integer (default: $DEFAULT_MAX_PARALLEL)"
     echo ""

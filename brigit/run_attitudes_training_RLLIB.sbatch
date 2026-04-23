@@ -27,10 +27,10 @@ TRAIN_SCRIPT='/mnt/lustre/home/samuloza/cooked/training-DTDE-spoiled_broth.py'
 CLUSTER=brigit
 MAP_NR=baseline_competition
 LR=3e-4
-GAME_VERSION=competition
+GAME_VERSION=competition_collision
 NUM_AGENTS=2
-NUM_EPOCHS=2000  # Number of training epochs
-SEEDS=(10 20 30 40 50 60 70 80 90)  # Different random seeds for runs
+NUM_EPOCHS=1000  # Number of training epochs
+SEEDS=(0 10 20 30)  # Different random seeds for runs
 CHECKPOINT_PATHS=None  # Set to a specific checkpoint name or None
 REWARDS_ON_DELIVERY_ONLY=True  # Whether to use rewards on delivery only
 

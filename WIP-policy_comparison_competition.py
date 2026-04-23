@@ -4,6 +4,7 @@ import os
 import matplotlib.pyplot as plt
 from ray.rllib.algorithms.ppo import PPO
 from spoiled_broth.game import SpoiledBroth
+from spoiled_broth.maps.map_paths import get_map_txt_path
 from pathlib import Path
 from spoiled_broth.rl.game_env_competition import get_action_type, ACTION_TYPE_OWN_USEFUL_CUTTING_BOARD, ACTION_TYPE_OTHER_USEFUL_CUTTING_BOARD, ACTION_TYPE_OWN_USEFUL_DELIVERY, ACTION_TYPE_OTHER_USEFUL_DELIVERY
 from spoiled_broth.game import game_to_obs_vector_competition
@@ -269,7 +270,7 @@ def print_action_summary(summary):
             print(f"  {action}: {count} ({count/total*100:.1f}%)")
 
 # Determine grid size from map file (text format)
-map_txt_path = os.path.join(os.path.dirname(__file__), 'spoiled_broth', 'maps', f'{MAP_NR}.txt')
+map_txt_path = get_map_txt_path(MAP_NR, game_version=GAME_VERSION)
 if not os.path.exists(map_txt_path):
     raise FileNotFoundError(f"Map file {map_txt_path} not found.")
 with open(map_txt_path, 'r') as f:

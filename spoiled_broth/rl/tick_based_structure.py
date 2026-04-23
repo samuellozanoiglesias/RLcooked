@@ -288,7 +288,15 @@ def update_agent_interactions(env, agent_events, agent_penalties, tick_duration)
     - Events: Delivery, salad creation, etc. recorded
     
     Args:
-        env: GameEnv instance
+        game = SpoiledBroth(
+            map_nr=map_nr,
+            grid_size=grid_size,
+            num_agents=num_agents,
+            seed=seed,
+            walking_speeds=walking_speeds,
+            cutting_speeds=cutting_speeds,
+            game_version=game_mode,
+        )
         agent_events: Dictionary to accumulate agent events
         agent_penalties: Dictionary to accumulate penalties
         tick_duration: Time step duration in seconds (0.2s)

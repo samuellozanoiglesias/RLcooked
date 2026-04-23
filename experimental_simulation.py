@@ -44,14 +44,14 @@ python experimental_simulation.py <map_nr> <game_version> [training_id] [checkpo
 
 Arguments:
   map_nr: Map name identifier
-  game_version: Game version (classic/classic_collision/competition) - controls both game logic and collision detection
+    game_version: Game version (classic/classic_collision/competition/competition_collision) - controls both game logic and collision detection
   training_id: Optional training identifier (auto-extracted from custom checkpoints if omitted)
   checkpoint_number: Optional checkpoint number (auto-extracted from custom checkpoints if omitted)
 
 Note: training_id and checkpoint_number are optional when using --custom_checkpoints 
       (defaults to "custom" and auto-extracts from first agent's checkpoint path)
       study_name is optional (if omitted, simulations saved directly under /simulations/ without study subfolder)
-      game_version="classic_collision" enables collision detection
+    game_version="classic_collision" or "competition_collision" enables collision detection
 
 For background execution:
 nohup python experimental_simulation.py <map_nr> <game_version> [training_id] [checkpoint_number] [options] > experimental_simulation.log 2>&1 &

@@ -6,6 +6,7 @@ import spoiled_broth.agent.base as base
 
 from spoiled_broth.world.tiles import COLOR_MAP, CHAR_MAP
 from spoiled_broth.ui.score import Score
+from spoiled_broth.maps.map_paths import get_map_txt_path
 
 from pathlib import Path
 
@@ -16,7 +17,7 @@ import random
 BASE_WALKING_SPEED = 30  # Base walking speed in pixels/second
 
 class SpoiledBroth(BaseGame):
-    def __init__(self, map_nr=None, grid_size=(8, 8), num_agents=2, seed=None, walking_speeds=None, cutting_speeds=None, cutting_time=3):
+    def __init__(self, map_nr=None, grid_size=(8, 8), num_agents=2, seed=None, walking_speeds=None, cutting_speeds=None, cutting_time=3, maps_folder=None, game_version=None):
         super().__init__()
         self.rng = random.Random(seed)
         if map_nr is None:
@@ -40,15 +41,10 @@ class SpoiledBroth(BaseGame):
         self.grid = Grid("grid", width, height, 16)
         maps_root = Path(__file__).parent / "maps"
         map_path_img = maps_root / f"{map_nr}.png"
-        map_path_txt = maps_root / f"{map_nr}.txt"
         map_path_img_nested = maps_root / "maps_png" / f"{map_nr}.png"
-        map_path_txt_nested = maps_root / "maps_txt" / f"{map_nr}.txt"
+        map_path_txt_nested = get_map_txt_path(map_nr, game_version=game_version, maps_folder=maps_folder)
 
-        if map_path_txt.exists():
-            # Legacy text location under spoiled_broth/maps
-            self.grid.init_from_text(map_path_txt, CHAR_MAP, self)
-        elif map_path_txt_nested.exists():
-            # Preferred text location under spoiled_broth/maps/maps_txt
+        if map_path_txt_nested.exists():
             self.grid.init_from_text(map_path_txt_nested, CHAR_MAP, self)
         elif map_path_img.exists():
             # Legacy image location under spoiled_broth/maps
@@ -58,7 +54,7 @@ class SpoiledBroth(BaseGame):
             self.grid.init_from_img(map_path_img_nested, COLOR_MAP, self)
         else:
             raise FileNotFoundError(
-                f"Map '{map_nr}' not found. Checked: {map_path_img}, {map_path_img_nested}, {map_path_txt}, {map_path_txt_nested}"
+                f"Map '{map_nr}' not found. Checked: {map_path_img}, {map_path_img_nested}, {map_path_txt_nested}"
             )
         self.score = Score()
         self.gameObjects['grid'] = self.grid

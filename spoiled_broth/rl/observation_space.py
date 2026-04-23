@@ -6,7 +6,7 @@ import pickle
 def get_tile_indices_by_type(game, tile_type):
     """
     Returns a list of (idx, x, y) for tiles of the given type.
-    tile_type: str, one of ['tomato_dispenser', 'plate_dispenser', 'cutting_board', 'delivery', 'counter']
+    tile_type: str, one of ['tomato_dispenser', 'pumpkin_dispenser', 'plate_dispenser', 'cutting_board', 'delivery', 'counter']
     """
     grid = game.grid
     indices = []
@@ -17,6 +17,8 @@ def get_tile_indices_by_type(game, tile_type):
         t = getattr(tile, '_type', None)
         item = getattr(tile, 'item', None)
         if tile_type == 'tomato_dispenser' and t == 3 and item == 'tomato':
+            indices.append((idx, x, y))
+        elif tile_type == 'pumpkin_dispenser' and t == 3 and item == 'pumpkin':
             indices.append((idx, x, y))
         elif tile_type == 'plate_dispenser' and t == 3 and item == 'plate':
             indices.append((idx, x, y))
@@ -507,39 +509,49 @@ def game_to_obs_vector_competition(game, agent_id, path_processor=None):
                     best_tile_xy = (x, y)
         
         # STEP 2: If accessible, calculate AVAILABILITY (considering other agents)
+        # Try all accessible tiles and pick the closest available one.
+        found_available = False
+        available_tile_idx = None
+        available_tile_xy = None
+        available_dist = None
+        available_path = None
+        for _idx, x, y in accessible_agent:
+            dist_with_agents, path_with_agents = get_distance_and_path(
+                path_processor, agent_pos, (x, y), agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=False
+            )
+            if dist_with_agents is not None and dist_with_agents >= 0:
+                if (not found_available) or (dist_with_agents < available_dist):
+                    found_available = True
+                    available_tile_idx = _idx
+                    available_tile_xy = (x, y)
+                    available_dist = dist_with_agents
+                    available_path = path_with_agents
+
         if best_tile_xy is not None:
             accessibility = 1.0
-            
-            # Store interaction target coordinates (for tile types, interaction target = destination)
-            interaction_target = best_tile_xy
-            
-            if path_processor.collision_enabled:
-                dist_with_agents, path_with_agents = get_distance_and_path(
-                    path_processor, agent_pos, best_tile_xy, agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=False
-                )
-                
-                if dist_with_agents is not None and dist_with_agents >= 0:
-                    availability = 1.0
-                    final_dist = dist_with_agents
-                    final_path = path_with_agents
-                else:
-                    availability = 0.0
-                    best_tile_idx = -1
-                    final_dist = min_dist_no_agents
-                    final_path = None
-            else:
+            if found_available:
+                # At least one tile is available, use the closest available one.
+                interaction_target = available_tile_xy
                 availability = 1.0
+                final_dist = available_dist
+                final_path = available_path
+                tile_idx_to_use = available_tile_idx
+            else:
+                # No available tile, but at least one is accessible.
+                interaction_target = best_tile_xy
+                availability = 0.0
+                tile_idx_to_use = -1
                 final_dist = min_dist_no_agents
                 _, final_path = get_distance_and_path(
                     path_processor, agent_pos, best_tile_xy, agent_id, game, 0.0, agent_walking_speed, force_ignore_agents=True
                 )
-            
+
             time_to_tile = (final_dist / agent_walking_speed + action_time) / normalization_factor
             considered_paths.append(final_path)
-            considered_tiles.append(best_tile_idx)
+            considered_tiles.append(tile_idx_to_use)
             considered_interaction_targets.append(interaction_target)
-            obs_vector.append(accessibility)  # 1.0 = accessible
-            obs_vector.append(availability)   # 1.0 = available, 0.0 = blocked by agents
+            obs_vector.append(accessibility)
+            obs_vector.append(availability)
             obs_vector.append(time_to_tile)
         else:
             # No accessible tile found

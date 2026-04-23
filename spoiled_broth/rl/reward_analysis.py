@@ -109,36 +109,49 @@ def get_rewards_competition(self, agent_events, agent_penalties, rewards_cfg, in
         effective_rewards_cfg = apply_reward_decay(rewards_cfg, episode, intermediate_reward_decay_cfg)
     
     pure_rewards = {agent_id: 0.0 for agent_id in self.agents}
+    reward_from_own_food_by_agent = {agent_id: 0.0 for agent_id in self.agents}
+    reward_from_other_food_by_agent = {agent_id: 0.0 for agent_id in self.agents}
+    support_reward_by_agent = {agent_id: 0.0 for agent_id in self.agents}
+
     for agent_id in self.agents:
-        # Pure rewards: apply specialization-based rewards/penalties
-        reward_from_own = (
+        # Reward from using the agent's own food type.
+        reward_from_own_food = (
             _get_specialized_reward_for_event(self, agent_id, "deliver", agent_events[agent_id]["deliver_own"], effective_rewards_cfg["deliver"])
             + _get_specialized_reward_for_event(self, agent_id, "salad", agent_events[agent_id]["salad_own"], effective_rewards_cfg["salad"])
             + _get_specialized_reward_for_event(self, agent_id, "cut", agent_events[agent_id]["cut_own"], effective_rewards_cfg["cut"])
-            + agent_events[agent_id]["counter"] * effective_rewards_cfg["counter"]  # No specialization for counter
             + _get_specialized_reward_for_event(self, agent_id, "raw_food", agent_events[agent_id]["raw_food_own"], effective_rewards_cfg["raw_food"])
+        )
+
+        # Support rewards not tied to food ownership competition.
+        support_reward = (
+            agent_events[agent_id]["counter"] * effective_rewards_cfg["counter"]
             + _get_specialized_reward_for_event(self, agent_id, "plate", agent_events[agent_id]["plate"], effective_rewards_cfg["plate"])
         )
 
-        reward_from_other = (
+        # Reward from using the other agent's food type.
+        reward_from_other_food = (
             _get_specialized_reward_for_event(self, agent_id, "deliver", agent_events[agent_id]["deliver_other"], effective_rewards_cfg["deliver"])
             + _get_specialized_reward_for_event(self, agent_id, "salad", agent_events[agent_id]["salad_other"], effective_rewards_cfg["salad"])
             + _get_specialized_reward_for_event(self, agent_id, "cut", agent_events[agent_id]["cut_other"], effective_rewards_cfg["cut"])
             + _get_specialized_reward_for_event(self, agent_id, "raw_food", agent_events[agent_id]["raw_food_other"], effective_rewards_cfg["raw_food"])
         )
 
-        penalty_from_other = 0
-        for other_agent_id in self.agents:
-            if other_agent_id == agent_id:
-                continue
-            penalty_from_other += (
-                agent_events[other_agent_id]["deliver_other"] * effective_rewards_cfg["deliver"]
-            )
+        reward_from_own_food_by_agent[agent_id] = reward_from_own_food
+        reward_from_other_food_by_agent[agent_id] = reward_from_other_food
+        support_reward_by_agent[agent_id] = support_reward
+
+    for agent_id in self.agents:
+        other_agents = [other_id for other_id in self.agents if other_id != agent_id]
+
+        # Third payoff term: points related to the OTHER agent using HIS own food.
+        # This mirrors the first term but for the opponent(s), and uses payoff_matrix as-is.
+        other_loss_from_own_food = sum(reward_from_own_food_by_agent[other_id] for other_id in other_agents)
 
         pure_rewards[agent_id] = (
-            self.payoff_matrix[0] * reward_from_own +
-            self.payoff_matrix[1] * reward_from_other +
-            self.payoff_matrix[2] * penalty_from_other
+            support_reward_by_agent[agent_id]
+            + self.payoff_matrix[0] * reward_from_own_food_by_agent[agent_id]
+            + self.payoff_matrix[1] * reward_from_other_food_by_agent[agent_id]
+            + self.payoff_matrix[2] * other_loss_from_own_food
         )
         self.cumulated_pure_rewards[agent_id] += pure_rewards[agent_id]
 

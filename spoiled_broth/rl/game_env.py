@@ -65,7 +65,15 @@ INTENT_TIME = TICK_DURATION  # 0.2s = 1 tick for pickup/delivery/put_down
 
 def init_game(agents, map_nr=1, grid_size=(8, 8), seed=None, game_mode="classic", walking_speeds=None, cutting_speeds=None):
     num_agents = len(agents)
-    game = SpoiledBroth(map_nr=map_nr, grid_size=grid_size, num_agents=num_agents, seed=seed, walking_speeds=walking_speeds, cutting_speeds=cutting_speeds)
+    game = SpoiledBroth(
+        map_nr=map_nr,
+        grid_size=grid_size,
+        num_agents=num_agents,
+        seed=seed,
+        walking_speeds=walking_speeds,
+        cutting_speeds=cutting_speeds,
+        game_version=game_mode,
+    )
     clickable_indices = game.clickable_indices
     # New action space: fixed action space for RL agents
     action_spaces = {
@@ -172,7 +180,7 @@ class GameEnv(ParallelEnv):
         # and observation space calculates paths online using PathProcessor + A*.
                     
         # Load the accessibility map for this map
-        self.accessibility_map = get_accessibility_map(map_nr)
+        self.accessibility_map = get_accessibility_map(map_nr, game_version=game_mode)
                     
         # Initialize path processing system
         self.path_processor = PathProcessor(map_nr, collision_enabled)

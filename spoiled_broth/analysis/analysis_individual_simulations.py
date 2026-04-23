@@ -1321,7 +1321,7 @@ def main():
     parser.add_argument('--cluster', type=str, default='cuenca',
                        help='Base cluster (default: cuenca)')
     parser.add_argument('--game_version', type=str, default='classic', 
-                       choices=['classic', 'competition', 'classic_collision'],
+                       choices=['classic', 'competition', 'classic_collision', 'competition_collision'],
                        help='Game version (default: classic)')
     parser.add_argument('--num_agents', type=int, default=2,
                        help='Number of agents in the simulation (default: 2)')

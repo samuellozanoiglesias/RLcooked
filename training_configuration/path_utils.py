@@ -6,6 +6,8 @@ Handles path generation and directory creation for training runs.
 
 import os
 
+from spoiled_broth.maps.map_paths import get_map_txt_path
+
 def generate_save_directory(local_path, game_version, num_agents, map_nr, init_folder, 
                            synergy_scaling_factor, specialization_penalty_scale, agent_to_train=None):
     """
@@ -46,7 +48,7 @@ def generate_save_directory(local_path, game_version, num_agents, map_nr, init_f
     return save_dir
 
 
-def get_map_grid_size(map_nr, maps_directory=None):
+def get_map_grid_size(map_nr, game_version=None, maps_folder=None):
     """
     Determine grid size from map file.
     
@@ -57,10 +59,7 @@ def get_map_grid_size(map_nr, maps_directory=None):
     Returns:
         tuple: (cols, rows) grid size
     """
-    if maps_directory is None:
-        maps_directory = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'spoiled_broth', 'maps', 'maps_txt')
-    
-    map_txt_path = os.path.join(maps_directory, f'{map_nr}.txt')
+    map_txt_path = get_map_txt_path(map_nr, game_version=game_version, maps_folder=maps_folder)
     if not os.path.exists(map_txt_path):
         raise FileNotFoundError(f"Map file {map_txt_path} not found.")
     

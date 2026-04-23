@@ -104,7 +104,7 @@ reward_weights, walking_speeds, cutting_speeds = setup_agent_configurations(
 pretrained_policies = parse_pretrained_policies(CHECKPOINT_PATHS, NUM_AGENTS, agent_to_train)
 
 # Get map grid size
-GRID_SIZE = get_map_grid_size(MAP_NR)
+GRID_SIZE = get_map_grid_size(MAP_NR, game_version=GAME_VERSION)
 
 # Calculate cooperation factor 
 cooperation_factor = get_cooperation_factor(MAP_NR)

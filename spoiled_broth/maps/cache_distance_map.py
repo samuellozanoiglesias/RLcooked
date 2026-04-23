@@ -11,6 +11,7 @@ import os
 import shutil
 import pickle
 import numpy as np
+from spoiled_broth.maps.map_paths import iter_maps_txt_dirs
 from engine.extensions.topDownGridWorld import a_star
 import glob
 from spoiled_broth.game import SpoiledBroth
@@ -179,10 +180,11 @@ if __name__ == "__main__":
 		shutil.rmtree(cache_dir)
 		print(f"  Deleted {cache_dir}")
 	os.makedirs(cache_dir, exist_ok=True)
-	print("[Distance Cache] Generating distance maps for all maps in spoiled_broth/maps/maps_txt/*.txt ...")
-	map_dir = os.path.join(os.path.dirname(__file__), "maps_txt")
-	map_files = glob.glob(os.path.join(map_dir, "*.txt"))
-	for map_file in map_files:
+	print("[Distance Cache] Generating distance maps for all named maps_txt_* folders ...")
+	map_files = []
+	for map_dir in iter_maps_txt_dirs():
+		map_files.extend(glob.glob(os.path.join(str(map_dir), "*.txt")))
+	for map_file in sorted(map_files):
 		# Extract map_id from filename (e.g., map_1.txt -> 1)
 		base = os.path.basename(map_file)
 		map_id = os.path.splitext(base)[0]
@@ -199,7 +201,11 @@ if __name__ == "__main__":
 				np.save(dummy_max_dist_path, np.array(100.0))  # Temporary placeholder
 			
 			grid_size = (len(open(map_file).readlines()[0].rstrip("\n")), len(open(map_file).readlines()))
-			game = SpoiledBroth(map_nr=map_id, grid_size=grid_size)
+			game = SpoiledBroth(
+				map_nr=map_id,
+				grid_size=grid_size,
+				maps_folder=os.path.basename(str(map_dir)).replace("maps_txt_", "", 1),
+			)
 			grid = game.grid
 			_ = load_or_compute_distance_map(game, grid, map_id)
 			print(f"    Done: distance_map_{map_id}.npz")

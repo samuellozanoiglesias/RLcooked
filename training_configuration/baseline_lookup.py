@@ -97,11 +97,19 @@ def lookup_solo_baseline(map_nr, walking_speeds, cutting_speeds, delivery_reward
     # Round speeds to avoid floating point precision issues
     abilities_tuple = tuple(round(s, 2) for s in abilities_tuple)
     
-    # Lookup baseline
+    # Lookup baseline. If the map is missing, use a conservative fallback anchor so
+    # synergy shaping remains usable for newly added maps.
     if map_nr not in BASELINE_LOOKUP:
-        raise KeyError(f"Map '{map_nr}' not found in BASELINE_LOOKUP. Available maps: {list(BASELINE_LOOKUP.keys())}")
-    
-    ha_deliveries = BASELINE_LOOKUP[map_nr]
+        fallback_map = "baseline_division_of_labor_large"
+        if fallback_map not in BASELINE_LOOKUP:
+            raise KeyError(f"Map '{map_nr}' not found in BASELINE_LOOKUP. Available maps: {list(BASELINE_LOOKUP.keys())}")
+        ha_deliveries = BASELINE_LOOKUP[fallback_map]
+        print(
+            f"Warning: Map '{map_nr}' not found in BASELINE_LOOKUP. "
+            f"Using fallback anchor '{fallback_map}' with HA deliveries={ha_deliveries}."
+        )
+    else:
+        ha_deliveries = BASELINE_LOOKUP[map_nr]
 
     # Predict deliveries via linear regression from HA and fixed-zero anchors.
     team_deliveries = _predict_team_deliveries(ha_deliveries, *abilities_tuple)

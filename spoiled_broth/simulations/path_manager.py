@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, Tuple, Optional
 
 from .simulation_config import SimulationConfig
+from spoiled_broth.maps.map_paths import get_map_txt_path
 
 
 class PathManager:
@@ -149,7 +150,7 @@ class PathManager:
             'training_simulations_path': training_simulations_path,
             'checkpoint_simulations_dir': checkpoint_simulations_dir,
             'path_root': project_root / "spoiled_broth",
-            'map_txt_path': project_root / "spoiled_broth" / "maps" / "maps_txt" / f"{map_nr}.txt",
+            'map_txt_path': get_map_txt_path(map_nr, game_version=game_version),
             'config_path': training_path / "config.txt",
             'checkpoint_number': checkpoint_number,  # Keep original checkpoint_number
             'checkpoint_number_for_folder': checkpoint_number_for_folder  # Actual number used for folder name
