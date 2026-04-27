@@ -181,10 +181,11 @@ if __name__ == "__main__":
 		print(f"  Deleted {cache_dir}")
 	os.makedirs(cache_dir, exist_ok=True)
 	print("[Distance Cache] Generating distance maps for all named maps_txt_* folders ...")
-	map_files = []
+	map_entries = []
 	for map_dir in iter_maps_txt_dirs():
-		map_files.extend(glob.glob(os.path.join(str(map_dir), "*.txt")))
-	for map_file in sorted(map_files):
+		for map_file in glob.glob(os.path.join(str(map_dir), "*.txt")):
+			map_entries.append((str(map_dir), map_file))
+	for map_dir, map_file in sorted(map_entries, key=lambda item: item[1]):
 		# Extract map_id from filename (e.g., map_1.txt -> 1)
 		base = os.path.basename(map_file)
 		map_id = os.path.splitext(base)[0]
@@ -204,11 +205,11 @@ if __name__ == "__main__":
 			game = SpoiledBroth(
 				map_nr=map_id,
 				grid_size=grid_size,
-				maps_folder=os.path.basename(str(map_dir)).replace("maps_txt_", "", 1),
+				maps_folder=os.path.basename(map_dir).replace("maps_txt_", "", 1),
 			)
 			grid = game.grid
 			_ = load_or_compute_distance_map(game, grid, map_id)
 			print(f"    Done: distance_map_{map_id}.npz")
 		except Exception as e:
-			print(f"    Failed for map {map_id}: {e}")
+			print(f"    Failed for map {map_id}: {e!r}")
 	print("[Distance Cache] All done.")
