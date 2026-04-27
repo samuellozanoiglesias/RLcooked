@@ -1,10 +1,12 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+# Matches __pycache__ at any depth
+**/__pycache__/
 
-# C extensions
-*.so
+# Matches these extensions in any subfolder
+**/*.py[cod]
+**/*$py.class
+
+# Matches C extensions in any subfolder
+**/*.so
 
 # Distribution / packaging
 .Python
