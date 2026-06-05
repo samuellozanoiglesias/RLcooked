@@ -109,7 +109,18 @@ def generate_individual_training_plots(analysis_results):
         # Generate individual training plots
         generate_individual_basic_metrics_plots(training_df, individual_paths, training_id, lr, attitude_key, smoothing_factor)
         generate_individual_combined_reward_plots(training_df, individual_paths, training_id, lr, attitude_key, smoothing_factor)
-        generate_individual_combined_plots(training_df, individual_paths, training_id, lr, attitude_key, rewarded_metrics_1, rewarded_metrics_2, movement_metrics_1, movement_metrics_2, smoothing_factor)
+        generate_individual_combined_plots(
+            training_df,
+            individual_paths,
+            training_id,
+            lr,
+            attitude_key,
+            rewarded_metrics_1=rewarded_metrics_1,
+            rewarded_metrics_2=rewarded_metrics_2,
+            movement_metrics_1=movement_metrics_1,
+            movement_metrics_2=movement_metrics_2,
+            smoothing_factor=smoothing_factor,
+        )
     
     print(f"Individual training plots saved to: {individual_smoothed_dir}")
 

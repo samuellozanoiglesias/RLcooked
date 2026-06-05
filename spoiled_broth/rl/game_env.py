@@ -98,6 +98,7 @@ class GameEnv(ParallelEnv):
     def __init__(
         self, 
         reward_weights=None, 
+        num_agents=None,
         map_nr=1, 
         game_mode="classic",
         inner_seconds=180,
@@ -188,9 +189,11 @@ class GameEnv(ParallelEnv):
         # Store collision flag for reward calculations
         self.collision_enabled = collision_enabled
 
-        # Determine agent IDs from reward_weights or default to two agents
+        # Determine agent IDs from reward_weights or an explicit agent-count override.
         if reward_weights is not None:
             self.possible_agents = list(reward_weights.keys())
+        elif num_agents is not None:
+            self.possible_agents = [f"ai_rl_{i}" for i in range(1, num_agents + 1)]
         else:
             self.possible_agents = ["ai_rl_1", "ai_rl_2"]
         self.agents = self.possible_agents[:]

@@ -9,7 +9,7 @@ Usage:
 nohup python analysis_competition.py <map_nr> [<optional>] > analysis_competition.log 2>&1 &
 
 Example:
-nohup python analysis_competition.py baseline_competition --cluster cuenca --smoothing-factor 15 > analysis_competition.log 2>&1 &
+nohup python analysis_competition.py baseline_competition --game_type competition_collision --cluster brigit --init_type empty_init --smoothing_factor 15 > analysis_competition.log 2>&1 &
 """
 
 import sys
@@ -90,6 +90,13 @@ def main():
     """Main execution function."""
     parser = setup_argument_parser('competition')
     args = parser.parse_args()
+
+    allowed_game_types = {'competition', 'competition_collision'}
+    if args.game_type not in allowed_game_types:
+        parser.error(
+            f"Invalid --game_type '{args.game_type}' for analysis_competition.py. "
+            f"Allowed values: {', '.join(sorted(allowed_game_types))}."
+        )
     
     print(f"Starting competition experiment analysis...")
     print(f"Map: {args.map_name}")

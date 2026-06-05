@@ -8,5 +8,5 @@
 #SBATCH --error=tar-%x-%j.err
 
 # Create the tar archive
-tar -cvf /mnt/lustre/home/samuloza/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/2d_grid_abilities_encouraged_map.tar \
-/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_*
+tar -cvf /mnt/lustre/home/samuloza/data/samuel_lozano/cooked/pretraining_competition.tar \
+/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/pretraining

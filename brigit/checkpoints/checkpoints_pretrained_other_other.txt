@@ -1,0 +1,6 @@
+policy_ai_rl_1
+final
+/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/pretraining/competition_collision/empty_init/map_baseline_competition/synergy_0/specialized_0/Training_2026-04-28_18-21-03-other_ai1/
+policy_ai_rl_2
+final
+/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/pretraining/competition_collision/empty_init/map_baseline_competition/synergy_0/specialized_0/Training_2026-04-28_18-21-35-other_ai2/

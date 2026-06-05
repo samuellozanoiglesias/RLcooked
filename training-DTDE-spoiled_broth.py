@@ -57,7 +57,7 @@ ENABLE_REWARD_DECAY_ARG = str(sys.argv[19]).lower() if len(sys.argv) > 19 else "
 COLLISION_HARSHNESS = float(sys.argv[20]) if len(sys.argv) > 20 else 2.0
 
 # Entropy coefficient
-ENTROPY_COEF = float(sys.argv[21]) if len(sys.argv) > 21 else 0.01
+ENTROPY_COEF = float(sys.argv[21]) if len(sys.argv) > 21 else 0.001
 
 # Handle single agent training
 agent_to_train = 1
@@ -79,6 +79,14 @@ validate_configuration(NUM_AGENTS, SYNERGY_SCALING_FACTOR, agent_to_train)
 
 # Parse input file for agent parameters
 agent_params = parse_input_file(INPUT_PATH)
+
+expected_agent_keys = [f"alpha_{i}" for i in range(1, NUM_AGENTS + 1)]
+missing_agent_keys = [key for key in expected_agent_keys if key not in agent_params]
+if missing_agent_keys:
+    raise ValueError(
+        f"Input file '{INPUT_PATH}' does not contain enough agent rows for NUM_AGENTS={NUM_AGENTS}. "
+        f"Missing keys: {', '.join(missing_agent_keys)}"
+    )
 
 # Get cluster configuration
 cluster_config = get_cluster_config(CLUSTER)

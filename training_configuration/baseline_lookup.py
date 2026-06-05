@@ -9,50 +9,62 @@ Contains baseline performance data and lookup functions.
 # 1. Add map name as key if not already present
 # 2. Set the HA (1.0, 1.0, 1.0, 1.0) delivery count for that map
 BASELINE_LOOKUP = {
-    "baseline_division_of_labor_large": 16.0,
+    "baseline_division_of_labor_large": 18.0,
     "semiencouraged_division_of_labor_large": 10.0,
     "1-semiencouraged_division_of_labor_large": 10.0,
     "2-semiencouraged_division_of_labor_large": 10.0,
-    "d5_encouraged_division_of_labor_large": 13.0,
-    "d4_encouraged_division_of_labor_large": 12.0,
-    "d3_encouraged_division_of_labor_large": 11.0,
-    "d2_encouraged_division_of_labor_large": 10.0,
-    "d1_encouraged_division_of_labor_large": 9.0,
-    "m7_encouraged_division_of_labor_large": 13.0,
-    "m6_encouraged_division_of_labor_large": 15.0,
+    "d5_encouraged_division_of_labor_large": 14.0,
+    "d4_encouraged_division_of_labor_large": 16.0,
+    "d3_encouraged_division_of_labor_large": 14.0,
+    "d2_encouraged_division_of_labor_large": 12.0,
+    "d1_encouraged_division_of_labor_large": 11.0,
+    "d1_encouraged_division_of_labor_large_random_positions": 11.0,
+    "m7_encouraged_division_of_labor_large": 15.0,
+    "m6_encouraged_division_of_labor_large": 16.0,
     "m5_encouraged_division_of_labor_large": 14.0,
-    "m4_encouraged_division_of_labor_large": 12.0,
-    "m3_encouraged_division_of_labor_large": 11.0,
-    "m2_encouraged_division_of_labor_large": 10.0,
-    "m1_encouraged_division_of_labor_large": 9.0,
-    "encouraged_division_of_labor_large": 8.0,
-    "a1_encouraged_division_of_labor_large": 7.0,
-    "a2_encouraged_division_of_labor_large": 6.0,
-    "a3_encouraged_division_of_labor_large": 5.0,
-    "a4_encouraged_division_of_labor_large": 4.0,
-    "a5_encouraged_division_of_labor_large": 3.0,
+    "m4_encouraged_division_of_labor_large": 13.0,
+    "m3_encouraged_division_of_labor_large": 12.0,
+    "m2_encouraged_division_of_labor_large": 11.0,
+    "m1_encouraged_division_of_labor_large": 10.0,
+    "m1_encouraged_division_of_labor_large_random_positions": 10.0,
+    "encouraged_division_of_labor_large": 10.0,
+    "encouraged_division_of_labor_large_random_positions": 10.0,
+    "a1_encouraged_division_of_labor_large": 9.0,
+    "a2_encouraged_division_of_labor_large": 8.0,
+    "a2_encouraged_division_of_labor_large_random_positions": 8.0,
+    "a3_encouraged_division_of_labor_large": 6.0,
+    "a4_encouraged_division_of_labor_large": 5.0,
+    "a5_encouraged_division_of_labor_large": 4.0,
     "1-encouraged_division_of_labor_large": 3.0,
     "2-encouraged_division_of_labor_large": 2.0,
     "3-encouraged_division_of_labor_large": 1.0,
 }
 
-# Ability tuples are handled as (cut1, walk1, cut2, walk2)
-HA_ANCHOR_ABILITIES = (1.0, 1.0, 1.0, 1.0)
-ZERO_ANCHOR_ABILITIES = (1.0, 0.1, 0.1, 1.0)
+# Ability tuples are handled as (cut1, walk1, cut2, walk2, ...)
 
-def _team_ability_feature(cut1, walk1, cut2, walk2):
+def _team_ability_feature(*abilities):
     """Feature used by linear baseline regression.
 
     We use walk*cut per agent to capture that both abilities are needed,
-    then sum both agents' terms.
+    then sum all agents' terms.
     """
-    return (cut1 * walk1) + (cut2 * walk2)
+    if len(abilities) % 2 != 0:
+        raise ValueError("Abilities must contain cut/walk pairs")
 
-def _predict_team_deliveries(ha_deliveries, cut1, walk1, cut2, walk2):
+    return sum(
+        abilities[i] * abilities[i + 1]
+        for i in range(0, len(abilities), 2)
+    )
+
+def _predict_team_deliveries(ha_deliveries, abilities):
     """Predict team deliveries from two anchor points via a linear model."""
-    x_ha = _team_ability_feature(*HA_ANCHOR_ABILITIES)
-    x_zero = _team_ability_feature(*ZERO_ANCHOR_ABILITIES)
-    x = _team_ability_feature(cut1, walk1, cut2, walk2)
+    num_agents = len(abilities) // 2
+    ha_abilities = tuple([1.0, 1.0] * num_agents)
+    zero_abilities = tuple([1.0, 0.1] * num_agents)
+
+    x_ha = _team_ability_feature(*ha_abilities)
+    x_zero = _team_ability_feature(*zero_abilities)
+    x = _team_ability_feature(*abilities)
 
     if x_ha == x_zero:
         raise ValueError("Invalid regression anchors: identical feature values")
@@ -82,17 +94,16 @@ def lookup_solo_baseline(map_nr, walking_speeds, cutting_speeds, delivery_reward
             solo_baselines_dict: {agent_id: individual_baseline_reward}
             team_baseline: sum of individual baseline rewards
     """
-    if num_agents != 2:
-        raise ValueError("Baseline lookup currently only supports 2 agents")
+    if num_agents < 1:
+        raise ValueError("Baseline lookup requires at least 1 agent")
     
     # Extract abilities in sorted agent order as (cut1, walk1, cut2, walk2)
     agent_ids = sorted(walking_speeds.keys())
-    abilities_tuple = tuple([
-        cutting_speeds[agent_ids[0]],
-        walking_speeds[agent_ids[0]],
-        cutting_speeds[agent_ids[1]],
-        walking_speeds[agent_ids[1]],
-    ])
+    abilities_tuple = tuple(
+        value
+        for agent_id in agent_ids
+        for value in (cutting_speeds[agent_id], walking_speeds[agent_id])
+    )
     
     # Round speeds to avoid floating point precision issues
     abilities_tuple = tuple(round(s, 2) for s in abilities_tuple)
@@ -112,7 +123,7 @@ def lookup_solo_baseline(map_nr, walking_speeds, cutting_speeds, delivery_reward
         ha_deliveries = BASELINE_LOOKUP[map_nr]
 
     # Predict deliveries via linear regression from HA and fixed-zero anchors.
-    team_deliveries = _predict_team_deliveries(ha_deliveries, *abilities_tuple)
+    team_deliveries = _predict_team_deliveries(ha_deliveries, abilities_tuple)
     team_baseline = team_deliveries * delivery_reward
     
     # Split baseline among agents proportionally to their competence

@@ -1,5 +1,5 @@
 WWWXXXWWW
-W1     2W
+W       W
 W MMMMM W
 B MWWWM B
 T MWWWM T

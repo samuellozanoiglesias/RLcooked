@@ -103,17 +103,24 @@ class CooperativeAnalyzer:
         # Define hardcoded map list for 2D grid analysis (Y-axis)
         self.map_names = [
             'baseline_division_of_labor_large',
+            #'m7_encouraged_division_of_labor_large',
+            #'m6_encouraged_division_of_labor_large',
+            #'m5_encouraged_division_of_labor_large',
+            #'m4_encouraged_division_of_labor_large',
+            #'m3_encouraged_division_of_labor_large',
+            #'m2_encouraged_division_of_labor_large',
+            #'m1_encouraged_division_of_labor_large',
+            'd5_encouraged_division_of_labor_large',
             'd4_encouraged_division_of_labor_large',
+            'd3_encouraged_division_of_labor_large',
             'd2_encouraged_division_of_labor_large',
             'd1_encouraged_division_of_labor_large',
-            'm7_encouraged_division_of_labor_large',
-            'm6_encouraged_division_of_labor_large',
-            'm5_encouraged_division_of_labor_large',
-            'm4_encouraged_division_of_labor_large',
-            'm3_encouraged_division_of_labor_large',
-            'm2_encouraged_division_of_labor_large',
-            'm1_encouraged_division_of_labor_large',
             'encouraged_division_of_labor_large',
+            #'encouraged_division_of_labor_large_random_positions',
+            'a1_encouraged_division_of_labor_large',
+            'a2_encouraged_division_of_labor_large',
+            'a3_encouraged_division_of_labor_large',
+            'a4_encouraged_division_of_labor_large',
             'a5_encouraged_division_of_labor_large',
             #'1-encouraged_division_of_labor_large',
             #'2-encouraged_division_of_labor_large',
@@ -125,19 +132,36 @@ class CooperativeAnalyzer:
         # Each entry is explicit: (id, label, (walk1, cut1, walk2, cut2))
         self.ability_config_definitions = [
             ('1.0', '1.0', (1.0, 1.0, 1.0, 1.0)),
-            #('0.9', '0.9', (0.9, 1.0, 1.0, 0.9)),
-            #('0.8', '0.8', (0.8, 1.0, 1.0, 0.8)),
+            #('1.0-0.2', '0.2|1.0', (0.2, 1.0, 1.0, 1.0)),
+            ('0.9', '0.9', (0.9, 1.0, 1.0, 0.9)),
+            ('0.8', '0.8', (0.8, 1.0, 1.0, 0.8)),
+            #('0.7-0.4', '0.7|0.4', (0.7, 1.0, 1.0, 0.4)),
             ('0.7', '0.7', (0.7, 1.0, 1.0, 0.7)),
-            #('0.6', '0.6', (0.6, 1.0, 1.0, 0.6)),
+            ('0.6', '0.6', (0.6, 1.0, 1.0, 0.6)),
             #('0.55', '0.55', (0.55, 1.0, 1.0, 0.55)),
-            #('0.5', '0.5', (0.5, 1.0, 1.0, 0.5)),
+            ('0.5', '0.5', (0.5, 1.0, 1.0, 0.5)),
             #('0.45', '0.45', (0.45, 1.0, 1.0, 0.45)),
-            #('0.4', '0.4', (0.4, 1.0, 1.0, 0.4)),
-            #('0.3', '0.3', (0.3, 1.0, 1.0, 0.3)),
-            #('0.2', '0.2', (0.2, 1.0, 1.0, 0.2)),
-            #('0.1', '0.1', (0.1, 1.0, 1.0, 0.1)),
-            ('0.4-0.2', '0.4,1.0 | 1.0,0.2', (0.4, 1.0, 1.0, 0.2)),
+            ('0.4', '0.4', (0.4, 1.0, 1.0, 0.4)),
+            #('0.4-0.2', '0.4|0.2', (0.4, 1.0, 1.0, 0.2)),
+            ('0.3', '0.3', (0.3, 1.0, 1.0, 0.3)),
+            ('0.2', '0.2', (0.2, 1.0, 1.0, 0.2)),
+            ('0.1', '0.1', (0.1, 1.0, 1.0, 0.1)),
         ]
+
+        ### SPEEDS
+        #self.ability_config_definitions = [
+        #    ('0.6', '0.6', (0.6, 1.0, 1.0, 0.3)),
+        #    ('0.58', '0.58', (0.58, 1.0, 1.0, 0.3)),
+        #    ('0.56', '0.56', (0.56, 1.0, 1.0, 0.3)),
+        #    ('0.54', '0.54', (0.54, 1.0, 1.0, 0.3)),
+        #    ('0.52', '0.52', (0.52, 1.0, 1.0, 0.3)),
+        #    ('0.5', '0.5', (0.5, 1.0, 1.0, 0.3)),
+        #    ('0.48', '0.48', (0.48, 1.0, 1.0, 0.3)),
+        #    ('0.46', '0.46', (0.46, 1.0, 1.0, 0.3)),
+        #    ('0.44', '0.44', (0.44, 1.0, 1.0, 0.3)),
+        #    ('0.42', '0.42', (0.42, 1.0, 1.0, 0.3)),
+        #    ('0.4', '0.4', (0.4, 1.0, 1.0, 0.3)),
+        #]
 
         self.ability_configs = [config_id for config_id, _, _ in self.ability_config_definitions]
         self.ability_config_labels = {config_id: label for config_id, label, _ in self.ability_config_definitions}
@@ -180,13 +204,17 @@ class CooperativeAnalyzer:
         Examples:
             'baseline_division_of_labor_large' -> 'baseline'
             'encouraged_division_of_labor_large' -> 'encouraged'
+            'encouraged_division_of_labor_large_random_positions' -> 'encouraged_random_positions'
             'forced_division_of_labor_large' -> 'forced'
         """
-        # Common pattern: {prefix}_division_of_labor_large
-        if '_division_of_labor' in map_name:
-            return map_name.split('_division_of_labor')[0]
-        # Fallback: use first word
-        return map_name.split('_')[0]
+        short_name = map_name
+        if '_division_of_labor_large' in short_name:
+            short_name = short_name.replace('_division_of_labor_large', '')
+        elif '_division_of_labor' in short_name:
+            short_name = short_name.replace('_division_of_labor', '')
+
+        short_name = short_name.strip('_')
+        return short_name if short_name else map_name
 
     def _format_ability_config(self, ability_config: str) -> str:
         """Format an ability config for logging and labels."""
@@ -788,11 +816,11 @@ class ColorGridPlotter:
         baseline_data = data[data['condition'] == baseline_condition]
         
         if len(baseline_data) == 0:
-            print(f"Warning: No global baseline data found for condition {baseline_condition}")
-            return performance_diffs
-            
-        baseline_deliveries = baseline_data['total_deliveries'].mean()
-        print(f"Global baseline ({baseline_condition}): {baseline_deliveries:.2f} deliveries")
+            print(f"Warning: No global baseline data found for condition {baseline_condition}. Using 0.0 baseline.")
+            baseline_deliveries = 0.0
+        else:
+            baseline_deliveries = baseline_data['total_deliveries'].mean()
+            print(f"Global baseline ({baseline_condition}): {baseline_deliveries:.2f} deliveries")
         
         # Calculate differences for all map/ability combinations
         for map_name in self.map_names:
@@ -832,11 +860,11 @@ class ColorGridPlotter:
             baseline_data = data[data['condition'] == baseline_condition]
             
             if len(baseline_data) == 0:
-                print(f"Warning: No row baseline data found for condition {baseline_condition}")
-                performance_diffs[map_short] = {ability_config: 0.0 for ability_config in self.ability_configs}
-                continue
-                
-            baseline_deliveries = baseline_data['total_deliveries'].mean()
+                print(f"Warning: No row baseline data found for condition {baseline_condition}. Using 0.0 baseline.")
+                baseline_deliveries = 0.0
+            else:
+                baseline_deliveries = baseline_data['total_deliveries'].mean()
+
             performance_diffs[map_short] = {}
             
             for ability_config in self.ability_configs:
@@ -900,9 +928,14 @@ class ColorGridPlotter:
     
     def _extract_map_short_name(self, map_name: str) -> str:
         """Extract a short identifier from the full map name."""
-        if '_division_of_labor' in map_name:
-            return map_name.split('_division_of_labor')[0]
-        return map_name.split('_')[0]
+        short_name = map_name
+        if '_division_of_labor_large' in short_name:
+            short_name = short_name.replace('_division_of_labor_large', '')
+        elif '_division_of_labor' in short_name:
+            short_name = short_name.replace('_division_of_labor', '')
+
+        short_name = short_name.strip('_')
+        return short_name if short_name else map_name
 
     def _ability_condition_name(self, map_short: str, ability_config: str, collision_suffix: str) -> str:
         return f"{map_short}_{ability_config}{collision_suffix}"
@@ -925,11 +958,11 @@ class ColorGridPlotter:
         baseline_data = data[data['condition'] == baseline_condition]
         
         if len(baseline_data) == 0:
-            print(f"Warning: No global baseline data found for condition {baseline_condition}")
-            return specialization_diffs
-            
-        baseline_specialization = self._calculate_specialization_index(baseline_data)
-        print(f"Global baseline ({baseline_condition}): {baseline_specialization:.3f} specialization")
+            print(f"Warning: No global baseline data found for condition {baseline_condition}. Using 0.0 baseline.")
+            baseline_specialization = 0.0
+        else:
+            baseline_specialization = self._calculate_specialization_index(baseline_data)
+            print(f"Global baseline ({baseline_condition}): {baseline_specialization:.3f} specialization")
         
         # Calculate differences for all map/ability combinations
         for map_name in self.map_names:
@@ -969,11 +1002,11 @@ class ColorGridPlotter:
             baseline_data = data[data['condition'] == baseline_condition]
             
             if len(baseline_data) == 0:
-                print(f"Warning: No row baseline data found for condition {baseline_condition}")
-                specialization_diffs[map_short] = {ability_config: 0.0 for ability_config in self.ability_configs}
-                continue
-                
-            baseline_specialization = self._calculate_specialization_index(baseline_data)
+                print(f"Warning: No row baseline data found for condition {baseline_condition}. Using 0.0 baseline.")
+                baseline_specialization = 0.0
+            else:
+                baseline_specialization = self._calculate_specialization_index(baseline_data)
+
             specialization_diffs[map_short] = {}
             
             for ability_config in self.ability_configs:
@@ -1135,11 +1168,11 @@ class ColorGridPlotter:
         baseline_data = data[data['condition'] == baseline_condition]
 
         if len(baseline_data) == 0:
-            print(f"Warning: No global baseline data found for condition {baseline_condition}")
-            return ad_diffs
-
-        baseline_ad = self._calculate_action_differentiation_index(baseline_data)
-        print(f"Global baseline ({baseline_condition}): {baseline_ad:.3f} action differentiation")
+            print(f"Warning: No global baseline data found for condition {baseline_condition}. Using 0.0 baseline.")
+            baseline_ad = 0.0
+        else:
+            baseline_ad = self._calculate_action_differentiation_index(baseline_data)
+            print(f"Global baseline ({baseline_condition}): {baseline_ad:.3f} action differentiation")
 
         for map_name in self.map_names:
             map_short = self._extract_map_short_name(map_name)
@@ -1170,11 +1203,11 @@ class ColorGridPlotter:
             baseline_data = data[data['condition'] == baseline_condition]
 
             if len(baseline_data) == 0:
-                print(f"Warning: No row baseline data found for condition {baseline_condition}")
-                ad_diffs[map_short] = {ability_config: 0.0 for ability_config in self.ability_configs}
-                continue
+                print(f"Warning: No row baseline data found for condition {baseline_condition}. Using 0.0 baseline.")
+                baseline_ad = 0.0
+            else:
+                baseline_ad = self._calculate_action_differentiation_index(baseline_data)
 
-            baseline_ad = self._calculate_action_differentiation_index(baseline_data)
             ad_diffs[map_short] = {}
 
             for ability_config in self.ability_configs:
@@ -1263,16 +1296,34 @@ class ColorGridPlotter:
         ad_grid = self._create_2d_grid(ad_diffs)
         
         # Plot performance differences
-        self._plot_2d_grid(ax1, perf_grid, 'Total Deliveries Difference', 
-                          f'Performance Differences ({comparison_type.title()})')
+        self._plot_2d_grid(
+            ax1,
+            perf_grid,
+            'Total Deliveries Difference',
+            f'Performance Differences ({comparison_type.title()})',
+            fixed_max_abs=6.0,
+            cbar_ticks=[-4, -2, 0, 2, 4],
+        )
         
         # Plot specialization differences  
-        self._plot_2d_grid(ax2, spec_grid, 'Specialization Index Difference',
-                          f'Specialization Differences ({comparison_type.title()})')
+        self._plot_2d_grid(
+            ax2,
+            spec_grid,
+            'Specialization Index Difference',
+            f'Specialization Differences ({comparison_type.title()})',
+            fixed_max_abs=1.0,
+            cbar_ticks=[-1, -0.5, 0, 0.5, 1],
+        )
 
         # Plot action differentiation differences
-        self._plot_2d_grid(ax3, ad_grid, 'Action Differentiation Difference',
-                          f'Action Differentiation ({comparison_type.title()})')
+        self._plot_2d_grid(
+            ax3,
+            ad_grid,
+            'Action Differentiation Difference',
+            f'Action Differentiation ({comparison_type.title()})',
+            fixed_max_abs=1.0,
+            cbar_ticks=[-1, -0.5, 0, 0.5, 1],
+        )
         
         plt.tight_layout()
         
@@ -1304,7 +1355,15 @@ class ColorGridPlotter:
         
         return grid
     
-    def _plot_2d_grid(self, ax, grid: np.ndarray, metric_label: str, title: str):
+    def _plot_2d_grid(
+        self,
+        ax,
+        grid: np.ndarray,
+        metric_label: str,
+        title: str,
+        fixed_max_abs: Optional[float] = None,
+        cbar_ticks: Optional[List[float]] = None,
+    ):
         """Plot a 2D color grid on the given axis.
         
         Args:
@@ -1318,6 +1377,10 @@ class ColorGridPlotter:
         is_action_diff = 'Action Differentiation' in metric_label
 
         max_abs_diff = np.max(np.abs(grid))
+        if max_abs_diff == 0:
+            max_abs_diff = 1.0
+        if fixed_max_abs is not None:
+            max_abs_diff = fixed_max_abs
         if is_specialization or is_action_diff:
             # Orange-white-green: negative = less specialised/differentiated, positive = more
             cmap = plt.cm.RdYlGn
@@ -1342,6 +1405,8 @@ class ColorGridPlotter:
         
         # Add colorbar
         cbar = plt.colorbar(im, ax=ax, shrink=0.8)
+        if cbar_ticks is not None:
+            cbar.set_ticks(cbar_ticks)
         cbar.set_label(metric_label, fontsize=10)
         
         # Add text annotations

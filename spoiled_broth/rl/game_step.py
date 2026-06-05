@@ -63,10 +63,11 @@ def log_dispenser_action(agent_id, holding_item, new_holding_item, agent_events,
             agent_events[agent_id]["plate"] += 1
     else: 
         if own_food is not None:
-            if new_holding_item == own_food:
-                agent_events[agent_id]["raw_food_own"] += 1
-            else:
-                agent_events[agent_id]["raw_food_other"] += 1
+            if holding_item is None or holding_item != new_holding_item:
+                if new_holding_item == own_food:
+                    agent_events[agent_id]["raw_food_own"] += 1
+                else:
+                    agent_events[agent_id]["raw_food_other"] += 1
         else:
             if holding_item is None or holding_item != new_holding_item:
                 agent_events[agent_id]["raw_food"] += 1
@@ -76,7 +77,7 @@ def log_counter_action(agent_id, holding_item, new_holding_item, new_tile_item, 
     """Log counter action for analysis."""
     valid_salad_items = ["tomato_salad", "pumpkin_salad", "cabbage_salad"]
     if own_food is not None:
-        if new_holding_item is None and new_tile_item == f"{own_food}_salad":
+        if holding_item != new_tile_item and new_holding_item is None and new_tile_item == f"{own_food}_salad":
             agent_events[agent_id]["salad_own"] += 1
         elif holding_item != new_tile_item and new_tile_item in valid_salad_items and new_holding_item is None:
             agent_events[agent_id]["salad_other"] += 1

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=training_RLLIB
+#SBATCH --job-name=random_positions_encouraged_training_1.35_0.25
 #SBATCH -t 30-00:00:00
 #SBATCH --partition=gpu
 #SBATCH --qos=qos_gpu_long
@@ -25,12 +25,15 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/RLcooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NRS=(a5_encouraged_division_of_labor_large)  # List of maps to run
+MAP_NRS=(d1_encouraged_division_of_labor_large_random_positions
+        encouraged_division_of_labor_large_random_positions
+        m1_encouraged_division_of_labor_large_random_positions
+        a2_encouraged_division_of_labor_large_random_positions)  # List of maps to run
 LR=3e-4
 GAME_VERSIONS=(classic_collision)  # List of game versions to run
 NUM_AGENTS=2
 NUM_EPOCHS=1000  # Number of training epochs
-SEEDS=(0 10 20 30)  # Different random seeds for runs
+SEEDS=(0 10 20)  # Different random seeds for runs
 REWARDS_ON_DELIVERY_ONLY=False  # Whether to use rewards on delivery only
 RANDOM_INITIAL_STATE=False  # Whether to randomize initial state
 AGENTS_TO_TRAIN=("")  # Specify which agent to train when NUM_AGENTS=1 (e.g., "1" for agent 1, "2" for agent 2)
@@ -47,41 +50,54 @@ ACTIVATE_CHECKPOINTS=False  # Set to False to disable checkpoint loading
 # Entropy coefficient for training
 ENTROPY_COEF=0.001  # Default value, can be changed
 
-# Define arrays for angles and seeds
-ANGLE_PAIRS=("0 0")
+# Define arrays for agent angle vectors and speeds
+ANGLE_PAIRS=("0 0")  # Format: "angle_agent_1 angle_agent_2 ... angle_agent_N"
 
-# Define specific speed pairs
-# Format: "cut_speed1,walk_speed1 cut_speed2,walk_speed2"
+# Define agent speed vectors
+# Format: "cut_speed_1,walk_speed_1 cut_speed_2,walk_speed_2 ..."
+#SPEED_PAIRS=(
+#    "1.0,1.0 1.0,1.0"
+#    "1.0,0.2 1.0,1.0"
+#    "1.0,0.7 0.4,1.0"
+#    "1.0,0.4 0.2,1.0"
+#)
+
 SPEED_PAIRS=(
-    #"1.0,1.0 1.0,1.0"
-    "1.0,0.9 0.9,1.0"
-    "1.0,0.8 0.8,1.0"
+    "1.0,1.0 1.0,1.0"
+    #"1.0,0.9 0.9,1.0"
+    #"1.0,0.8 0.8,1.0"
     #"1.0,0.7 0.7,1.0"
-    "1.0,0.6 0.6,1.0"
-    "1.0,0.5 0.5,1.0"
-    "1.0,0.4 0.4,1.0"
-    "1.0,0.45 0.45,1.0"
-    "1.0,0.55 0.55,1.0"
-    #"1.0,0.4 0.2,1.0"
-    "1.0,0.3 0.3,1.0"
-    "1.0,0.2 0.2,1.0"
-    "1.0,0.1 0.1,1.0"
-    #"1.0,1.0 0.4,1.0"
-    #"1.0,0.9 0.8,1.0"
+    #"1.0,0.6 0.6,1.0"
+    #"1.0,0.5 0.5,1.0"
+    #"1.0,0.4 0.4,1.0"
+    #"1.0,0.3 0.3,1.0"
+    #"1.0,0.2 0.2,1.0"
+    #"1.0,0.1 0.1,1.0"
 )
 
+#SPEED_PAIRS=(
+#    "1.0,0.58 0.3,1.0"
+#    "1.0,0.56 0.3,1.0"
+#    "1.0,0.54 0.3,1.0"
+#    "1.0,0.52 0.3,1.0"
+#    "1.0,0.48 0.3,1.0"
+#    "1.0,0.46 0.3,1.0"
+#    "1.0,0.44 0.3,1.0"
+#    "1.0,0.42 0.3,1.0"
+#)
+
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)
-SYNERGY_SCALING_FACTOR_VALUES=(1.7)
+SYNERGY_SCALING_FACTOR_VALUES=(1.35)
 
 # Define specialization penalty scale values
-SPECIALIZATION_PENALTY_SCALE_VALUES=(0.05)
+SPECIALIZATION_PENALTY_SCALE_VALUES=(0.25)
 
 # Define theta values for exponential specialization penalty
 # penalty = base_reward * (exp(theta * (1.0 - speed)) - 1) * specialization_scale * event_count
-SPECIALIZATION_THETA_VALUES=(4.0)
+SPECIALIZATION_THETA_VALUES=(3.0)
 
 # Define kappa values (competence transformation parameter for team synergy distribution)
-KAPPA_VALUES=(3.0)
+KAPPA_VALUES=(4.8)
 
 # Define activate_synergy_positive values (whether to activate positive synergy signals)
 ACTIVATE_SYNERGY_POSITIVE_VALUES=(False)
@@ -96,7 +112,7 @@ ENABLE_REWARD_DECAY_VALUES=(False)
 COLLISION_HARSHNESS_VALUES=(10.0)
 
 # Maximum number of parallel jobs
-MAX_PARALLEL=8 # Set this to control how many jobs run in parallel
+MAX_PARALLEL=12 # Set this to control how many jobs run in parallel
 
 # Function to get checkpoint name based on map and game version
 get_checkpoint_name() {
@@ -131,6 +147,13 @@ get_checkpoint_name() {
     else
         echo "checkpoints/checkpoints_${map_prefix}_${game_version}_${speed_suffix}.txt"
     fi
+}
+
+sanitize_for_path() {
+    local value=$1
+    value=${value// /_}
+    value=${value//,/x}
+    echo "$value"
 }
 
 # Count number of jobs = seeds × angle pairs × speed pairs × eta values × specialization options × theta values × kappa values × collision penalties × game versions × maps × agents_to_train (if NUM_AGENTS=1) × activate_synergy_positive × enable_reward_decay × collision_harshness
@@ -202,6 +225,19 @@ wait_for_slot() {
     done
 }
 
+# Wait until the launched job has written something to its log file.
+# If the process exits before writing, continue after emitting a warning.
+wait_for_log_output() {
+    local log_file=$1
+    local job_pid=$2
+
+    while [ ! -s "$log_file" ]; do
+        sleep 1
+    done
+
+    return 0
+}
+
 # Create all job combinations first
 declare -a job_list=()
 if [ $NUM_AGENTS -eq 1 ]; then
@@ -244,15 +280,11 @@ if [ $NUM_AGENTS -eq 1 ]; then
         done
     done
 else
-    # Original loop without AGENTS_TO_TRAIN
+    # Multi-agent loop without AGENTS_TO_TRAIN
     for ANGLES in "${ANGLE_PAIRS[@]}"; do
-        read ANGLE1 ANGLE2 <<< "$ANGLES"
         for ENABLE_REWARD_DECAY in "${ENABLE_REWARD_DECAY_VALUES[@]}"; do
             for SEED in "${SEEDS[@]}"; do
                 for SPEEDS in "${SPEED_PAIRS[@]}"; do
-                    read AGENT1_SPEEDS AGENT2_SPEEDS <<< "$SPEEDS"
-                    IFS=',' read CUTTING_SPEED_1 WALKING_SPEED_1 <<< "$AGENT1_SPEEDS"
-                    IFS=',' read CUTTING_SPEED_2 WALKING_SPEED_2 <<< "$AGENT2_SPEEDS"
                     for COLLISION_PENALTY_VALUE in "${COLLISION_PENALTY[@]}"; do
                         for COUNTER_REWARD_VALUE in "${COUNTER_REWARD[@]}"; do
                             for KAPPA in "${KAPPA_VALUES[@]}"; do
@@ -263,7 +295,7 @@ else
                                                 for SPECIALIZATION_THETA in "${SPECIALIZATION_THETA_VALUES[@]}"; do
                                                     for GAME_VERSION in "${GAME_VERSIONS[@]}"; do
                                                         for MAP_NR in "${MAP_NRS[@]}"; do
-                                                            job_list+=("$ANGLE1 $ANGLE2 $CUTTING_SPEED_1 $WALKING_SPEED_1 $CUTTING_SPEED_2 $WALKING_SPEED_2 $SYNERGY_SCALING_FACTOR $SPEC_PENALTY_SCALE $SPECIALIZATION_THETA $KAPPA $COUNTER_REWARD_VALUE $SEED $GAME_VERSION $MAP_NR $COLLISION_PENALTY_VALUE $ACTIVATE_SYNERGY_POSITIVE $ENABLE_REWARD_DECAY $COLLISION_HARSHNESS")
+                                                            job_list+=("$ANGLES|$SPEEDS|$SYNERGY_SCALING_FACTOR|$SPEC_PENALTY_SCALE|$SPECIALIZATION_THETA|$KAPPA|$COUNTER_REWARD_VALUE|$SEED|$GAME_VERSION|$MAP_NR|$COLLISION_PENALTY_VALUE|$ACTIVATE_SYNERGY_POSITIVE|$ENABLE_REWARD_DECAY|$COLLISION_HARSHNESS")
                                                         done
                                                     done
                                                 done
@@ -282,6 +314,62 @@ fi
 
 echo "Total jobs to run: ${#job_list[@]}"
 
+# Generate input files once (overwrite) based on angles/speeds.
+declare -A input_generated=()
+if [ $NUM_AGENTS -eq 1 ]; then
+    for job in "${job_list[@]}"; do
+        read ANGLE1 ANGLE2 CUTTING_SPEED_1 WALKING_SPEED_1 CUTTING_SPEED_2 WALKING_SPEED_2 SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE SPECIALIZATION_THETA KAPPA COUNTER_REWARD_VALUE SEED AGENTS GAME_VERSION MAP_NR COLLISION_PENALTY_VALUE ACTIVATE_SYNERGY_POSITIVE ENABLE_REWARD_DECAY COLLISION_HARSHNESS <<< "$job"
+        if [ "$AGENTS" = "none" ]; then
+            AGENTS=""
+        fi
+
+        INPUT_FILE="inputs/input_${ANGLE1}_${ANGLE2}_c${CUTTING_SPEED_1}${CUTTING_SPEED_2}_w${WALKING_SPEED_1}${WALKING_SPEED_2}_agent${AGENTS}.txt"
+        if [ -z "${input_generated[$INPUT_FILE]+x}" ]; then
+            input_generated[$INPUT_FILE]=1
+
+            RAD1=$(python3 -c "import math; print(math.radians($ANGLE1))")
+            RAD2=$(python3 -c "import math; print(math.radians($ANGLE2))")
+            ALPHA1=$(python3 -c "import math; print(math.cos($RAD1))")
+            BETA1=$(python3 -c "import math; print(math.sin($RAD1))")
+            ALPHA2=$(python3 -c "import math; print(math.cos($RAD2))")
+            BETA2=$(python3 -c "import math; print(math.sin($RAD2))")
+
+            tmp_file="${INPUT_FILE}.tmp.$$"
+            printf '%s %s\n%s %s\n%s %s\n%s %s\n' "$ALPHA1" "$BETA1" "$WALKING_SPEED_1" "$CUTTING_SPEED_1" "$ALPHA2" "$BETA2" "$WALKING_SPEED_2" "$CUTTING_SPEED_2" > "$tmp_file"
+            mv "$tmp_file" "$INPUT_FILE"
+        fi
+    done
+else
+    for job in "${job_list[@]}"; do
+        IFS='|' read -r ANGLES SPEEDS SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE SPECIALIZATION_THETA KAPPA COUNTER_REWARD_VALUE SEED GAME_VERSION MAP_NR COLLISION_PENALTY_VALUE ACTIVATE_SYNERGY_POSITIVE ENABLE_REWARD_DECAY COLLISION_HARSHNESS <<< "$job"
+
+        ANGLE_TAG=$(sanitize_for_path "$ANGLES")
+        SPEED_TAG=$(sanitize_for_path "$SPEEDS")
+        INPUT_FILE="inputs/input_${ANGLE_TAG}_c${SPEED_TAG}.txt"
+        if [ -z "${input_generated[$INPUT_FILE]+x}" ]; then
+            input_generated[$INPUT_FILE]=1
+
+            read -r -a ANGLE_VALUES <<< "$ANGLES"
+            read -r -a SPEED_VALUES <<< "$SPEEDS"
+
+            tmp_file="${INPUT_FILE}.tmp.$$"
+            : > "$tmp_file"
+            for ((idx = 0; idx < ${#ANGLE_VALUES[@]}; idx++)); do
+                ANGLE_VALUE=${ANGLE_VALUES[$idx]}
+                SPEED_VALUE=${SPEED_VALUES[$idx]}
+                IFS=',' read -r CUTTING_SPEED WALKING_SPEED <<< "$SPEED_VALUE"
+
+                RADIAN_VALUE=$(python3 -c "import math; print(math.radians($ANGLE_VALUE))")
+                ALPHA_VALUE=$(python3 -c "import math; print(math.cos($RADIAN_VALUE))")
+                BETA_VALUE=$(python3 -c "import math; print(math.sin($RADIAN_VALUE))")
+
+                printf '%s %s\n%s %s\n' "$ALPHA_VALUE" "$BETA_VALUE" "$WALKING_SPEED" "$CUTTING_SPEED" >> "$tmp_file"
+            done
+            mv "$tmp_file" "$INPUT_FILE"
+        fi
+    done
+fi
+
 # Execute jobs with parallel limit
 job_count=0
 for job in "${job_list[@]}"; do
@@ -292,8 +380,21 @@ for job in "${job_list[@]}"; do
             AGENTS=""
         fi
     else
-        read ANGLE1 ANGLE2 CUTTING_SPEED_1 WALKING_SPEED_1 CUTTING_SPEED_2 WALKING_SPEED_2 SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE SPECIALIZATION_THETA KAPPA COUNTER_REWARD_VALUE SEED GAME_VERSION MAP_NR COLLISION_PENALTY_VALUE ACTIVATE_SYNERGY_POSITIVE ENABLE_REWARD_DECAY COLLISION_HARSHNESS <<< "$job"
+        IFS='|' read -r ANGLES SPEEDS SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE SPECIALIZATION_THETA KAPPA COUNTER_REWARD_VALUE SEED GAME_VERSION MAP_NR COLLISION_PENALTY_VALUE ACTIVATE_SYNERGY_POSITIVE ENABLE_REWARD_DECAY COLLISION_HARSHNESS <<< "$job"
         AGENTS=""  # Empty when not used
+
+        read -r -a ANGLE_VALUES <<< "$ANGLES"
+        read -r -a SPEED_VALUES <<< "$SPEEDS"
+
+        if [ ${#ANGLE_VALUES[@]} -ne $NUM_AGENTS ]; then
+            echo "Error: ANGLE_PAIRS entry '$ANGLES' has ${#ANGLE_VALUES[@]} values but NUM_AGENTS=$NUM_AGENTS"
+            exit 1
+        fi
+
+        if [ ${#SPEED_VALUES[@]} -ne $NUM_AGENTS ]; then
+            echo "Error: SPEED_PAIRS entry '$SPEEDS' has ${#SPEED_VALUES[@]} values but NUM_AGENTS=$NUM_AGENTS"
+            exit 1
+        fi
     fi
     
     # Wait for a slot to be available
@@ -301,15 +402,19 @@ for job in "${job_list[@]}"; do
     
     job_count=$((job_count + 1))
     
-    RAD1=$(python3 -c "import numpy as np; print(np.radians($ANGLE1))")
-    RAD2=$(python3 -c "import numpy as np; print(np.radians($ANGLE2))")
-    ALPHA1=$(python3 -c "import numpy as np; print(np.cos($RAD1))")
-    BETA1=$(python3 -c "import numpy as np; print(np.sin($RAD1))")
-    ALPHA2=$(python3 -c "import numpy as np; print(np.cos($RAD2))")
-    BETA2=$(python3 -c "import numpy as np; print(np.sin($RAD2))")
+    if [ $NUM_AGENTS -eq 1 ]; then
+        SPEED_KEY="${CUTTING_SPEED_1},${WALKING_SPEED_1} ${CUTTING_SPEED_2},${WALKING_SPEED_2}"
+        INPUT_FILE="inputs/input_${ANGLE1}_${ANGLE2}_c${CUTTING_SPEED_1}${CUTTING_SPEED_2}_w${WALKING_SPEED_1}${WALKING_SPEED_2}_agent${AGENTS}.txt"
+        LOG_FILE="logs/out_${ANGLE1}_${ANGLE2}_c${CUTTING_SPEED_1}${CUTTING_SPEED_2}_w${WALKING_SPEED_1}${WALKING_SPEED_2}_lr${LR}_${GAME_VERSION}_${MAP_NR}_seed_${SEED}_${RANDOM_INITIAL_STATE}_synergy${SYNERGY_SCALING_FACTOR}_spec${SPEC_PENALTY_SCALE}_theta${SPECIALIZATION_THETA}_kappa${KAPPA}_counter${COUNTER_REWARD_VALUE}_collision${COLLISION_PENALTY_VALUE}_activatesynergy${ACTIVATE_SYNERGY_POSITIVE}_rewarddecay${ENABLE_REWARD_DECAY}_harsh${COLLISION_HARSHNESS}_agent${AGENTS}.log"
+    else
+        SPEED_KEY="$SPEEDS"
+        ANGLE_TAG=$(sanitize_for_path "$ANGLES")
+        SPEED_TAG=$(sanitize_for_path "$SPEEDS")
+        INPUT_FILE="inputs/input_${ANGLE_TAG}_c${SPEED_TAG}.txt"
+        LOG_FILE="logs/out_${ANGLE_TAG}_c${SPEED_TAG}_lr${LR}_${GAME_VERSION}_${MAP_NR}_seed_${SEED}_synergy${SYNERGY_SCALING_FACTOR}_spec${SPEC_PENALTY_SCALE}_theta${SPECIALIZATION_THETA}_kappa${KAPPA}_agent${AGENTS}.log"
+    fi
 
     # Get checkpoint path based on map and game version
-    SPEED_KEY="${CUTTING_SPEED_1},${WALKING_SPEED_1} ${CUTTING_SPEED_2},${WALKING_SPEED_2}"
     if [ "$ACTIVATE_CHECKPOINTS" = "True" ]; then
         CHECKPOINT_PATHS=$(get_checkpoint_name "$MAP_NR" "$GAME_VERSION" "$SPEED_KEY")
     else
@@ -317,24 +422,15 @@ for job in "${job_list[@]}"; do
     fi
 
     if [ $NUM_AGENTS -eq 1 ]; then
-        INPUT_FILE="inputs/input_${ANGLE1}_${ANGLE2}_c${CUTTING_SPEED_1}${CUTTING_SPEED_2}_w${WALKING_SPEED_1}${WALKING_SPEED_2}_agent${AGENTS}.txt"
-        LOG_FILE="logs/out_${ANGLE1}_${ANGLE2}_c${CUTTING_SPEED_1}${CUTTING_SPEED_2}_w${WALKING_SPEED_1}${WALKING_SPEED_2}_lr${LR}_${GAME_VERSION}_${MAP_NR}_seed_${SEED}_${RANDOM_INITIAL_STATE}_synergy${SYNERGY_SCALING_FACTOR}_spec${SPEC_PENALTY_SCALE}_theta${SPECIALIZATION_THETA}_kappa${KAPPA}_counter${COUNTER_REWARD_VALUE}_collision${COLLISION_PENALTY_VALUE}_activatesynergy${ACTIVATE_SYNERGY_POSITIVE}_rewarddecay${ENABLE_REWARD_DECAY}_harsh${COLLISION_HARSHNESS}_agent${AGENTS}.log"
-    else
-        INPUT_FILE="inputs/input_${ANGLE1}_${ANGLE2}_c${CUTTING_SPEED_1}${CUTTING_SPEED_2}_w${WALKING_SPEED_1}${WALKING_SPEED_2}.txt"
-        LOG_FILE="logs/out_${ANGLE1}_${ANGLE2}_c${CUTTING_SPEED_1}${CUTTING_SPEED_2}_w${WALKING_SPEED_1}${WALKING_SPEED_2}_lr${LR}_${GAME_VERSION}_${MAP_NR}_seed_${SEED}_${RANDOM_INITIAL_STATE}_synergy${SYNERGY_SCALING_FACTOR}_spec${SPEC_PENALTY_SCALE}_theta${SPECIALIZATION_THETA}_kappa${KAPPA}_counter${COUNTER_REWARD_VALUE}_collision${COLLISION_PENALTY_VALUE}_activatesynergy${ACTIVATE_SYNERGY_POSITIVE}_rewarddecay${ENABLE_REWARD_DECAY}_harsh${COLLISION_HARSHNESS}.log"
-    fi
-
-    echo -e "${ALPHA1} ${BETA1}\n${WALKING_SPEED_1} ${CUTTING_SPEED_1}\n${ALPHA2} ${BETA2}\n${WALKING_SPEED_2} ${CUTTING_SPEED_2}" > "$INPUT_FILE"
-
-    if [ $NUM_AGENTS -eq 1 ]; then
         echo "Starting job $job_count/${#job_list[@]}: GAME_VERSION=$GAME_VERSION MAP_NR=$MAP_NR ANGLE1=$ANGLE1 ANGLE2=$ANGLE2 C_SPEEDS=[$CUTTING_SPEED_1,$CUTTING_SPEED_2] W_SPEEDS=[$WALKING_SPEED_1,$WALKING_SPEED_2] LR=$LR SEED=$SEED SYNERGY_SCALING_FACTOR=$SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE=$SPEC_PENALTY_SCALE SPECIALIZATION_THETA=$SPECIALIZATION_THETA KAPPA=$KAPPA CHECKPOINT=$CHECKPOINT_PATHS COUNTER_REWARD=$COUNTER_REWARD_VALUE COLLISION_PENALTY=$COLLISION_PENALTY_VALUE ALLOW_BLOCKED=$ALLOW_BLOCKED ACTIVATE_SYNERGY_POSITIVE=$ACTIVATE_SYNERGY_POSITIVE ENABLE_REWARD_DECAY=$ENABLE_REWARD_DECAY COLLISION_HARSHNESS=$COLLISION_HARSHNESS AGENTS_TO_TRAIN=$AGENTS"
             python3 "$TRAIN_SCRIPT" "$CLUSTER" "$INPUT_FILE" "$MAP_NR" "$LR" "$GAME_VERSION" "$NUM_AGENTS" "$NUM_EPOCHS" "$SEED" "$CHECKPOINT_PATHS" "$REWARDS_ON_DELIVERY_ONLY" "$RANDOM_INITIAL_STATE" "$SYNERGY_SCALING_FACTOR" "$SPEC_PENALTY_SCALE" "$COUNTER_REWARD_VALUE" "$COLLISION_PENALTY_VALUE" "$ALLOW_BLOCKED" "$KAPPA" "$ACTIVATE_SYNERGY_POSITIVE" "$ENABLE_REWARD_DECAY" "$COLLISION_HARSHNESS" "$ENTROPY_COEF" "$AGENTS" "$SPECIALIZATION_THETA" > "$LOG_FILE" 2>&1 &
     else
-        echo "Starting job $job_count/${#job_list[@]}: GAME_VERSION=$GAME_VERSION MAP_NR=$MAP_NR ANGLE1=$ANGLE1 ANGLE2=$ANGLE2 C_SPEEDS=[$CUTTING_SPEED_1,$CUTTING_SPEED_2] W_SPEEDS=[$WALKING_SPEED_1,$WALKING_SPEED_2] LR=$LR SEED=$SEED SYNERGY_SCALING_FACTOR=$SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE=$SPEC_PENALTY_SCALE SPECIALIZATION_THETA=$SPECIALIZATION_THETA KAPPA=$KAPPA CHECKPOINT=$CHECKPOINT_PATHS COUNTER_REWARD=$COUNTER_REWARD_VALUE COLLISION_PENALTY=$COLLISION_PENALTY_VALUE ALLOW_BLOCKED=$ALLOW_BLOCKED ACTIVATE_SYNERGY_POSITIVE=$ACTIVATE_SYNERGY_POSITIVE ENABLE_REWARD_DECAY=$ENABLE_REWARD_DECAY COLLISION_HARSHNESS=$COLLISION_HARSHNESS"
+        echo "Starting job $job_count/${#job_list[@]}: GAME_VERSION=$GAME_VERSION MAP_NR=$MAP_NR ANGLES=[$ANGLES] SPEEDS=[$SPEEDS] LR=$LR SEED=$SEED SYNERGY_SCALING_FACTOR=$SYNERGY_SCALING_FACTOR SPEC_PENALTY_SCALE=$SPEC_PENALTY_SCALE SPECIALIZATION_THETA=$SPECIALIZATION_THETA KAPPA=$KAPPA CHECKPOINT=$CHECKPOINT_PATHS COUNTER_REWARD=$COUNTER_REWARD_VALUE COLLISION_PENALTY=$COLLISION_PENALTY_VALUE ALLOW_BLOCKED=$ALLOW_BLOCKED ACTIVATE_SYNERGY_POSITIVE=$ACTIVATE_SYNERGY_POSITIVE ENABLE_REWARD_DECAY=$ENABLE_REWARD_DECAY COLLISION_HARSHNESS=$COLLISION_HARSHNESS"
             python3 "$TRAIN_SCRIPT" "$CLUSTER" "$INPUT_FILE" "$MAP_NR" "$LR" "$GAME_VERSION" "$NUM_AGENTS" "$NUM_EPOCHS" "$SEED" "$CHECKPOINT_PATHS" "$REWARDS_ON_DELIVERY_ONLY" "$RANDOM_INITIAL_STATE" "$SYNERGY_SCALING_FACTOR" "$SPEC_PENALTY_SCALE" "$COUNTER_REWARD_VALUE" "$COLLISION_PENALTY_VALUE" "$ALLOW_BLOCKED" "$KAPPA" "$ACTIVATE_SYNERGY_POSITIVE" "$ENABLE_REWARD_DECAY" "$COLLISION_HARSHNESS" "$ENTROPY_COEF" "$SPECIALIZATION_THETA" > "$LOG_FILE" 2>&1 &
     fi
     
-    sleep 100  # Delay between job starts
+    wait_for_log_output "$LOG_FILE" "$job_pid"
+    sleep 10  # Delay between job starts after the log becomes active
 done
 
 # Wait for all remaining jobs to complete

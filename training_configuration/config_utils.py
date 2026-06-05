@@ -154,7 +154,7 @@ def get_hyperparameters():
         "mlp_layers": [1024, 512, 256],
         "gamma": 0.9,
         "gae_lambda": 0.95,
-        "ent_coef": 0.01,
+        "ent_coef": 0.001,
         "clip_eps": 0.3,
         "vf_coef": 1.0,
         "grad_clip": 0.5,
@@ -177,11 +177,9 @@ def validate_configuration(num_agents, synergy_scaling_factor, agent_to_train=No
         synergy_scaling_factor: Synergy scaling factor
         agent_to_train: Agent to train (for single agent mode)
     """
-    if num_agents not in [1, 2]:
-        raise ValueError("NUM_AGENTS must be 1 or 2")
+    if num_agents < 1:
+        raise ValueError("NUM_AGENTS must be at least 1")
     
     if num_agents == 1 and agent_to_train is not None and agent_to_train not in [1, 2]:
         raise ValueError("When NUM_AGENTS=1, agent_to_train must be 1 or 2")
     
-    if synergy_scaling_factor > 0 and num_agents != 2:
-        raise ValueError("Reference-based reward shaping is currently only supported for 2-agent teams.")

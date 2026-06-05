@@ -313,6 +313,12 @@ def calculate_cooperation_factor_expensive(map_nr, maps_directory):
     # ------------------------------------------------------------------------
     def calculate_task_sequence_metric():
         """Higher time + bottleneck exposure = higher cooperation constraint."""
+        if not agents:
+            walkable_positions = [(r, c) for r in range(rows) for c in range(cols) if accessibility[r, c] == 1]
+            if walkable_positions:
+                bottom_left = max(walkable_positions, key=lambda p: (p[0], -p[1]))
+                bottom_right = max(walkable_positions, key=lambda p: (p[0], p[1]))
+                agents.extend([bottom_left, bottom_right])
         if not (agents and tomato_dispensers and cutting_boards and
                 counters and plate_dispensers and deliveries):
             missing = []

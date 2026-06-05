@@ -168,6 +168,15 @@ class AbilityGridAnalyzer:
             f'map_{self.map_name}', synergy_folder, spec_folder,
         )
 
+    def _resolve_training_id_column(self, df: pd.DataFrame) -> Optional[str]:
+        if 'training_id' in df.columns:
+            return 'training_id'
+        if 'timestamp' in df.columns:
+            return 'timestamp'
+        if 'run_id' in df.columns:
+            return 'run_id'
+        return None
+
     def load_experimental_data(self) -> pd.DataFrame:
         paths = {
             'raw_dir': self.raw_dir,
@@ -339,6 +348,30 @@ class AbilityGridAnalyzer:
                     grid[i, j] = metric_value
 
         return grid
+
+    def summarize_training_ids_by_speed(self, df: pd.DataFrame) -> Tuple[Dict[Tuple[float, float], List[str]], Optional[str]]:
+        training_col = self._resolve_training_id_column(df)
+        summary: Dict[Tuple[float, float], List[str]] = {}
+
+        for cut2 in self.cut2_values:
+            for walk1 in self.walk1_values:
+                if training_col is None:
+                    summary[(walk1, cut2)] = []
+                    continue
+                config_df = self._filter_speed_configuration(df, walk1, cut2)
+                if len(config_df) == 0:
+                    summary[(walk1, cut2)] = []
+                    continue
+                training_ids = (
+                    config_df[training_col]
+                    .dropna()
+                    .astype(str)
+                    .unique()
+                    .tolist()
+                )
+                summary[(walk1, cut2)] = sorted(training_ids)
+
+        return summary, training_col
 
 
 class AbilityGridPlotter:
@@ -545,6 +578,25 @@ def main():
         print('\n=== Creating 2D Ability Grid ===\n')
         fig = plotter.create_color_grid_figure(prepared_data, str(output_path))
         plt.close(fig)
+
+        training_summary, training_id_column = analyzer.summarize_training_ids_by_speed(prepared_data)
+        print('\n=== Training coverage by speed ===\n')
+        if training_id_column is None:
+            print('No training id column found in data; cannot report per-speed training IDs.')
+        else:
+            print(f'Using training id column: {training_id_column}')
+            for cut2 in reversed(analyzer.cut2_values):
+                for walk1 in reversed(analyzer.walk1_values):
+                    training_ids = training_summary[(walk1, cut2)]
+                    walk_label = _format_speed_label(walk1)
+                    cut_label = _format_speed_label(cut2)
+                    if training_ids:
+                        print(
+                            f'walk1={walk_label}, cut2={cut_label}: '
+                            f'{len(training_ids)} training(s) -> {", ".join(training_ids)}'
+                        )
+                    else:
+                        print(f'walk1={walk_label}, cut2={cut_label}: 0 trainings')
 
         print('\n=== Analysis Complete ===\n')
         print(f'Generated figure: {output_path}')

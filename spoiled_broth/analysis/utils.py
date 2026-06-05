@@ -974,7 +974,7 @@ def setup_argument_parser(experiment_type: str) -> argparse.ArgumentParser:
     parser.add_argument(
         '--game_type',
         type=str,
-        choices=['classic', 'classic_collision'],
+        choices=['classic', 'classic_collision', 'competition', 'competition_collision', 'pretrained'],
         default='classic',
         help='Game type (classic or classic_collision)'
     )

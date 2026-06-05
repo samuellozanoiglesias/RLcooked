@@ -61,8 +61,17 @@ def make_train_rllib(config):
     
     policies = {}
     policies_to_train = []
+    # Ensure env num_agents covers the highest agent index when AGENT_TO_TRAIN
+    inferred_num_agents = num_agents
+    try:
+        highest_id = max(int(a.split('_')[-1]) for a in agent_ids)
+        inferred_num_agents = max(num_agents, highest_id)
+    except Exception:
+        inferred_num_agents = num_agents
+
     for agent_id in agent_ids:
         env_cfg = {
+            "num_agents": inferred_num_agents,
             "map_nr": config["MAP_NR"],
             "grid_size": config["GRID_SIZE"],
             "game_mode": config["GAME_VERSION"],
@@ -138,6 +147,7 @@ def make_train_rllib(config):
             env_config={
                 "reward_weights": config["REWARD_WEIGHTS"],
                 "map_nr": config["MAP_NR"],
+                "num_agents": config["NUM_AGENTS"],
                 "game_mode": config["GAME_VERSION"],
                 "inner_seconds": config["INNER_SECONDS"],
                 "path": config["PATH"],

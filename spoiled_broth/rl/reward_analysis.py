@@ -143,15 +143,17 @@ def get_rewards_competition(self, agent_events, agent_penalties, rewards_cfg, in
     for agent_id in self.agents:
         other_agents = [other_id for other_id in self.agents if other_id != agent_id]
 
-        # Third payoff term: points related to the OTHER agent using HIS own food.
-        # This mirrors the first term but for the opponent(s), and uses payoff_matrix as-is.
-        other_loss_from_own_food = sum(reward_from_own_food_by_agent[other_id] for other_id in other_agents)
+        # Third payoff term: penalty when opponents use food that does NOT belong to them.
+        # In the 2-agent setup this is exactly "opponent uses my food" (e.g. A delivers B food -> B gets penalized).
+        other_agents_using_my_food = sum(
+            reward_from_other_food_by_agent[other_id] for other_id in other_agents
+        )
 
         pure_rewards[agent_id] = (
             support_reward_by_agent[agent_id]
             + self.payoff_matrix[0] * reward_from_own_food_by_agent[agent_id]
             + self.payoff_matrix[1] * reward_from_other_food_by_agent[agent_id]
-            + self.payoff_matrix[2] * other_loss_from_own_food
+            + self.payoff_matrix[2] * other_agents_using_my_food
         )
         self.cumulated_pure_rewards[agent_id] += pure_rewards[agent_id]
 
