@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=random_positions_encouraged_training_1.35_0.25
+#SBATCH --job-name=baseline
 #SBATCH -t 30-00:00:00
 #SBATCH --partition=gpu
 #SBATCH --qos=qos_gpu_long
@@ -25,15 +25,12 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/RLcooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NRS=(d1_encouraged_division_of_labor_large_random_positions
-        encouraged_division_of_labor_large_random_positions
-        m1_encouraged_division_of_labor_large_random_positions
-        a2_encouraged_division_of_labor_large_random_positions)  # List of maps to run
+MAP_NRS=(baseline_division_of_labor_large)  # List of maps to run
 LR=3e-4
 GAME_VERSIONS=(classic_collision)  # List of game versions to run
 NUM_AGENTS=2
 NUM_EPOCHS=1000  # Number of training epochs
-SEEDS=(0 10 20)  # Different random seeds for runs
+SEEDS=(0)  # Different random seeds for runs
 REWARDS_ON_DELIVERY_ONLY=False  # Whether to use rewards on delivery only
 RANDOM_INITIAL_STATE=False  # Whether to randomize initial state
 AGENTS_TO_TRAIN=("")  # Specify which agent to train when NUM_AGENTS=1 (e.g., "1" for agent 1, "2" for agent 2)
@@ -45,7 +42,7 @@ ALLOW_BLOCKED=False  # Whether to allow agents to attempt blocked actions
 # If set, this will be used for all simulations instead of auto-generated paths
 # Leave empty to use automatic checkpoint name generation
 CUSTOM_CHECKPOINT_DIR="checkpoints/checkpoints_pretrained.txt"  # e.g., "checkpoints/my_custom_checkpoint.txt"
-ACTIVATE_CHECKPOINTS=False  # Set to False to disable checkpoint loading
+ACTIVATE_CHECKPOINTS=True  # Set to False to disable checkpoint loading
 
 # Entropy coefficient for training
 ENTROPY_COEF=0.001  # Default value, can be changed
@@ -55,35 +52,24 @@ ANGLE_PAIRS=("0 0")  # Format: "angle_agent_1 angle_agent_2 ... angle_agent_N"
 
 # Define agent speed vectors
 # Format: "cut_speed_1,walk_speed_1 cut_speed_2,walk_speed_2 ..."
-#SPEED_PAIRS=(
-#    "1.0,1.0 1.0,1.0"
-#    "1.0,0.2 1.0,1.0"
-#    "1.0,0.7 0.4,1.0"
-#    "1.0,0.4 0.2,1.0"
-#)
-
 SPEED_PAIRS=(
     "1.0,1.0 1.0,1.0"
-    #"1.0,0.9 0.9,1.0"
-    #"1.0,0.8 0.8,1.0"
-    #"1.0,0.7 0.7,1.0"
-    #"1.0,0.6 0.6,1.0"
-    #"1.0,0.5 0.5,1.0"
-    #"1.0,0.4 0.4,1.0"
-    #"1.0,0.3 0.3,1.0"
-    #"1.0,0.2 0.2,1.0"
-    #"1.0,0.1 0.1,1.0"
+    "1.0,0.2 1.0,1.0"
+    "1.0,0.7 0.4,1.0"
+    "1.0,0.4 0.2,1.0"
 )
 
 #SPEED_PAIRS=(
-#    "1.0,0.58 0.3,1.0"
-#    "1.0,0.56 0.3,1.0"
-#    "1.0,0.54 0.3,1.0"
-#    "1.0,0.52 0.3,1.0"
-#    "1.0,0.48 0.3,1.0"
-#    "1.0,0.46 0.3,1.0"
-#    "1.0,0.44 0.3,1.0"
-#    "1.0,0.42 0.3,1.0"
+#    "1.0,1.0 1.0,1.0"
+#    #"1.0,0.9 0.9,1.0"
+#    #"1.0,0.8 0.8,1.0"
+#    #"1.0,0.7 0.7,1.0"
+#    #"1.0,0.6 0.6,1.0"
+#    #"1.0,0.5 0.5,1.0"
+#    #"1.0,0.4 0.4,1.0"
+#    #"1.0,0.3 0.3,1.0"
+#    #"1.0,0.2 0.2,1.0"
+#    #"1.0,0.1 0.1,1.0"
 #)
 
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)

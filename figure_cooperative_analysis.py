@@ -105,27 +105,27 @@ class CooperativeAnalyzer:
         # Base condition mapping (will be expanded with specialization if analyzing both)
         self.base_condition_mapping = {
             # Map 1 conditions  
-            (map_name_1, 'classic', 'mixed'): f'{self.map_1_short}_mixed',
+            (map_name_1, 'classic_collision', 'cutting-prone'): f'{self.map_1_short}_cutting_prone_collision',
             (map_name_1, 'classic_collision', 'mixed'): f'{self.map_1_short}_mixed_collision', 
-            (map_name_1, 'classic', 'superstar'): f'{self.map_1_short}_superstar',
+            (map_name_1, 'classic_collision', 'asymmetric'): f'{self.map_1_short}_asymmetric_collision',
             (map_name_1, 'classic_collision', 'superstar'): f'{self.map_1_short}_superstar_collision',
             # Map 2 conditions
-            (map_name_2, 'classic', 'mixed'): f'{self.map_2_short}_mixed',
+            (map_name_2, 'classic_collision', 'cutting-prone'): f'{self.map_2_short}_cutting_prone_collision',
             (map_name_2, 'classic_collision', 'mixed'): f'{self.map_2_short}_mixed_collision',
-            (map_name_2, 'classic', 'superstar'): f'{self.map_2_short}_superstar', 
+            (map_name_2, 'classic_collision', 'asymmetric'): f'{self.map_2_short}_asymmetric_collision',
             (map_name_2, 'classic_collision', 'superstar'): f'{self.map_2_short}_superstar_collision'
         }
         
         # Color palette mapping - dynamically generated based on map names
         # Base colors for specialized (or when not distinguishing)
         self.base_color_palette = {
-            f'{self.map_1_short}_mixed': '#FF6B6B',              # Red
-            f'{self.map_1_short}_mixed_collision': '#FF9F40',    # Orange  
-            f'{self.map_1_short}_superstar': '#90EE90',          # Light Green
-            f'{self.map_1_short}_superstar_collision': '#228B22', # Dark Green
-            f'{self.map_2_short}_mixed': '#40E0D0',              # Teal
-            f'{self.map_2_short}_mixed_collision': '#4169E1',    # Blue
-            f'{self.map_2_short}_superstar': '#8A2BE2',          # Purple
+            f'{self.map_1_short}_cutting_prone_collision': '#FF6B6B',      # Red
+            f'{self.map_1_short}_mixed_collision': '#FF9F40',             # Orange  
+            f'{self.map_1_short}_asymmetric_collision': '#90EE90',         # Light Green
+            f'{self.map_1_short}_superstar_collision': '#228B22',        # Dark Green
+            f'{self.map_2_short}_cutting_prone_collision': '#40E0D0',     # Teal
+            f'{self.map_2_short}_mixed_collision': '#4169E1',             # Blue
+            f'{self.map_2_short}_asymmetric_collision': '#8A2BE2',          # Purple
             f'{self.map_2_short}_superstar_collision': '#FF69B4' # Pink
         }
         
@@ -747,12 +747,41 @@ class CooperativeAnalyzer:
                     (abs(df['walking_speed_1'] - 0.4) < 0.01) &
                     (abs(df['cutting_speed_1'] - 1.0) < 0.01) &
                     (abs(df['walking_speed_2'] - 1.0) < 0.01) &
-                    (abs(df['cutting_speed_2'] - 0.4) < 0.01)
+                    (abs(df['cutting_speed_2'] - 0.2) < 0.01)
                 )
                 return df[filter_condition].copy()
             else:
                 print(f"    Warning: Missing speed columns for mixed filtering")
                 return pd.DataFrame()
+        
+        elif expected_config == "cutting_prone":
+            # Cutting-prone: Agent1 has 0.2_1.0, Agent2 has 1.0_1.0
+            if all(col in df.columns for col in ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']):
+                filter_condition = (
+                    (abs(df['walking_speed_1'] - 0.2) < 0.01) &
+                    (abs(df['cutting_speed_1'] - 1.0) < 0.01) &
+                    (abs(df['walking_speed_2'] - 1.0) < 0.01) &
+                    (abs(df['cutting_speed_2'] - 1.0) < 0.01)
+                )
+                return df[filter_condition].copy()
+            else:
+                print(f"    Warning: Missing speed columns for cutting-prone filtering")
+                return pd.DataFrame()
+#
+        elif expected_config == "asymmetric":
+            # Asymmetric: Agent1 has 0.7_1.0, Agent2 has 1.0_0.4
+            if all(col in df.columns for col in ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']):
+                filter_condition = (
+                    (abs(df['walking_speed_1'] - 0.7) < 0.01) &
+                    (abs(df['cutting_speed_1'] - 1.0) < 0.01) &
+                    (abs(df['walking_speed_2'] - 1.0) < 0.01) &
+                    (abs(df['cutting_speed_2'] - 0.4) < 0.01)
+                )
+                return df[filter_condition].copy()
+            else:
+                print(f"    Warning: Missing speed columns for asymmetric filtering")
+                return pd.DataFrame()
+
         else:
             print(f"    Warning: Unknown speed configuration {expected_config}")
             return df
