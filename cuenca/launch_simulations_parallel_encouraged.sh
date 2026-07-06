@@ -26,14 +26,13 @@
 #       hardcoded:  use HARDCODED_CHECKPOINTS array from this script
 #
 # Examples:
-#   nohup ./launch_simulations_parallel_baseline.sh baseline_division_of_labor_large classic_collision 20 5 --checkpoint_mode hardcoded --enable_video true > log_simulation_parallel.out 2>&1 &
 #
-#   nohup ./launch_simulations_parallel_baseline.sh baseline_division_of_labor_large classic_collision 20 --checkpoint_mode found --enable_video true --duration 300 > log_simulation_parallel_found.out 2>&1 &
+#   nohup ./launch_simulations_parallel_encouraged.sh encouraged_division_of_labor_large classic_collision 20 --checkpoint_mode hardcoded --enable_video true --duration 180 > log_simulation_parallel.out 2>&1 &
 # =============================================================================
 
 DEFAULT_MAX_PARALLEL=5
 DEFAULT_CHECKPOINT_MODE="hardcoded"
-synergy_value=0
+synergy_value=1.35
 specialized_value=0.25
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,12 +49,8 @@ LOG_DIR="${SCRIPT_DIR}/simulation_logs"
 # Example training path:
 #   /data/.../map_<MAP_NR>/synergy_X.XX/specialized_Y.YY/Training_<TRAINING_ID>
 CONFIGURATIONS=(
-    "baseline_collision_MA_1|/data/samuel_lozano/cooked/classic_collision/empty_init/map_baseline_division_of_labor_large/synergy_${synergy_value}/specialized_${specialized_value}/Training_2026-06-25_14-01-26"
-    "baseline_collision_MA_2|/data/samuel_lozano/cooked/classic_collision/empty_init/map_baseline_division_of_labor_large/synergy_${synergy_value}/specialized_${specialized_value}/Training_2026-06-25_14-02-35"
-    "baseline_collision_MA_3|/data/samuel_lozano/cooked/classic_collision/empty_init/map_baseline_division_of_labor_large/synergy_${synergy_value}/specialized_${specialized_value}/Training_2026-06-25_14-03-54"
-    "baseline_collision_HA_1|/data/samuel_lozano/cooked/classic_collision/empty_init/map_baseline_division_of_labor_large/synergy_${synergy_value}/specialized_${specialized_value}/Training_2026-06-25_14-00-56"
-    "baseline_collision_HA_2|/data/samuel_lozano/cooked/classic_collision/empty_init/map_baseline_division_of_labor_large/synergy_${synergy_value}/specialized_${specialized_value}/Training_2026-06-25_14-01-57"
-    "baseline_collision_HA_3|/data/samuel_lozano/cooked/classic_collision/empty_init/map_baseline_division_of_labor_large/synergy_${synergy_value}/specialized_${specialized_value}/Training_2026-06-25_14-03-14"
+    "encouraged_collision_HA_1|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_${synergy_value}/specialized_${specialized_value}/Training_2026-05-12_23-00-31"
+    "encouraged_collision_MA_1|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_${synergy_value}/specialized_${specialized_value}/Training_2026-05-12_23-01-18"
 )
 
 # Used only when --checkpoint_mode hardcoded

@@ -113,7 +113,7 @@ HUMAN_RESULTS = {
             (0.7, 0.4): 7.392,
             (0.4, 0.2): 5.743,
         },
-        'deliver_cut_gap': {
+        'specialization': {
             (1.0, 1.0): 12.286,
             (0.7, 0.4): 9.038,
             (0.4, 0.2): 7.371,
@@ -125,7 +125,7 @@ HUMAN_RESULTS = {
             (0.7, 0.4): 8.443,
             (0.4, 0.2): 8.049,
         },
-        'deliver_cut_gap': {
+        'specialization': {
             (1.0, 1.0): 11.729,
             (0.7, 0.4): 17.514,
             (0.4, 0.2): 17.057,
@@ -271,33 +271,35 @@ class AbilityGridAnalyzer:
             df['total_counters'] = 0
 
     def _calculate_specialization_index(self, df: pd.DataFrame) -> float:
-        if not all(col in df.columns for col in ['cut_ai_rl_1', 'cut_ai_rl_2', 'deliver_ai_rl_1', 'deliver_ai_rl_2']):
-            return 0.0
-
-        n1c = df['cut_ai_rl_1'].sum()
-        n2c = df['cut_ai_rl_2'].sum()
-        n1d = df['deliver_ai_rl_1'].sum()
-        n2d = df['deliver_ai_rl_2'].sum()
-
-        t1 = n1c + n1d
-        t2 = n2c + n2d
-        if t1 == 0 or t2 == 0:
-            return 0.0
-
-        p1 = n1c / t1
-        p2 = n2c / t2
-        return float(np.abs(p1 - p2))
-
-    def _calculate_deliver_cut_gap(self, df: pd.DataFrame) -> float:
+        """
+        Calculates specialization as the averaged percentage asymmetry across 
+        both deliveries and cuts:
+        abs (del_a1 - del_a2) / total_del + (cuts_a2 - cuts_a1) / total_cuts) * 100 / 2
+        """
         required_cols = ['deliver_ai_rl_1', 'deliver_ai_rl_2', 'cut_ai_rl_1', 'cut_ai_rl_2']
         if not all(col in df.columns for col in required_cols):
             return np.nan
 
-        gap = (
-            (df['deliver_ai_rl_1'] - df['deliver_ai_rl_2']).abs() +
-            (df['cut_ai_rl_1'] - df['cut_ai_rl_2']).abs()
-        )
-        return float(gap.mean())
+        # Get totals for each agent
+        del_a1 = df['deliver_ai_rl_1'].sum()
+        del_a2 = df['deliver_ai_rl_2'].sum()
+        cuts_a1 = df['cut_ai_rl_1'].sum()
+        cuts_a2 = df['cut_ai_rl_2'].sum()
+
+        total_del = del_a1 + del_a2
+        total_cuts = cuts_a1 + cuts_a2
+
+        # Case 1: No activity at all
+        if total_cuts == 0 or total_del == 0:
+            return 0.0
+
+        # Case 2: Both actions occurred
+        if total_cuts > 0 and total_del > 0:
+            del_term = (del_a1 - del_a2) / total_del
+            cuts_term = (cuts_a2 - cuts_a1) / total_cuts
+            return (abs(del_term + cuts_term) * 100) / 2.0
+
+        return None
 
     def _metric_value(self, df: pd.DataFrame, metric_name: str) -> float:
         if len(df) == 0:
@@ -311,8 +313,6 @@ class AbilityGridAnalyzer:
             return float(df['total_counters'].mean())
         if metric_name == 'specialization':
             return self._calculate_specialization_index(df)
-        if metric_name == 'deliver_cut_gap':
-            return self._calculate_deliver_cut_gap(df)
 
         if metric_name in df.columns:
             return float(df[metric_name].mean())
@@ -567,7 +567,7 @@ class AbilityGridPlotter:
         )
 
         deliveries_grid = self.analyzer.build_metric_grid(data, 'total_deliveries', difference_to_baseline=True)
-        deliver_cut_gap_grid = self.analyzer.build_metric_grid(data, 'deliver_cut_gap', difference_to_baseline=True)
+        specialization_grid = self.analyzer.build_metric_grid(data, 'specialization', difference_to_baseline=True)
 
         # Deliveries: keep red/blue diverging style.
         deliveries_im = self._plot_grid(
@@ -585,9 +585,9 @@ class AbilityGridPlotter:
         # Deliver/cut imbalance: use brown/green diverging style.
         gap_im = self._plot_grid(
             axes[1],
-            deliver_cut_gap_grid,
-            'Deliver/cut gap vs baseline (1.0, 1.0)',
-            'Delta abs(deliver diff) + abs(cut diff)',
+            specialization_grid,
+            'Specialization vs baseline (1.0, 1.0)',
+            'Delta specialization',
             decimals=2,
             cmap=self.gap_ai_cmap,
             fixed_max_abs=12.0,
@@ -604,7 +604,7 @@ class AbilityGridPlotter:
         )
         self._overlay_human_markers(
             axes[1],
-            'deliver_cut_gap',
+            'specialization',
             cmap=self.gap_human_cmap,
             norm=gap_im.norm,
         )

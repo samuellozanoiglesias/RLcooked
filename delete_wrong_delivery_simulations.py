@@ -29,8 +29,11 @@ Delete modes:
 Example:
     nohup python3 delete_wrong_delivery_simulations.py --dry_run --min_deliveries 10 --delete_mode above --checkpoint_dir /data/samuel_lozano/cooked/map_baseline_division_of_labor/simulations/Training_12345/checkpoint_50/ > log_cleanup.out 2>&1 &
 
-    nohup python3 delete_wrong_delivery_simulations.py --delete_mode random --max_simulations 20 --map_nr baseline_division_of_labor --training_id 12345 > log_cleanup.out 2>&1 &
+    nohup python3 delete_wrong_delivery_simulations.py --delete_mode random --max_simulations 240 --map_nr baseline_division_of_labor_large --training_id 12345 > log_cleanup.out 2>&1 &
+
+    nohup python3 delete_wrong_delivery_simulations.py --dry_run --min_deliveries 10 --delete_mode above --game_version classic_collision --map_nr baseline_division_of_labor_large --synergy 1.35 --specialization 0.25 > log_cleanup.out 2>&1 &
 """
+
 
 import argparse
 import csv

@@ -59,26 +59,18 @@ class SimulationDataLoader:
         # Define experimental conditions mapping
         self.condition_mapping = {
             # Map 1 conditions  
-            (map_name_1, 'classic', 'mixed'): f'{self.map_1_short}_mixed',
             (map_name_1, 'classic_collision', 'mixed'): f'{self.map_1_short}_mixed_collision', 
-            (map_name_1, 'classic', 'superstar'): f'{self.map_1_short}_superstar',
             (map_name_1, 'classic_collision', 'superstar'): f'{self.map_1_short}_superstar_collision',
             # Map 2 conditions
-            (map_name_2, 'classic', 'mixed'): f'{self.map_2_short}_mixed',
             (map_name_2, 'classic_collision', 'mixed'): f'{self.map_2_short}_mixed_collision',
-            (map_name_2, 'classic', 'superstar'): f'{self.map_2_short}_superstar', 
             (map_name_2, 'classic_collision', 'superstar'): f'{self.map_2_short}_superstar_collision'
         }
         
         # Color palette mapping
         self.color_palette = {
-            f'{self.map_1_short}_mixed': '#FF6B6B',              # Red
             f'{self.map_1_short}_mixed_collision': '#FF9F40',    # Orange  
-            f'{self.map_1_short}_superstar': '#90EE90',          # Light Green
             f'{self.map_1_short}_superstar_collision': '#228B22', # Dark Green
-            f'{self.map_2_short}_mixed': '#40E0D0',              # Teal
             f'{self.map_2_short}_mixed_collision': '#4169E1',    # Blue
-            f'{self.map_2_short}_superstar': '#8A2BE2',          # Purple
             f'{self.map_2_short}_superstar_collision': '#FF69B4' # Pink
         }
         

@@ -19,7 +19,7 @@ Agent ability configurations tested (X-axis):
 
 Generates 2 color grid figures with shared colorbars:
 1. Delta deliveries vs baseline (1.0, 1.0) for both maps (left/right)
-2. Delta deliver/cut gap vs baseline (1.0, 1.0) for both maps (left/right)
+2. Delta specialization vs baseline (1.0, 1.0) for both maps (left/right)
 
 Color coding:
 - White: Baseline condition (difference=0)
@@ -97,7 +97,7 @@ HUMAN_RESULTS = {
             (0.7, 0.4): 7.392,
             (0.4, 0.2): 5.743,
         },
-        'deliver_cut_gap': {
+        'specialization': {
             (1.0, 1.0): 12.286,
             (0.7, 0.4): 9.038,
             (0.4, 0.2): 7.371,
@@ -109,10 +109,10 @@ HUMAN_RESULTS = {
             (0.7, 0.4): 8.443,
             (0.4, 0.2): 8.049,
         },
-        'deliver_cut_gap': {
-            (1.0, 1.0): 11.729,
-            (0.7, 0.4): 17.514,
-            (0.4, 0.2): 17.057,
+        'specialization': {
+            (1.0, 1.0): 12.286,
+            (0.7, 0.4): 9.038,
+            (0.4, 0.2): 7.371,
         },
     },
 }
@@ -271,33 +271,36 @@ class AbilityGridAnalyzer:
             df['total_counters'] = 0
 
     def _calculate_specialization_index(self, df: pd.DataFrame) -> float:
-        if not all(col in df.columns for col in ['cut_ai_rl_1', 'cut_ai_rl_2', 'deliver_ai_rl_1', 'deliver_ai_rl_2']):
-            return 0.0
-
-        n1c = df['cut_ai_rl_1'].sum()
-        n2c = df['cut_ai_rl_2'].sum()
-        n1d = df['deliver_ai_rl_1'].sum()
-        n2d = df['deliver_ai_rl_2'].sum()
-
-        t1 = n1c + n1d
-        t2 = n2c + n2d
-        if t1 == 0 or t2 == 0:
-            return 0.0
-
-        p1 = n1c / t1
-        p2 = n2c / t2
-        return float(np.abs(p1 - p2))
-
-    def _calculate_deliver_cut_gap(self, df: pd.DataFrame) -> float:
+        """
+        Calculates specialization as the averaged percentage asymmetry across 
+        both deliveries and cuts:
+        abs (del_a1 - del_a2) / total_del + (cuts_a2 - cuts_a1) / total_cuts) * 100 / 2
+        """
         required_cols = ['deliver_ai_rl_1', 'deliver_ai_rl_2', 'cut_ai_rl_1', 'cut_ai_rl_2']
         if not all(col in df.columns for col in required_cols):
             return np.nan
 
-        gap = (
-            (df['deliver_ai_rl_1'] - df['deliver_ai_rl_2']).abs() +
-            (df['cut_ai_rl_1'] - df['cut_ai_rl_2']).abs()
-        )
-        return float(gap.mean())
+        # Get totals for each agent
+        del_a1 = df['deliver_ai_rl_1'].sum()
+        del_a2 = df['deliver_ai_rl_2'].sum()
+        cuts_a1 = df['cut_ai_rl_1'].sum()
+        cuts_a2 = df['cut_ai_rl_2'].sum()
+
+        total_del = del_a1 + del_a2
+        total_cuts = cuts_a1 + cuts_a2
+
+        # Case 1: No activity at all
+        if total_cuts == 0 or total_del == 0:
+            return 0.0
+
+        # Case 2: Both actions occurred
+        if total_cuts > 0 and total_del > 0:
+            del_term = (del_a1 - del_a2) / total_del
+            cuts_term = (cuts_a2 - cuts_a1) / total_cuts
+            return (abs(del_term + cuts_term) * 100) / 2.0
+
+        # Case 3: Only one type of action occurred
+        return None
 
     def _metric_value(self, df: pd.DataFrame, metric_name: str) -> float:
         if len(df) == 0:
@@ -311,8 +314,6 @@ class AbilityGridAnalyzer:
             return float(df['total_counters'].mean())
         if metric_name == 'specialization':
             return self._calculate_specialization_index(df)
-        if metric_name == 'deliver_cut_gap':
-            return self._calculate_deliver_cut_gap(df)
 
         if metric_name in df.columns:
             return float(df[metric_name].mean())
@@ -419,10 +420,9 @@ class AbilityGridPlotter:
         plt.rcParams['font.family'] = 'STIXGeneral'
         plt.rcParams['font.size'] = 11
         self.delivery_ai_cmap = plt.cm.RdBu_r
-        self.gap_ai_cmap = plt.cm.RdYlGn
-        self.delivery_human_cmap = self.delivery_ai_cmap
-        self.gap_human_cmap = self.gap_ai_cmap
         self.specialization_cmap = plt.cm.RdYlGn
+        self.delivery_human_cmap = self.delivery_ai_cmap
+        self.specialization_human_cmap = self.specialization_cmap
 
     def _plot_grid(
         self,
@@ -571,7 +571,7 @@ class AbilityGridPlotter:
         )
 
         deliveries_grid = self.analyzer.build_metric_grid(data, 'total_deliveries', difference_to_baseline=True)
-        deliver_cut_gap_grid = self.analyzer.build_metric_grid(data, 'deliver_cut_gap', difference_to_baseline=True)
+        specialization_grid = self.analyzer.build_metric_grid(data, 'specialization', difference_to_baseline=True)
 
         # Deliveries: keep red/blue diverging style.
         deliveries_im = self._plot_grid(
@@ -586,14 +586,14 @@ class AbilityGridPlotter:
             interpolation=interpolation,
             filterrad=filterrad,
         )
-        # Deliver/cut imbalance: use brown/green diverging style.
-        gap_im = self._plot_grid(
+        # Specialization imbalance: use brown/green diverging style.
+        specialization_im = self._plot_grid(
             axes[1],
-            deliver_cut_gap_grid,
-            'Deliver/cut gap vs baseline (1.0, 1.0)',
-            'Delta abs(deliver diff) + abs(cut diff)',
+            specialization_grid,
+            'Specialization vs baseline (1.0, 1.0)',
+            'Delta specialization (%)',
             decimals=2,
-            cmap=self.gap_ai_cmap,
+            cmap=self.specialization_ai_cmap,
             fixed_max_abs=12.0,
             cbar_ticks=[-10, -5, 0, 5, 10],
             interpolation=interpolation,
@@ -608,9 +608,9 @@ class AbilityGridPlotter:
         )
         self._overlay_human_markers(
             axes[1],
-            'deliver_cut_gap',
-            cmap=self.gap_human_cmap,
-            norm=gap_im.norm,
+            'specialization',
+            cmap=self.specialization_human_cmap,
+            norm=specialization_im.norm,
         )
 
         handles = [
@@ -865,8 +865,8 @@ def main():
         base_filename = '_'.join(filename_parts)
         deliveries_blurred_path = output_dir / f'blurred_deliveries_{base_filename}.png'
         deliveries_softer_path = output_dir / f'softer_deliveries_{base_filename}.png'
-        deliver_cut_gap_blurred_path = output_dir / f'blurred_deliver_cut_gap_{base_filename}.png'
-        deliver_cut_gap_softer_path = output_dir / f'softer_deliver_cut_gap_{base_filename}.png'
+        specialization_blurred_path = output_dir / f'blurred_specialization_{base_filename}.png'
+        specialization_softer_path = output_dir / f'softer_specialization_{base_filename}.png'
 
         print('\n=== Creating shared deliveries grid ===\n')
         deliveries_title = (
@@ -905,42 +905,42 @@ def main():
         plt.close(fig)
         print(f'Saved deliveries figure to: {deliveries_softer_path}')
 
-        print('\n=== Creating shared deliver/cut gap grid ===\n')
-        deliver_cut_gap_title = (
-            'Ability Grid: Delta Deliver/Cut Gap vs baseline (1.0, 1.0)\n'
+        print('\n=== Creating shared specialization grid ===\n')
+        specialization_title = (
+            'Ability Grid: Delta Specialization vs baseline (1.0, 1.0)\n'
             'Left/Right: Baseline vs Encouraged maps'
         )
         fig = create_shared_metric_figure(
             analysis_entries,
-            metric_name='deliver_cut_gap',
-            suptitle=deliver_cut_gap_title,
-            cbar_label='Delta abs(deliver diff) + abs(cut diff)',
+            metric_name='specialization',
+            suptitle=specialization_title,
+            cbar_label='Delta specialization (%)',
             cmap=plt.cm.RdYlGn,
             fixed_max_abs=12.0,
             cbar_ticks=[-10, -5, 0, 5, 10],
             interpolation='bilinear',
             overlay_human=True,
-            human_metric_key='deliver_cut_gap',
+            human_metric_key='specialization',
         )
-        fig.savefig(deliver_cut_gap_blurred_path, dpi=300, bbox_inches='tight')
+        fig.savefig(specialization_blurred_path, dpi=300, bbox_inches='tight')
         plt.close(fig)
-        print(f'Saved deliver/cut gap figure to: {deliver_cut_gap_blurred_path}')
+        print(f'Saved specialization figure to: {specialization_blurred_path}')
 
         fig = create_shared_metric_figure(
             analysis_entries,
-            metric_name='deliver_cut_gap',
-            suptitle=deliver_cut_gap_title,
+            metric_name='specialization',
+            suptitle=specialization_title,
             cbar_label='Delta abs(deliver diff) + abs(cut diff)',
             cmap=plt.cm.RdYlGn,
             fixed_max_abs=12.0,
             cbar_ticks=[-10, -5, 0, 5, 10],
             interpolation='nearest',
             overlay_human=True,
-            human_metric_key='deliver_cut_gap',
+            human_metric_key='specialization',
         )
-        fig.savefig(deliver_cut_gap_softer_path, dpi=300, bbox_inches='tight')
+        fig.savefig(specialization_softer_path, dpi=300, bbox_inches='tight')
         plt.close(fig)
-        print(f'Saved deliver/cut gap figure to: {deliver_cut_gap_softer_path}')
+        print(f'Saved specialization figure to: {specialization_softer_path}')
 
         print('\n=== Training coverage by speed ===\n')
         for analyzer, prepared_data in analysis_entries:
@@ -967,8 +967,8 @@ def main():
         print('Generated figures:')
         print(f'- {deliveries_blurred_path}')
         print(f'- {deliveries_softer_path}')
-        print(f'- {deliver_cut_gap_blurred_path}')
-        print(f'- {deliver_cut_gap_softer_path}')
+        print(f'- {specialization_blurred_path}')
+        print(f'- {specialization_softer_path}')
         if analysis_entries:
             sample_analyzer = analysis_entries[0][0]
             print(f'X-axis values: {[ _format_speed_label(v) for v in sample_analyzer.walk1_values ]}')

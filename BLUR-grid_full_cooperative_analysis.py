@@ -926,8 +926,8 @@ class ColorGridPlotter:
     def _ability_label(self, ability_config: str) -> str:
         return self.ability_config_labels.get(ability_config, str(ability_config))
     
-    def calculate_deliver_cut_gap_differences_global(self, data: pd.DataFrame) -> Dict[str, Dict[float, float]]:
-        """Calculate deliver/cut gap differences relative to global baseline (baseline map + X=1.0).
+    def calculate_specialization_differences_global(self, data: pd.DataFrame) -> Dict[str, Dict[float, float]]:
+        """Calculate specialization differences relative to global baseline (baseline map + X=1.0).
 
         Returns:
             Dictionary with structure: {map_short: {x_value: difference}}
@@ -944,7 +944,7 @@ class ColorGridPlotter:
             print(f"Warning: No global baseline data found for condition {baseline_condition}. Using 0.0 baseline.")
             baseline_gap = 0.0
         else:
-            baseline_gap = self._calculate_deliver_cut_gap(baseline_data)
+            baseline_gap = self._calculate_specialization_index(baseline_data)
             print(f"Global baseline ({baseline_condition}): {baseline_gap:.3f} deliver/cut gap")
 
         # Calculate differences for all map/ability combinations
@@ -961,13 +961,13 @@ class ColorGridPlotter:
                     gap_diffs[map_short][ability_config] = 0.0
                     continue
 
-                condition_gap = self._calculate_deliver_cut_gap(condition_data)
+                condition_gap = self._calculate_specialization_index(condition_data)
                 gap_diffs[map_short][ability_config] = condition_gap - baseline_gap
 
         return gap_diffs
     
-    def calculate_deliver_cut_gap_differences_row(self, data: pd.DataFrame) -> Dict[str, Dict[float, float]]:
-        """Calculate deliver/cut gap differences relative to each map's X=1.0 baseline (row-wise).
+    def calculate_specialization_differences_row(self, data: pd.DataFrame) -> Dict[str, Dict[float, float]]:
+        """Calculate specialization differences relative to each map's X=1.0 baseline (row-wise).
 
         Returns:
             Dictionary with structure: {map_short: {x_value: difference}}
@@ -987,7 +987,7 @@ class ColorGridPlotter:
                 print(f"Warning: No row baseline data found for condition {baseline_condition}. Using 0.0 baseline.")
                 baseline_gap = 0.0
             else:
-                baseline_gap = self._calculate_deliver_cut_gap(baseline_data)
+                baseline_gap = self._calculate_specialization_index(baseline_data)
 
             gap_diffs[map_short] = {}
 
@@ -1000,13 +1000,13 @@ class ColorGridPlotter:
                     gap_diffs[map_short][ability_config] = 0.0
                     continue
 
-                condition_gap = self._calculate_deliver_cut_gap(condition_data)
+                condition_gap = self._calculate_specialization_index(condition_data)
                 gap_diffs[map_short][ability_config] = condition_gap - baseline_gap
 
         return gap_diffs
     
-    def calculate_deliver_cut_gap_differences_column(self, data: pd.DataFrame) -> Dict[str, Dict[float, float]]:
-        """Calculate deliver/cut gap differences relative to baseline map for each ability (column-wise).
+    def calculate_specialization_differences_column(self, data: pd.DataFrame) -> Dict[str, Dict[float, float]]:
+        """Calculate specialization differences relative to baseline map for each ability (column-wise).
 
         Returns:
             Dictionary with structure: {map_short: {x_value: difference}}
@@ -1026,7 +1026,7 @@ class ColorGridPlotter:
                 print(f"Warning: No column baseline data found for condition {baseline_condition}")
                 baseline_gap = 0.0
             else:
-                baseline_gap = self._calculate_deliver_cut_gap(baseline_data)
+                baseline_gap = self._calculate_specialization_index(baseline_data)
 
             # Calculate differences for all maps at this ability level
             for map_name in self.map_names:
@@ -1043,32 +1043,42 @@ class ColorGridPlotter:
                     gap_diffs[map_short][ability_config] = 0.0
                     continue
 
-                condition_gap = self._calculate_deliver_cut_gap(condition_data)
+                condition_gap = self._calculate_specialization_index(condition_data)
                 gap_diffs[map_short][ability_config] = condition_gap - baseline_gap
 
         return gap_diffs
     
-    def _calculate_deliver_cut_gap(self, data: pd.DataFrame) -> float:
-        """Calculate the deliver/cut gap for a given dataset.
-
-        gap = mean(|deliver_1 - deliver_2| + |cut_1 - cut_2|)
-
-        Args:
-            data: DataFrame containing episode data
-
-        Returns:
-            Deliver/cut gap (float)
+    def _calculate_specialization_index(self, df: pd.DataFrame) -> float:
+        """
+        Calculates specialization as the averaged percentage asymmetry across 
+        both deliveries and cuts:
+        abs (del_a1 - del_a2) / total_del + (cuts_a2 - cuts_a1) / total_cuts) * 100 / 2
         """
         required_cols = ['deliver_ai_rl_1', 'deliver_ai_rl_2', 'cut_ai_rl_1', 'cut_ai_rl_2']
-        if not all(col in data.columns for col in required_cols):
-            print("    Warning: Missing deliver/cut columns for gap calculation")
+        if not all(col in df.columns for col in required_cols):
+            return np.nan
+
+        # Get totals for each agent
+        del_a1 = df['deliver_ai_rl_1'].sum()
+        del_a2 = df['deliver_ai_rl_2'].sum()
+        cuts_a1 = df['cut_ai_rl_1'].sum()
+        cuts_a2 = df['cut_ai_rl_2'].sum()
+
+        total_del = del_a1 + del_a2
+        total_cuts = cuts_a1 + cuts_a2
+
+        # Case 1: No activity at all
+        if total_cuts == 0 or total_del == 0:
             return 0.0
 
-        gap = (
-            (data['deliver_ai_rl_1'] - data['deliver_ai_rl_2']).abs() +
-            (data['cut_ai_rl_1'] - data['cut_ai_rl_2']).abs()
-        )
-        return float(gap.mean())
+        # Case 2: Both actions occurred
+        if total_cuts > 0 and total_del > 0:
+            del_term = (del_a1 - del_a2) / total_del
+            cuts_term = (cuts_a2 - cuts_a1) / total_cuts
+            return (abs(del_term + cuts_term) * 100) / 2.0
+
+        # Case 3: Only one type of action occurred
+        return None
 
     def _calculate_action_differentiation_index(self, data: pd.DataFrame) -> float:
         """Calculate the action differentiation index AD for a given dataset.
@@ -1235,17 +1245,17 @@ class ColorGridPlotter:
         # Calculate performance, deliver/cut gap, and action differentiation differences
         if comparison_type == 'global':
             perf_diffs = self.calculate_performance_differences_global(data)
-            gap_diffs = self.calculate_deliver_cut_gap_differences_global(data)
+            gap_diffs = self.calculate_specialization_differences_global(data)
             ad_diffs = self.calculate_action_differentiation_differences_global(data)
             subtitle = "vs Global Baseline (baseline map + X=1.0)"
         elif comparison_type == 'row':
             perf_diffs = self.calculate_performance_differences_row(data)
-            gap_diffs = self.calculate_deliver_cut_gap_differences_row(data)
+            gap_diffs = self.calculate_specialization_differences_row(data)
             ad_diffs = self.calculate_action_differentiation_differences_row(data)
             subtitle = "vs Row Baseline (each map + X=1.0)"
         elif comparison_type == 'column':
             perf_diffs = self.calculate_performance_differences_column(data)
-            gap_diffs = self.calculate_deliver_cut_gap_differences_column(data)
+            gap_diffs = self.calculate_specialization_differences_column(data)
             ad_diffs = self.calculate_action_differentiation_differences_column(data)
             subtitle = "vs Column Baseline (baseline map + each X)"
         else:
@@ -1276,8 +1286,8 @@ class ColorGridPlotter:
         self._plot_2d_grid(
             ax2,
             gap_grid,
-            'Deliver/Cut Gap Difference',
-            f'Deliver/Cut Gap Differences ({comparison_type.title()})',
+            'Specialization Difference',
+            f'Specialization Differences ({comparison_type.title()})',
             fixed_max_abs=12.0,
             cbar_ticks=[-10, -5, 0, 5, 10],
             interpolation=interpolation,
@@ -1778,7 +1788,7 @@ def main():
             print("\\n=== Summary Statistics (Global Baseline) ===\\n")
             
             perf_diffs = plotter.calculate_performance_differences_global(prepared_data)
-            gap_diffs = plotter.calculate_deliver_cut_gap_differences_global(prepared_data)
+            gap_diffs = plotter.calculate_specialization_differences_global(prepared_data)
 
             def ability_sort_key(value):
                 try:

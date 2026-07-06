@@ -26,9 +26,9 @@
 #       hardcoded:  use HARDCODED_CHECKPOINTS array from this script
 #
 # Examples:
-#   nohup ./launch_simulations_parallel.sh encouraged_division_of_labor_large classic_collision 20 5 --checkpoint_mode hardcoded --enable_video true > log_simulation_parallel.out 2>&1 &
+#   nohup ./launch_simulations_parallel.sh encouraged_division_of_labor_large classic_collision 20 5 --checkpoint_mode hardcoded --enable_video false > log_simulation_parallel.out 2>&1 &
 #
-#   nohup ./launch_simulations_parallel.sh encouraged_division_of_labor_large classic_collision 20 --checkpoint_mode found --enable_video true --duration 300 > log_simulation_parallel_found.out 2>&1 &
+#   nohup ./launch_simulations_parallel.sh encouraged_division_of_labor_large classic_collision 20 --checkpoint_mode found --enable_video false --duration 300 > log_simulation_parallel_found.out 2>&1 &
 # =============================================================================
 
 DEFAULT_MAX_PARALLEL=5
@@ -48,18 +48,18 @@ LOG_DIR="${SCRIPT_DIR}/simulation_logs"
 # Example training path:
 #   /data/.../map_<MAP_NR>/synergy_X.XX/specialized_Y.YY/Training_<TRAINING_ID>
 CONFIGURATIONS=(
-    "encouraged_collision_MA_1|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-40-16"
-    "encouraged_collision_MA_2|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-41-56"
-    "encouraged_collision_MA_3|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-43-39"
-    "encouraged_collision_MA_4|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-45-20"
-    "encouraged_collision_MA_5|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-10_08-33-47"
-    "encouraged_collision_MA_6|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-13_05-16-18"
-    "encouraged_collision_HA_1|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-33-28"
-    "encouraged_collision_HA_2|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-35-10"
-    "encouraged_collision_HA_3|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-36-51"
-    "encouraged_collision_HA_4|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-09_16-38-34"
-    "encouraged_collision_HA_5|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-10_13-30-39"
-    "encouraged_collision_HA_6|/data/samuel_lozano/RLcooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-11_07-51-14"
+    "encouraged_collision_w0p4_1|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-10_08-49-11/"
+    "encouraged_collision_w0p4_2|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-11_08-09-21/"
+    "encouraged_collision_w0p4_3|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-12_06-59-30/"
+    "encouraged_collision_w0p4_4|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-13_06-10-00/"
+    "encouraged_collision_w0p5_1|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-10_09-10-03/"
+    "encouraged_collision_w0p5_2|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-11_08-59-08/"
+    "encouraged_collision_w0p5_3|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-12_08-32-52/"
+    "encouraged_collision_w0p5_4|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-13_07-13-29/"
+    "encouraged_collision_w0p6_1|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-10_09-44-37/"
+    "encouraged_collision_w0p6_2|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-11_09-51-32/"
+    "encouraged_collision_w0p6_3|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-12_08-59-08/"
+    "encouraged_collision_w0p6_4|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-13_07-32-58/"
 )
 
 # Used only when --checkpoint_mode hardcoded
