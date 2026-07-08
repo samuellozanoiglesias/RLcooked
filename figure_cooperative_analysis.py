@@ -767,7 +767,7 @@ class CooperativeAnalyzer:
             else:
                 print(f"    Warning: Missing speed columns for cutting-prone filtering")
                 return pd.DataFrame()
-#
+
         elif expected_config == "asymmetric":
             # Asymmetric: Agent1 has 0.7_1.0, Agent2 has 1.0_0.4
             if all(col in df.columns for col in ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']):

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=baseline
+#SBATCH --job-name=pretrained
 #SBATCH -t 30-00:00:00
 #SBATCH --partition=gpu
 #SBATCH --qos=qos_gpu_long
@@ -25,13 +25,14 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/RLcooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NRS=(baseline_division_of_labor_large)  # List of maps to run
+MAP_NRS=(baseline_division_of_labor_large_random_positions
+        encouraged_division_of_labor_large_random_positions)  # List of maps to run
 LR=3e-4
 GAME_VERSIONS=(classic_collision)  # List of game versions to run
 NUM_AGENTS=2
 NUM_EPOCHS=1000  # Number of training epochs
 SEEDS=(0)  # Different random seeds for runs
-REWARDS_ON_DELIVERY_ONLY=False  # Whether to use rewards on delivery only
+REWARDS_ON_DELIVERY_ONLY=True  # Whether to use rewards on delivery only
 RANDOM_INITIAL_STATE=False  # Whether to randomize initial state
 AGENTS_TO_TRAIN=("")  # Specify which agent to train when NUM_AGENTS=1 (e.g., "1" for agent 1, "2" for agent 2)
 COUNTER_REWARD=("0.0")  # Penalty for collisions (set to 0 to disable)
@@ -57,6 +58,7 @@ SPEED_PAIRS=(
     "1.0,0.2 1.0,1.0"
     "1.0,0.7 0.4,1.0"
     "1.0,0.4 0.2,1.0"
+    "1.0,0.1 0.1,1.0"
 )
 
 #SPEED_PAIRS=(
@@ -73,17 +75,17 @@ SPEED_PAIRS=(
 #)
 
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)
-SYNERGY_SCALING_FACTOR_VALUES=(1.35)
+SYNERGY_SCALING_FACTOR_VALUES=(0.92)
 
 # Define specialization penalty scale values
-SPECIALIZATION_PENALTY_SCALE_VALUES=(0.25)
+SPECIALIZATION_PENALTY_SCALE_VALUES=(0.05)
 
 # Define theta values for exponential specialization penalty
 # penalty = base_reward * (exp(theta * (1.0 - speed)) - 1) * specialization_scale * event_count
-SPECIALIZATION_THETA_VALUES=(3.0)
+SPECIALIZATION_THETA_VALUES=(1.0)
 
 # Define kappa values (competence transformation parameter for team synergy distribution)
-KAPPA_VALUES=(4.8)
+KAPPA_VALUES=(7.0)
 
 # Define activate_synergy_positive values (whether to activate positive synergy signals)
 ACTIVATE_SYNERGY_POSITIVE_VALUES=(False)

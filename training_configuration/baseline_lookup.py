@@ -10,6 +10,7 @@ Contains baseline performance data and lookup functions.
 # 2. Set the HA (1.0, 1.0, 1.0, 1.0) delivery count for that map
 BASELINE_LOOKUP = {
     "baseline_division_of_labor_large": 18.0,
+    "baseline_division_of_labor_large_random_positions": 18.0,
     "semiencouraged_division_of_labor_large": 10.0,
     "1-semiencouraged_division_of_labor_large": 10.0,
     "2-semiencouraged_division_of_labor_large": 10.0,

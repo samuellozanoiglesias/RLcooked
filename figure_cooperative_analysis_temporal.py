@@ -13,26 +13,9 @@ Usage:
     python figure_cooperative_analysis_temporal.py [options]
 
 Examples:
-    # Default (baseline vs encouraged, collision conditions only)
-    nohup python figure_cooperative_analysis_temporal.py --window_size 20 --step_size 10 > temporal_analysis.log 2>&1 &
-    
-    # Analyze specific initialization type
-    nohup python figure_cooperative_analysis_temporal.py --init_type empty_init --window_size 50 --step_size 25 > temporal_analysis_empty.log 2>&1 &
-    
-    # Analyze with synergy parameter
-    nohup python figure_cooperative_analysis_temporal.py --synergy 0.5 --window_size 20 --step_size 10 > temporal_analysis_synergy.log 2>&1 &
-    
-    # Analyze specific specialization
-    nohup python figure_cooperative_analysis_temporal.py --specialization 0 --window_size 20 --step_size 10 > temporal_analysis_spec0.log 2>&1 &
 
-    # Analyze custom
-    nohup python figure_cooperative_analysis_temporal.py --synergy 0.4 --specialization 0.05 --window_size 20 --step_size 100 --study_name MODIFIED_SPECIALIZATION > temporal_analysis.log 2>&1 &
-    
-    # Analyze specific episode range
-    nohup python figure_cooperative_analysis_temporal.py --initial_episode 100 --final_episode 500 --window_size 20 --step_size 10 > temporal_analysis_ep100-500.log 2>&1 &
-    
-    # Analyze with extended metrics and episode range
-    nohup python figure_cooperative_analysis_temporal.py --extended --initial_episode 0 --final_episode 1000 --window_size 50 --step_size 25 > temporal_analysis_extended_ep0-1000.log 2>&1 &
+nohup python figure_cooperative_analysis_temporal.py --map_name_1 baseline --map_name_2 encouraged --init_type empty_init --extended --synergy 0.4 --specialization 0.05 --initial_episode 0 --final_episode 1000 --window_size 50 --step_size 25 > temporal_analysis_extended.log 2>&1 &
+
 """
 
 
