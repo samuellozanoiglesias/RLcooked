@@ -36,6 +36,20 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 import pandas as pd
+
+import matplotlib as mpl
+
+mpl.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Latin Modern Roman"],
+    "text.latex.preamble": r"""
+        \usepackage{lmodern}
+        \usepackage{amsmath}
+        \usepackage{amssymb}
+    """,
+    "axes.unicode_minus": False,
+})
  
  
 # ---------------------------------------------------------------------------
@@ -488,10 +502,11 @@ _SIDE_OFFSET = {"HA": -0.18, "MA": +0.18}
 # violin fans outward from the box (HA to the left, MA to the right)
 _VIOLIN_DIR  = {"HA": -1, "MA": +1}
  
-_FS_AXIS  = 11
-_FS_TICK  = 10
-_FS_PANEL = 13
-_FS_LEG   = 10
+_FS_AXIS  = 24
+_FS_TICK_X  = 24
+_FS_TICK_Y  = 20
+_FS_PANEL = 28
+_FS_LEG   = 30
  
  
 def _aggregate(records: list[dict], key: str):
@@ -669,13 +684,13 @@ def make_figure(
  
         # ── x-axis ticks / labels ────────────────────────────────────────
         ax.set_xticks(list(_MAP_X.values()))
-        ax.set_xticklabels(map_labels, fontsize=_FS_TICK)
-        ax.set_xlabel("Map", fontsize=_FS_AXIS)
+        ax.set_xticklabels(map_labels, fontsize=_FS_TICK_X)
+        #ax.set_xlabel("Map", fontsize=_FS_AXIS)
         ax.set_xlim(0.4, 2.6)
  
         # ── y-axis ──────────────────────────────────────────────────────
         ax.set_ylabel(ylabels[ax_idx], fontsize=_FS_AXIS)
-        ax.tick_params(axis="y", labelsize=_FS_TICK)
+        ax.tick_params(axis="y", labelsize=_FS_TICK_Y)
         if is_spec:
             # Format y as percentage, tick at 0%, 10%, 20%, 30%
             ax.yaxis.set_major_formatter(
@@ -683,9 +698,9 @@ def make_figure(
             )
  
         # ── Panel label (A / B) ──────────────────────────────────────────
-        ax.text(-0.12, 1.02, panel_labels[ax_idx],
-                transform=ax.transAxes,
-                fontsize=_FS_PANEL, fontweight="bold", va="bottom")
+        #ax.text(-0.12, 1.02, panel_labels[ax_idx],
+        #        transform=ax.transAxes,
+        #        fontsize=_FS_PANEL, fontweight="bold", va="bottom")
  
         # ── Grid (light horizontal lines as in reference) ────────────────
         ax.yaxis.grid(True, color="lightgray", linewidth=0.7, zorder=0)
@@ -713,23 +728,7 @@ def make_figure(
             alpha=_ALPHA_BOX, linewidth=1.2,
         )
         legend_handles.append((box_patch, handle))
- 
-    # Combine into a two-artist tuple legend (box + diamond per entry)
-    from matplotlib.legend_handler import HandlerTuple
-    fig.legend(
-        [h for h in legend_handles],
-        [legend_labels[at] for at in agent_types],
-        handler_map={tuple: HandlerTuple(ndivide=None)},
-        title="Ability",
-        title_fontsize=_FS_LEG,
-        fontsize=_FS_LEG,
-        frameon=False,
-        loc="lower center",
-        bbox_to_anchor=(0.5, 0.0),
-        ncol=2,
-        handlelength=2.5,
-        columnspacing=2.0,
-    )
+
  
     plt.savefig(output_path, bbox_inches="tight")
     plt.close(fig)
@@ -769,7 +768,7 @@ def main():
     parser.add_argument("--cluster",        default="cuenca",
                         choices=["cuenca", "brigit", "local"],
                         help="Cluster preset (default: cuenca)")
-    parser.add_argument("--output_dir",     default=None,
+    parser.add_argument("--output_dir",     default='data/figures',
                         help="Where to save the figure (default: current directory)")
     parser.add_argument("--output_name",    default=None,
                         help="Output filename (default: HA_MA_comparison-RL.png)")

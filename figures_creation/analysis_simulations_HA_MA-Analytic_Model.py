@@ -1,40 +1,36 @@
 #!/usr/bin/env python3
 """
-HA vs MA Comparison Analysis — Human data version.
+HA vs MA Comparison Analysis — CSV version.
 
-Adapts the CSV-driven raincloud figure (analysis_figure3_HA_MA_csv.py) to
-human-subject data, which is supplied as two separate WIDE-format CSVs
-(one row per participant, one column per condition) instead of one long
-SLURM/simulation table:
+Reads a long-format CSV (one row per simulation run) and reproduces the
+raincloud-style comparison figure (half-violin + boxplot + diamond mean +
+connecting line), but driven directly from `figure3_specialization_index_long.csv`
+instead of crawling the SLURM simulation directory tree.
 
-  scores_human.csv
-      columns: "Open High", "Open Mixed",
-               "Partially Blocked High", "Partially Blocked Mixed"
+Group definitions (per experiment design):
+  Ability   : HA  <->  rho == 1     (High ability)
+              MA  <->  rho <  1     (Mixed ability)
+  Switching cost (x-axis):
+              low s  -> "Open" map
+              high s -> "Partially-blocked" map
 
-  specialization_index_human.csv
-      columns: "Open High Ability", "Open Mixed Ability",
-               "Partially Blocked High Ability", "Partially Blocked Mixed Ability"
+Panels (axes differ from the original filesystem-based version, since the
+metrics available in this CSV are different):
+  A: Reward rate
+  B: Specialization index (|Δ|)   (model_specialization_index_rate)
 
-Each column name encodes the two factors of the design:
-  - Map / switching-cost condition : "Open" (low s)  vs  "Partially Blocked" (high s)
-  - Ability group                  : "High" (HA)      vs  "Mixed" (MA)
-
-The two wide CSVs are melted into long format internally and plotted with
-the same raincloud layout used for the simulated data (half-violin +
-boxplot + diamond mean + connecting line), so the human and simulation
-figures stay visually comparable:
-
-  Panel A: Game score                  <- scores_human.csv
-  Panel B: Specialization index        <- specialization_index_human.csv
+Each panel keeps the original raincloud layout: two x-positions
+(low s / high s, labelled Open / Partially-blocked), with HA (salmon) and
+MA (teal) drawn side-by-side at each position, plus a mean-connecting line
+per ability group across the two switching-cost conditions.
 
 Usage:
-nohup python3 analysis_simulations_HA_MA-Human.py --scores_csv ./data/human/scores_human.csv --specialization_csv ./data/human/specialization_index_human.csv --output_dir . --output_name HA_MA_comparison-Human.png > log_analysis_human_HA_MA.out 2>&1 &
+nohup python3 analysis_simulations_HA_MA-Analytic_Model.py --csv ./data/analytic_model/figure3_specialization_index_long.csv --output_dir . --output_name HA_MA_comparison-Analytic_Model.png > log_HA_MA_comparison_Analytic_Model.out 2>&1 & 
 
 Author: Samuel Lozano
 """
 
 import argparse
-import re
 from pathlib import Path
 
 import matplotlib
@@ -47,14 +43,28 @@ import numpy as np
 import pandas as pd
 from scipy.stats import gaussian_kde
 
+import matplotlib as mpl
+
+mpl.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Latin Modern Roman"],
+    "text.latex.preamble": r"""
+        \usepackage{lmodern}
+        \usepackage{amsmath}
+        \usepackage{amssymb}
+    """,
+    "axes.unicode_minus": False,
+})
 
 # ---------------------------------------------------------------------------
-# Group / style constants  (kept identical to the simulation-data figure
-# so human and simulated results stay visually comparable)
+# Group / style constants
 # ---------------------------------------------------------------------------
+RHO_TOL = 1e-6  # rho == 1.0 (within tolerance) -> HA; otherwise -> MA
+
 _SWITCH_ORDER  = ["low", "high"]
 _SWITCH_X      = {"low": 1.0, "high": 2.0}
-_SWITCH_LABELS = {"low": "Open", "high": "Partially-blocked"}
+_SWITCH_LABELS = {"low": "Low s\n(Open)", "high": "High s\n(Partially-blocked)"}
 
 _ABILITY_ORDER = ["HA", "MA"]
 _SIDE_OFFSET   = {"HA": -0.18, "MA": +0.18}   # HA drawn left, MA drawn right of each x position
@@ -62,69 +72,60 @@ _VIOLIN_DIR    = {"HA": -1, "MA": +1}         # violin fans outward from the box
 
 _COLOR        = {"HA": "#E8857A", "MA": "#6BBFBE"}   # salmon / teal
 _COLOR_DARK   = {"HA": "#C0392B", "MA": "#148F8F"}
-_LEGEND_LABELS = {"HA": "High ability", "MA": "Mixed ability"}  # no rho — these are humans, not simulations
-
+_LEGEND_LABELS = {
+    "HA": r"High ability ($\rho = 1$)",
+    "MA": r"Mixed ability ($\rho < 1$)",
+}
 _ALPHA_VIOLIN = 0.45
 _ALPHA_BOX    = 0.55
 _VIOLIN_WIDTH = 0.30
 _BOX_WIDTH    = 0.10
 _WHISK_CAP    = 0.06
 
-_FS_AXIS  = 11
-_FS_TICK  = 10
-_FS_PANEL = 13
-_FS_LEG   = 10
+_FS_AXIS  = 24
+_FS_TICK_X  = 24
+_FS_TICK_Y  = 20
+_FS_PANEL = 28
+_FS_LEG   = 30
 
 
 # ---------------------------------------------------------------------------
-# Wide -> long loading
+# Data loading
 # ---------------------------------------------------------------------------
-def _parse_column_label(col: str) -> tuple[str, str]:
-    """
-    Parse a wide-format column name like "Open High" or
-    "Partially Blocked Mixed Ability" into (switch_cost_condition, ability_type).
-    """
-    c = col.strip().lower()
-
-    if "open" in c:
-        switch = "low"
-    elif "partially" in c or "blocked" in c:
-        switch = "high"
-    else:
-        raise ValueError(f"Could not parse switching condition from column: {col!r}")
-
-    if "mixed" in c:
-        ability = "MA"
-    elif "high" in c:
-        ability = "HA"
-    else:
-        raise ValueError(f"Could not parse ability type from column: {col!r}")
-
-    return switch, ability
+def classify_ability(rho: float) -> str:
+    """HA <-> rho == 1 ; MA <-> rho < 1."""
+    return "HA" if abs(rho - 1.0) < RHO_TOL else "MA"
 
 
-def load_wide_human_csv(csv_path: Path) -> pd.DataFrame:
-    """
-    Read a wide-format human CSV (one row per participant, one column per
-    Map x Ability condition) and melt it into long format with columns:
-    subject_id, switch_cost_condition (low/high), ability_type (HA/MA), value.
-    """
+def load_data(csv_path: Path) -> pd.DataFrame:
     df = pd.read_csv(csv_path)
-    df = df.reset_index(names="subject_id")
 
-    long_frames = []
-    for col in df.columns:
-        if col == "subject_id":
-            continue
-        switch, ability = _parse_column_label(col)
-        sub = df[["subject_id", col]].rename(columns={col: "value"})
-        sub["switch_cost_condition"] = switch
-        sub["ability_type"] = ability
-        long_frames.append(sub)
+    required = {
+        "rho", "switch_cost_condition", "reward_rate",
+        "model_specialization_index_rate", "switching_parameter_a",
+    }
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"CSV is missing required columns: {sorted(missing)}")
 
-    long_df = pd.concat(long_frames, ignore_index=True)
-    long_df["value"] = pd.to_numeric(long_df["value"], errors="coerce")
-    return long_df.dropna(subset=["value"])
+    df = df.copy()
+    df["ability_type"] = df["rho"].apply(classify_ability)
+
+    # --- NEW SCALING LOGIC ---
+    df["model_specialization_index_rate"] = df["model_specialization_index_rate"] * 100
+# -------------------------
+
+    df["switch_cost_condition"] = (
+        df["switch_cost_condition"].astype(str).str.strip().str.lower()
+    )
+    unknown = set(df["switch_cost_condition"].unique()) - set(_SWITCH_ORDER)
+    if unknown:
+        raise ValueError(
+            f"Unexpected switch_cost_condition values: {sorted(unknown)} "
+            f"(expected a subset of {_SWITCH_ORDER})"
+        )
+
+    return df
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +143,7 @@ def _aggregate(values: np.ndarray):
 
 
 # ---------------------------------------------------------------------------
-# Plotting primitives (raincloud style — unchanged from the simulation figure)
+# Plotting primitives (raincloud style)
 # ---------------------------------------------------------------------------
 def _draw_half_violin(ax, x_center, values, color, direction, y_min=None, y_max=None):
     arr = np.asarray(values, dtype=float)
@@ -201,42 +202,51 @@ def _draw_diamond_mean(ax, x_center, mean, color, color_dark, size=10):
 # ---------------------------------------------------------------------------
 # Figure
 # ---------------------------------------------------------------------------
-def make_figure(panels: list[dict], output_path: Path, title: str | None = None):
+def make_figure(df: pd.DataFrame, output_path: Path, title: str | None = None):
     """
-    panels: list of dicts, one per subplot, each with keys:
-        label       : panel letter, e.g. "A"
-        df          : long-format dataframe with columns
-                      switch_cost_condition (low/high), ability_type (HA/MA), value
-        ylabel      : y-axis label
-        floor_zero  : bool, whether to clip the y-axis at 0
+    Two-panel raincloud figure:
+      D.1: reward_rate              -> "Reward rate"
+      D.2: model_specialization_index_rate     -> "Specialization index"  (floored at 0)
+
+    X-axis (each panel): low s / high s, labelled Open / Partially-blocked,
+    with HA / MA drawn side-by-side at each position.
     """
-    n_panels = len(panels)
-    fig, axes = plt.subplots(1, n_panels, figsize=(5 * n_panels, 5), dpi=150)
-    if n_panels == 1:
-        axes = [axes]
-    fig.subplots_adjust(left=0.07, right=0.97, top=0.86, bottom=0.24, wspace=0.40)
+    panel_specs = [
+        ("D.1", "reward_rate",           "Reward Rate",                  False),
+        ("D.2", "model_specialization_index_rate",  "Specialization Index",   True),
+    ]
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5), dpi=150)
+    fig.subplots_adjust(left=0.06, right=0.98, top=0.86, bottom=0.24, wspace=0.40)
 
     if title:
-        fig.suptitle(title, fontsize=10, y=0.97, color="#444444")
+        fig.suptitle(title, fontsize=20, y=0.97, color="#444444")
 
-    for ax, panel in zip(axes, panels):
-        panel_label = panel["label"]
-        df = panel["df"]
-        ylabel = panel["ylabel"]
-        floor_zero = panel.get("floor_zero", False)
+    for ax, (panel_label, metric_key, ylabel, floor_zero) in zip(axes, panel_specs):
 
         # ── y-axis range from all data in this panel ─────────────────────
-        all_vals = df["value"].to_numpy(dtype=float)
-        all_vals = all_vals[np.isfinite(all_vals)]
-        if all_vals.size:
-            v_min, v_max = all_vals.min(), all_vals.max()
-            pad = (v_max - v_min) * 0.15 if v_max != v_min else 1.0
-            y_lo, y_hi = v_min - pad, v_max + pad
-            if floor_zero:
-                y_lo = max(0.0, y_lo)
+        if metric_key == "model_specialization_index_rate":
+            # Force limits to 0 and 100 for Specialization Index
+            y_lo, y_hi = 0.0, 100.0
+            ax.set_ylim(y_lo, y_hi)
+            
+            # Format tick labels to include the '%' symbol
+            import matplotlib.ticker as mtick
+            ax.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=100, decimals=0))
+            
         else:
-            y_lo, y_hi = 0.0, 1.0
-        ax.set_ylim(y_lo, y_hi)
+            # Original dynamic scaling for Reward Rate
+            all_vals = df[metric_key].to_numpy(dtype=float)
+            all_vals = all_vals[np.isfinite(all_vals)]
+            if all_vals.size:
+                v_min, v_max = all_vals.min(), all_vals.max()
+                pad = (v_max - v_min) * 0.15 if v_max != v_min else 1.0
+                y_lo, y_hi = v_min - pad, v_max + pad
+                if floor_zero:
+                    y_lo = max(0.0, y_lo)
+            else:
+                y_lo, y_hi = 0.0, 1.0
+            ax.set_ylim(y_lo, y_hi)
 
         # ── draw per switching-cost condition × ability type ─────────────
         mean_pts = {at: [] for at in _ABILITY_ORDER}
@@ -245,7 +255,7 @@ def make_figure(panels: list[dict], output_path: Path, title: str | None = None)
             switch_x = _SWITCH_X[switch]
             for at in _ABILITY_ORDER:
                 sel = df[(df["switch_cost_condition"] == switch) & (df["ability_type"] == at)]
-                mean, sem, n, vals = _aggregate(sel["value"].to_numpy())
+                mean, sem, n, vals = _aggregate(sel[metric_key].to_numpy())
                 if n == 0:
                     mean_pts[at].append((switch_x + _SIDE_OFFSET[at], np.nan))
                     continue
@@ -271,17 +281,17 @@ def make_figure(panels: list[dict], output_path: Path, title: str | None = None)
 
         # ── x-axis ─────────────────────────────────────────────────────
         ax.set_xticks([_SWITCH_X[s] for s in _SWITCH_ORDER])
-        ax.set_xticklabels([_SWITCH_LABELS[s] for s in _SWITCH_ORDER], fontsize=_FS_TICK)
-        ax.set_xlabel("Map", fontsize=_FS_AXIS)
+        ax.set_xticklabels([_SWITCH_LABELS[s] for s in _SWITCH_ORDER], fontsize=_FS_TICK_X)
+        #ax.set_xlabel("Switching cost condition (Map)", fontsize=_FS_AXIS)
         ax.set_xlim(0.4, 2.6)
 
         # ── y-axis ─────────────────────────────────────────────────────
-        ax.set_ylabel(ylabel, fontsize=_FS_AXIS)
-        ax.tick_params(axis="y", labelsize=_FS_TICK)
+        ax.set_ylabel(ylabel, fontweight="bold", fontsize=_FS_AXIS)
+        ax.tick_params(axis="y", labelsize=_FS_TICK_Y)
 
         # ── panel label ────────────────────────────────────────────────
-        ax.text(-0.12, 1.02, panel_label, transform=ax.transAxes,
-                 fontsize=_FS_PANEL, fontweight="bold", va="bottom")
+        #ax.text(-0.12, 1.02, panel_label, transform=ax.transAxes,
+        #         fontsize=_FS_PANEL, fontweight="bold", va="bottom")
 
         # ── grid / spines ──────────────────────────────────────────────
         ax.yaxis.grid(True, color="lightgray", linewidth=0.7, zorder=0)
@@ -289,33 +299,6 @@ def make_figure(panels: list[dict], output_path: Path, title: str | None = None)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.spines["left"].set_visible(False)
-
-        # ── y-axis range from all data in this panel ─────────────────────
-        if "Specialization" in ylabel:
-            # Force limits to 0 and 100 for Specialization Index
-            y_lo, y_hi = 0.0, 100.0
-            ax.set_ylim(y_lo, y_hi)
-            
-            # Format tick labels to include the '%' symbol
-            import matplotlib.ticker as mtick
-            ax.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=100, decimals=0))
-            
-        else:
-            # Original dynamic scaling for all other panels (like Reward Rate)
-            all_vals = df["value"].to_numpy(dtype=float)
-            all_vals = all_vals[np.isfinite(all_vals)]
-            if all_vals.size:
-                v_min, v_max = all_vals.min(), all_vals.max()
-                pad = (v_max - v_min) * 0.15 if v_max != v_min else 1.0
-                y_lo, y_hi = v_min - pad, v_max + pad
-                if floor_zero:
-                    y_lo = max(0.0, y_lo)
-            else:
-                y_lo, y_hi = 0.0, 1.0
-            ax.set_ylim(y_lo, y_hi)
-
-        if "Game score" in ylabel:
-            ax.set_ylim(0, 16)  # Force limits to 0 and 100 for Game Score
 
     # ── shared legend ──────────────────────────────────────────────────
     legend_handles = []
@@ -331,16 +314,39 @@ def make_figure(panels: list[dict], output_path: Path, title: str | None = None)
         )
         legend_handles.append((box_patch, handle))
 
-    fig.legend(
+    plt.savefig(output_path, bbox_inches="tight")
+
+    # ------------------------------------------------------------------
+    # Save legend as a separate figure
+    # ------------------------------------------------------------------
+
+    legend_fig = plt.figure(figsize=(5.5, 0.9))
+
+    legend = legend_fig.legend(
         legend_handles,
         [_LEGEND_LABELS[at] for at in _ABILITY_ORDER],
         handler_map={tuple: HandlerTuple(ndivide=None)},
-        title="Ability", title_fontsize=_FS_LEG, fontsize=_FS_LEG,
-        frameon=False, loc="lower center", bbox_to_anchor=(0.5, 0.0),
-        ncol=2, handlelength=2.5, columnspacing=2.0,
+        #title=r"Ability",
+        #title_fontsize=_FS_LEG,
+        fontsize=_FS_LEG,
+        frameon=False,
+        loc="center",
+        ncol=2,
+        handlelength=2.5,
+        columnspacing=2.5,
     )
 
-    plt.savefig(output_path, bbox_inches="tight")
+    legend_output = output_path.with_name(output_path.stem + "_legend.png")
+
+    legend_fig.savefig(
+        legend_output,
+        dpi=300,
+        bbox_inches="tight",
+        transparent=True,
+    )
+
+    plt.close(legend_fig)
+
     plt.close(fig)
     print(f"\n✅ Figure saved → {output_path}")
 
@@ -348,23 +354,24 @@ def make_figure(panels: list[dict], output_path: Path, title: str | None = None)
 # ---------------------------------------------------------------------------
 # Console summary
 # ---------------------------------------------------------------------------
-def print_summary(panels: list[dict]):
-    print("\n" + "=" * 70)
+def print_summary(df: pd.DataFrame):
+    metrics = ["reward_rate", "model_specialization_index_rate", "switching_parameter_a"]
+    print("\n" + "=" * 78)
     print("SUMMARY")
-    print("=" * 70)
-    for panel in panels:
-        df = panel["df"]
-        print(f"\n-- {panel['label']}: {panel['ylabel']} --")
-        header = f"{'Group':<28}{'N':>6}   {'mean ± SEM':>18}"
-        print(header)
-        print("-" * len(header))
-        for switch in _SWITCH_ORDER:
-            for at in _ABILITY_ORDER:
-                sel = df[(df["switch_cost_condition"] == switch) & (df["ability_type"] == at)]
-                label = f"{_SWITCH_LABELS[switch].splitlines()[0]} / {at}"
-                mean, sem, n, _ = _aggregate(sel["value"].to_numpy())
-                stat_str = f"{mean:.3f} ± {sem:.3f}".rjust(18)
-                print(f"{label:<28}{n:>6}   {stat_str}")
+    print("=" * 78)
+    header = f"{'Group':<32}{'N':>6}   " + "   ".join(f"{m:>26}" for m in metrics)
+    print(header)
+    print("-" * len(header))
+    for switch in _SWITCH_ORDER:
+        for at in _ABILITY_ORDER:
+            sel = df[(df["switch_cost_condition"] == switch) & (df["ability_type"] == at)]
+            label = f"{_SWITCH_LABELS[switch].splitlines()[0]} / {at}"
+            n = len(sel)
+            stat_strs = []
+            for m in metrics:
+                mean, sem, _, _ = _aggregate(sel[m].to_numpy())
+                stat_strs.append(f"{mean:.3f} ± {sem:.3f}".rjust(26))
+            print(f"{label:<32}{n:>6}   " + "   ".join(stat_strs))
 
 
 # ---------------------------------------------------------------------------
@@ -372,36 +379,26 @@ def print_summary(panels: list[dict]):
 # ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(
-        description="HA vs MA comparison from human-subject wide-format CSVs."
+        description="HA vs MA comparison from the figure3 long-format CSV."
     )
-    parser.add_argument("--scores_csv", default="scores_human.csv",
-                         help="Wide-format CSV with game scores (default: scores_human.csv)")
-    parser.add_argument("--specialization_csv", default="specialization_index_human.csv",
-                         help="Wide-format CSV with specialization index "
-                              "(default: specialization_index_human.csv)")
-    parser.add_argument("--output_dir", default=".",
+    parser.add_argument("--csv", default="data/analytic_model/figure3_specialization_index_long.csv",
+                         help="Path to the long-format CSV (default: figure3_specialization_index_long.csv)")
+    parser.add_argument("--output_dir", default="data/figures",
                          help="Where to save the figure (default: current directory)")
-    parser.add_argument("--output_name", default="figure_human_HA_MA.png",
-                         help="Output filename (default: figure_human_HA_MA.png)")
+    parser.add_argument("--output_name", default="figure3_HA_MA_Analytic_Model.png",
+                         help="Output filename (default: figure3_HA_MA_Analytic_Model.png)")
     parser.add_argument("--title", default=None,
                          help="Optional figure suptitle")
     args = parser.parse_args()
 
-    scores_long = load_wide_human_csv(Path(args.scores_csv))
-    spec_long = load_wide_human_csv(Path(args.specialization_csv))
-
-    panels = [
-        {"label": "A", "df": scores_long, "ylabel": "Game score", "floor_zero": True},
-        {"label": "B", "df": spec_long, "ylabel": "Specialization index", "floor_zero": True},
-    ]
-
-    print_summary(panels)
+    df = load_data(Path(args.csv))
+    print_summary(df)
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / args.output_name
 
-    make_figure(panels, output_path, title=args.title)
+    make_figure(df, output_path, title=args.title)
 
 
 if __name__ == "__main__":
