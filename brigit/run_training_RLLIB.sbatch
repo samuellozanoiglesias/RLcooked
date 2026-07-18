@@ -25,12 +25,12 @@ mkdir -p logs
 TRAIN_SCRIPT='/mnt/lustre/home/samuloza/RLcooked/training-DTDE-spoiled_broth.py'
 
 CLUSTER=brigit
-MAP_NRS=(baseline_division_of_labor_large_random_positions
-        encouraged_division_of_labor_large_random_positions)  # List of maps to run
+MAP_NRS=(baseline_division_of_labor_large
+        encouraged_division_of_labor_large)  # List of maps to run
 LR=3e-4
 GAME_VERSIONS=(classic_collision)  # List of game versions to run
 NUM_AGENTS=2
-NUM_EPOCHS=1000  # Number of training epochs
+NUM_EPOCHS=2000  # Number of training epochs
 SEEDS=(0)  # Different random seeds for runs
 REWARDS_ON_DELIVERY_ONLY=True  # Whether to use rewards on delivery only
 RANDOM_INITIAL_STATE=False  # Whether to randomize initial state
@@ -75,17 +75,17 @@ SPEED_PAIRS=(
 #)
 
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)
-SYNERGY_SCALING_FACTOR_VALUES=(0.92)
+SYNERGY_SCALING_FACTOR_VALUES=(0)
 
 # Define specialization penalty scale values
-SPECIALIZATION_PENALTY_SCALE_VALUES=(0.05)
+SPECIALIZATION_PENALTY_SCALE_VALUES=(0)
 
 # Define theta values for exponential specialization penalty
 # penalty = base_reward * (exp(theta * (1.0 - speed)) - 1) * specialization_scale * event_count
 SPECIALIZATION_THETA_VALUES=(1.0)
 
 # Define kappa values (competence transformation parameter for team synergy distribution)
-KAPPA_VALUES=(7.0)
+KAPPA_VALUES=(20.0)
 
 # Define activate_synergy_positive values (whether to activate positive synergy signals)
 ACTIVATE_SYNERGY_POSITIVE_VALUES=(False)
@@ -393,13 +393,13 @@ for job in "${job_list[@]}"; do
     if [ $NUM_AGENTS -eq 1 ]; then
         SPEED_KEY="${CUTTING_SPEED_1},${WALKING_SPEED_1} ${CUTTING_SPEED_2},${WALKING_SPEED_2}"
         INPUT_FILE="inputs/input_${ANGLE1}_${ANGLE2}_c${CUTTING_SPEED_1}${CUTTING_SPEED_2}_w${WALKING_SPEED_1}${WALKING_SPEED_2}_agent${AGENTS}.txt"
-        LOG_FILE="logs/out_${ANGLE1}_${ANGLE2}_c${CUTTING_SPEED_1}${CUTTING_SPEED_2}_w${WALKING_SPEED_1}${WALKING_SPEED_2}_lr${LR}_${GAME_VERSION}_${MAP_NR}_seed_${SEED}_${RANDOM_INITIAL_STATE}_synergy${SYNERGY_SCALING_FACTOR}_spec${SPEC_PENALTY_SCALE}_theta${SPECIALIZATION_THETA}_kappa${KAPPA}_counter${COUNTER_REWARD_VALUE}_collision${COLLISION_PENALTY_VALUE}_activatesynergy${ACTIVATE_SYNERGY_POSITIVE}_rewarddecay${ENABLE_REWARD_DECAY}_harsh${COLLISION_HARSHNESS}_agent${AGENTS}.log"
+        LOG_FILE="logs/Out_${ANGLE1}_${ANGLE2}_c${CUTTING_SPEED_1}${CUTTING_SPEED_2}_w${WALKING_SPEED_1}${WALKING_SPEED_2}_lr${LR}_${GAME_VERSION}_${MAP_NR}_seed_${SEED}_${RANDOM_INITIAL_STATE}_synergy${SYNERGY_SCALING_FACTOR}_spec${SPEC_PENALTY_SCALE}_theta${SPECIALIZATION_THETA}_kappa${KAPPA}_counter${COUNTER_REWARD_VALUE}_collision${COLLISION_PENALTY_VALUE}_activatesynergy${ACTIVATE_SYNERGY_POSITIVE}_rewarddecay${ENABLE_REWARD_DECAY}_harsh${COLLISION_HARSHNESS}_agent${AGENTS}.log"
     else
         SPEED_KEY="$SPEEDS"
         ANGLE_TAG=$(sanitize_for_path "$ANGLES")
         SPEED_TAG=$(sanitize_for_path "$SPEEDS")
         INPUT_FILE="inputs/input_${ANGLE_TAG}_c${SPEED_TAG}.txt"
-        LOG_FILE="logs/out_${ANGLE_TAG}_c${SPEED_TAG}_lr${LR}_${GAME_VERSION}_${MAP_NR}_seed_${SEED}_synergy${SYNERGY_SCALING_FACTOR}_spec${SPEC_PENALTY_SCALE}_theta${SPECIALIZATION_THETA}_kappa${KAPPA}_agent${AGENTS}.log"
+        LOG_FILE="logs/Out_${ANGLE_TAG}_c${SPEED_TAG}_lr${LR}_${GAME_VERSION}_${MAP_NR}_seed_${SEED}_synergy${SYNERGY_SCALING_FACTOR}_spec${SPEC_PENALTY_SCALE}_theta${SPECIALIZATION_THETA}_kappa${KAPPA}_agent${AGENTS}.log"
     fi
 
     # Get checkpoint path based on map and game version

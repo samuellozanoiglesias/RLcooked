@@ -52,7 +52,7 @@ def get_rewards_config(rewards_on_delivery_only, counter_reward=0.0):
             "raw_food": 0.0,
             "plate": 0.0,
             "counter": 0.0,
-            "cut": 0.0,
+            "cut": 4.0,
             "salad": 0.0,
             "deliver": 10.0,
         }

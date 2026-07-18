@@ -34,7 +34,7 @@ Color coding:
 - Red: Worse performance than baseline
 
     # Analyze specific episode range around episode 500
-    nohup python BLUR-grid_full_cooperative_analysis.py --episode_range specific --init_type empty_init --num_episodes 20 --cluster brigit --specialization 0.25 --synergy 1.35 --target_episode 750 > full_grid_empty_init.log 2>&1 &
+nohup python BLUR-grid_full_cooperative_analysis.py --episode_range specific --init_type empty_init --num_episodes 20 --cluster brigit --specialization 0.25 --synergy 1.35 --target_episode 750 > full_grid_empty_init.log 2>&1 &
 """
 
 import sys
@@ -1286,10 +1286,10 @@ class ColorGridPlotter:
         self._plot_2d_grid(
             ax2,
             gap_grid,
-            'Specialization Difference',
-            f'Specialization Differences ({comparison_type.title()})',
+            'Specialization Index',
+            f'Specialization Index ({comparison_type.title()})',
             fixed_max_abs=12.0,
-            cbar_ticks=[-10, -5, 0, 5, 10],
+            cbar_ticks=[-100, -50, 0, 50, 100],
             interpolation=interpolation,
         )
 
@@ -1353,7 +1353,7 @@ class ColorGridPlotter:
             title: Title for the subplot
         """
         # Determine colormap based on metric type
-        is_gap = 'Deliver/Cut Gap' in metric_label
+        is_gap = 'Specialization Index' in metric_label
         is_action_diff = 'Action Differentiation' in metric_label
 
         max_abs_diff = np.max(np.abs(grid))
