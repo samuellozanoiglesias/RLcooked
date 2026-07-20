@@ -25,7 +25,7 @@ MA (teal) drawn side-by-side at each position, plus a mean-connecting line
 per ability group across the two switching-cost conditions.
 
 Usage:
-nohup python3 analysis_simulations_HA_MA-Analytic_Model.py --csv ./data/analytic_model/figure3_specialization_index_long.csv --output_dir . --output_name HA_MA_comparison-Analytic_Model.png > log_HA_MA_comparison_Analytic_Model.out 2>&1 & 
+nohup python3 analysis_simulations_HA_MA-Analytic_Model.py --csv ./analytic_model/figure3_specialization_index_long.csv > log_HA_MA_comparison_Analytic_Model.out 2>&1 & 
 
 Author: Samuel Lozano
 """
@@ -45,6 +45,9 @@ from scipy.stats import gaussian_kde
 
 import matplotlib as mpl
 
+# ---------------------------------------------------------------------------
+# Global Style Configuration (PNAS requirements)
+# ---------------------------------------------------------------------------
 mpl.rcParams.update({
     "text.usetex": True,
     "font.family": "serif",
@@ -55,6 +58,12 @@ mpl.rcParams.update({
         \usepackage{amssymb}
     """,
     "axes.unicode_minus": False,
+    # High resolution settings
+    "figure.dpi": 300,       # Screen/default DPI
+    "savefig.dpi": 600,      # Publication quality saved DPI
+    # Font embedding settings (Type 42 is TrueType embedded)
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42,
 })
 
 # ---------------------------------------------------------------------------
@@ -64,27 +73,32 @@ RHO_TOL = 1e-6  # rho == 1.0 (within tolerance) -> HA; otherwise -> MA
 
 _SWITCH_ORDER  = ["low", "high"]
 _SWITCH_X      = {"low": 1.0, "high": 2.0}
-_SWITCH_LABELS = {"low": "Low s\n(Open)", "high": "High s\n(Partially-blocked)"}
+_SWITCH_LABELS = {"low": "Open\n($s=0.05$)", "high": "PB\n($s=0.5$)"}
 
 _ABILITY_ORDER = ["HA", "MA"]
 _SIDE_OFFSET   = {"HA": -0.18, "MA": +0.18}   # HA drawn left, MA drawn right of each x position
-_VIOLIN_DIR    = {"HA": -1, "MA": +1}         # violin fans outward from the box
+_VIOLIN_DIR    = {"HA": -1, "MA": +1}          # violin fans outward from the box
 
-_COLOR        = {"HA": "#E8857A", "MA": "#6BBFBE"}   # salmon / teal
-_COLOR_DARK   = {"HA": "#C0392B", "MA": "#148F8F"}
+# New color scheme based on panels B and E
+_COLOR_HA = '#E24A33' # Reddish-Salmon
+_COLOR_MA = '#348ABD' # Teal-Blue
+_COLOR        = {"HA": _COLOR_HA, "MA": _COLOR_MA}   # salmon / teal
+_COLOR_DARK   = {"HA": "black", "MA": "black"} # Dark outlines for both
 _LEGEND_LABELS = {
-    "HA": r"High ability ($\rho = 1$)",
-    "MA": r"Mixed ability ($\rho < 1$)",
+    "HA": r"\textbf{High ability ($\boldsymbol{\rho = 1}$)}",
+    "MA": r"\textbf{Mixed ability ($\boldsymbol{\rho < 1}$)}",
 }
-_ALPHA_VIOLIN = 0.45
-_ALPHA_BOX    = 0.55
+
+# Adjusted alpha values based on Panels B and E for higher contrast
+_ALPHA_VIOLIN = 0.55  # Slightly increased density
+_ALPHA_BOX    = 0.85  # Much more solid, less pastel
 _VIOLIN_WIDTH = 0.30
 _BOX_WIDTH    = 0.10
 _WHISK_CAP    = 0.06
 
-_FS_AXIS  = 24
-_FS_TICK_X  = 24
-_FS_TICK_Y  = 20
+_FS_AXIS  = 30
+_FS_TICK_X  = 30
+_FS_TICK_Y = 30
 _FS_PANEL = 28
 _FS_LEG   = 30
 
@@ -145,7 +159,7 @@ def _aggregate(values: np.ndarray):
 # ---------------------------------------------------------------------------
 # Plotting primitives (raincloud style)
 # ---------------------------------------------------------------------------
-def _draw_half_violin(ax, x_center, values, color, direction, y_min=None, y_max=None):
+def _draw_half_violin(ax, x_center, values, color, direction, color_dark='black', y_min=None, y_max=None):
     arr = np.asarray(values, dtype=float)
     arr = arr[np.isfinite(arr)]
     if arr.size < 2:
@@ -163,8 +177,11 @@ def _draw_half_violin(ax, x_center, values, color, direction, y_min=None, y_max=
     )
     xs_outer = x_center + density_norm
     xs_inner = np.full_like(xs_outer, x_center)
-    ax.fill_betweenx(ys, xs_inner, xs_outer, color=color, alpha=_ALPHA_VIOLIN, linewidth=0)
-    ax.plot(xs_outer, ys, color=color, linewidth=0.8, alpha=0.7)
+    
+    # Fill with specified alpha and no linewidth for the area
+    ax.fill_betweenx(ys, xs_inner, xs_outer, color=color, alpha=_ALPHA_VIOLIN, linewidth=0, zorder=2)
+    # Add a solid dark outline to survive grayscale/projection (matching reference B/E)
+    ax.plot(xs_outer, ys, color=color_dark, linewidth=1.0, alpha=1.0, zorder=2.5)
 
 
 def _draw_boxplot(ax, x_center, values, color, color_dark):
@@ -180,22 +197,25 @@ def _draw_boxplot(ax, x_center, values, color, color_dark):
     rect = plt.Rectangle(
         (x_center - bw, q1), _BOX_WIDTH, iqr,
         facecolor=color, edgecolor=color_dark,
-        linewidth=1.2, alpha=_ALPHA_BOX, zorder=3,
+        linewidth=1.3, alpha=_ALPHA_BOX, zorder=3, # Increased linewidth and alpha
     )
     ax.add_patch(rect)
-    ax.plot([x_center - bw, x_center + bw], [med, med], color=color_dark, linewidth=1.5, zorder=4)
-    ax.plot([x_center, x_center], [lo_whisk, q1], color=color_dark, linewidth=1.0, zorder=3)
-    ax.plot([x_center, x_center], [q3, hi_whisk], color=color_dark, linewidth=1.0, zorder=3)
+    # Median is now black with higher zorder
+    ax.plot([x_center - bw, x_center + bw], [med, med], color=color_dark, linewidth=1.8, zorder=4)
+    # Whiskers are black
+    ax.plot([x_center, x_center], [lo_whisk, q1], color=color_dark, linewidth=1.2, zorder=3)
+    ax.plot([x_center, x_center], [q3, hi_whisk], color=color_dark, linewidth=1.2, zorder=3)
     cw = _WHISK_CAP / 2
-    ax.plot([x_center - cw, x_center + cw], [lo_whisk, lo_whisk], color=color_dark, linewidth=1.0, zorder=3)
-    ax.plot([x_center - cw, x_center + cw], [hi_whisk, hi_whisk], color=color_dark, linewidth=1.0, zorder=3)
+    # Caps are black
+    ax.plot([x_center - cw, x_center + cw], [lo_whisk, lo_whisk], color=color_dark, linewidth=1.2, zorder=3)
+    ax.plot([x_center - cw, x_center + cw], [hi_whisk, hi_whisk], color=color_dark, linewidth=1.2, zorder=3)
 
 
 def _draw_diamond_mean(ax, x_center, mean, color, color_dark, size=10):
     ax.plot(
         x_center, mean, marker="D", markersize=size,
         markerfacecolor=color, markeredgecolor=color_dark,
-        markeredgewidth=1.4, zorder=5, linestyle="none",
+        markeredgewidth=1.5, zorder=5, linestyle="none", # Solid dark outline
     )
 
 
@@ -205,18 +225,19 @@ def _draw_diamond_mean(ax, x_center, mean, color, color_dark, size=10):
 def make_figure(df: pd.DataFrame, output_path: Path, title: str | None = None):
     """
     Two-panel raincloud figure:
-      D.1: reward_rate              -> "Reward rate"
+      D.1: reward_rate               -> "Reward rate"
       D.2: model_specialization_index_rate     -> "Specialization index"  (floored at 0)
 
     X-axis (each panel): low s / high s, labelled Open / Partially-blocked,
     with HA / MA drawn side-by-side at each position.
     """
     panel_specs = [
-        ("D.1", "reward_rate",           "Reward Rate",                  False),
+        ("D.1", "reward_rate",           "Reward Rate",                   False),
         ("D.2", "model_specialization_index_rate",  "Specialization Index",   True),
     ]
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5), dpi=150)
+    # Create figure with high DPI setting
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5)) 
     fig.subplots_adjust(left=0.06, right=0.98, top=0.86, bottom=0.24, wspace=0.40)
 
     if title:
@@ -264,7 +285,8 @@ def make_figure(df: pd.DataFrame, output_path: Path, title: str | None = None):
                 color, color_dark = _COLOR[at], _COLOR_DARK[at]
                 direction = _VIOLIN_DIR[at]
 
-                _draw_half_violin(ax, x_center, vals, color, direction, y_min=y_lo, y_max=y_hi)
+                # Pass color_dark for solid outlines
+                _draw_half_violin(ax, x_center, vals, color, direction, color_dark=color_dark, y_min=y_lo, y_max=y_hi)
                 _draw_boxplot(ax, x_center, vals, color, color_dark)
                 _draw_diamond_mean(ax, x_center, mean, color, color_dark)
 
@@ -276,8 +298,10 @@ def make_figure(df: pd.DataFrame, output_path: Path, title: str | None = None):
             xs = [p[0] for p in pts]
             ys = [p[1] for p in pts]
             if all(not np.isnan(y) for y in ys):
-                ax.plot(xs, ys, color=_COLOR_DARK[at], linewidth=2.0,
-                         zorder=4, solid_capstyle="round")
+                # Using the actual salmon/teal colors for connecting lines
+                actual_color = _COLOR_HA if at == "HA" else _COLOR_MA
+                ax.plot(xs, ys, color=actual_color, linewidth=2.5,
+                         zorder=4, solid_capstyle="round", alpha=0.8)
 
         # ── x-axis ─────────────────────────────────────────────────────
         ax.set_xticks([_SWITCH_X[s] for s in _SWITCH_ORDER])
@@ -303,17 +327,21 @@ def make_figure(df: pd.DataFrame, output_path: Path, title: str | None = None):
     # ── shared legend ──────────────────────────────────────────────────
     legend_handles = []
     for at in _ABILITY_ORDER:
+        # High contrast handle matching Reference B/E: solid fill, solid black edge
         handle = matplotlib.lines.Line2D(
-            [], [], marker="D", markersize=9,
-            markerfacecolor=_COLOR[at], markeredgecolor=_COLOR_DARK[at],
-            markeredgewidth=1.2, linewidth=0, label=_LEGEND_LABELS[at],
+            [], [], marker="D", markersize=10,
+            markerfacecolor=_COLOR[at], markeredgecolor="black",
+            markeredgewidth=1.5, linewidth=0, label=_LEGEND_LABELS[at],
+            alpha=1.0 # Full visibility in legend
         )
+        # Box patch matching enhanced boxplot style
         box_patch = matplotlib.patches.Patch(
-            facecolor=_COLOR[at], edgecolor=_COLOR_DARK[at],
-            alpha=_ALPHA_BOX, linewidth=1.2,
+            facecolor=_COLOR[at], edgecolor="black",
+            alpha=_ALPHA_BOX, linewidth=1.3,
         )
         legend_handles.append((box_patch, handle))
 
+    # Save main figure with high DPI and font embedding (global rcParams)
     plt.savefig(output_path, bbox_inches="tight")
 
     # ------------------------------------------------------------------
@@ -338,9 +366,9 @@ def make_figure(df: pd.DataFrame, output_path: Path, title: str | None = None):
 
     legend_output = output_path.with_name(output_path.stem + "_legend.png")
 
+    # Legend figure also saved with global 600 DPI and font embedding
     legend_fig.savefig(
         legend_output,
-        dpi=300,
         bbox_inches="tight",
         transparent=True,
     )
@@ -348,7 +376,7 @@ def make_figure(df: pd.DataFrame, output_path: Path, title: str | None = None):
     plt.close(legend_fig)
 
     plt.close(fig)
-    print(f"\n✅ Figure saved → {output_path}")
+    print(f"\n✅ Figure saved (High Resolution, PNAS style) → {output_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -383,7 +411,7 @@ def main():
     )
     parser.add_argument("--csv", default="data/analytic_model/figure3_specialization_index_long.csv",
                          help="Path to the long-format CSV (default: figure3_specialization_index_long.csv)")
-    parser.add_argument("--output_dir", default="data/figures",
+    parser.add_argument("--output_dir", default="./figures",
                          help="Where to save the figure (default: current directory)")
     parser.add_argument("--output_name", default="figure3_HA_MA_Analytic_Model.png",
                          help="Output filename (default: figure3_HA_MA_Analytic_Model.png)")

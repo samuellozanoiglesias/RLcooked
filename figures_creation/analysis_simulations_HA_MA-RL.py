@@ -22,7 +22,6 @@ nohup python3 analysis_simulations_HA_MA-RL.py --map_baseline baseline_division_
 Author: Samuel Lozano
 """
 
-
 import argparse
 import re
 import sys
@@ -32,13 +31,18 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.lines
 import matplotlib.patches
+from matplotlib.legend_handler import HandlerTuple
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 import pandas as pd
+from scipy.stats import gaussian_kde
 
 import matplotlib as mpl
 
+# ---------------------------------------------------------------------------
+# Global Style Configuration (PNAS requirements)
+# ---------------------------------------------------------------------------
 mpl.rcParams.update({
     "text.usetex": True,
     "font.family": "serif",
@@ -49,6 +53,12 @@ mpl.rcParams.update({
         \usepackage{amssymb}
     """,
     "axes.unicode_minus": False,
+    # High resolution settings
+    "figure.dpi": 300,       # Screen/default DPI
+    "savefig.dpi": 600,      # Publication quality saved DPI
+    # Font embedding settings (Type 42 is TrueType embedded)
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42,
 })
  
  
@@ -293,8 +303,7 @@ def extract_metrics(simulation_path: Path, initialization_period: float = 0.0) -
     pos = pos.copy()
     pos["agent_id"] = pos["agent_id"].astype(str)
  
-    # Coerce numeric columns — CSVs can silently produce object-dtype columns
-    # when rows contain mixed types (e.g. a stray string header in the middle).
+    # Coerce numeric columns
     for _col in ("second", "frame", "score"):
         if _col in pos.columns:
             pos[_col] = pd.to_numeric(pos[_col], errors="coerce")
@@ -322,14 +331,14 @@ def extract_metrics(simulation_path: Path, initialization_period: float = 0.0) -
     score_ts = pos.groupby("adj_sec")["score"].max().sort_index()
     team_deliveries = int((score_ts.diff().fillna(0) > 0).sum())
  
-    # Per-agent deliveries (agent's own score column if present, else shared score diffs per agent)
+    # Per-agent deliveries
     deliveries_per_agent: dict[str, int] = {}
     for agent_id, grp in pos.groupby("agent_id"):
         grp_sorted = grp.sort_values("adj_sec")
         diffs = grp_sorted["score"].diff().fillna(0)
         deliveries_per_agent[agent_id] = int((diffs > 0).sum())
  
-    # If per-agent sum == 0 but team > 0, fall back to team split approach
+    # Fallback team split approach
     if sum(deliveries_per_agent.values()) == 0 and team_deliveries > 0:
         agents = sorted(pos["agent_id"].unique())
         deliveries_per_agent = {a: team_deliveries // len(agents) for a in agents}
@@ -389,7 +398,7 @@ def specialization_index(metrics: dict) -> float | None:
     if total_cuts > 0 and total_del > 0:
         cuts_term = (vals_cuts[0] - vals_cuts[1]) / total_cuts
         del_term = (vals_del[1] - vals_del[0]) / total_del
-        return abs(del_term + cuts_term) / 2
+        return abs(del_term + cuts_term) * 100 / 2
 
     return None
  
@@ -405,11 +414,7 @@ def collect_group_metrics(
 ) -> list[dict]:
     """
     Traverse all Training_*/checkpoint_*/simulation_* directories under
-    simulations_root.  Keep only simulations where config.txt matches
-    agent_type_filter (HA or MA) and, if checkpoint_filter is given,
-    the checkpoint matches.
- 
-    Returns list of metric dicts.
+    simulations_root.
     """
     results = []
  
@@ -470,27 +475,18 @@ def collect_group_metrics(
  
  
 # ---------------------------------------------------------------------------
-# Plotting  –  raincloud style (half-violin + boxplot + diamond mean + line)
-# Matches the reference figure layout:
-#   X-axis  : two map positions (Open=Baseline, Partially-blocked=Encouraged)
-#   Per position: HA (salmon) and MA (teal) rendered side-by-side
-#   Each group: half-violin on the outer side, IQR box, whiskers, diamond mean
-#   Connecting line: one per ability group linking the two map positions
+# Plotting  –  High-Contrast Raincloud Style
 # ---------------------------------------------------------------------------
- 
-from scipy.stats import gaussian_kde
- 
-# ── Colour / style constants ────────────────────────────────────────────────
-_COLOR = {
-    "HA": "#E8857A",   # salmon  (High ability)
-    "MA": "#6BBFBE",   # teal    (Mixed ability)
-}
-_COLOR_DARK = {
-    "HA": "#C0392B",
-    "MA": "#148F8F",
-}
-_ALPHA_VIOLIN = 0.45
-_ALPHA_BOX    = 0.55
+
+# High contrast colors Reference Style scheme
+_COLOR_HA = '#E24A33' # Reddish-Salmon
+_COLOR_MA = '#348ABD' # Teal-Blue
+_COLOR = {"HA": _COLOR_HA, "MA": _COLOR_MA}
+_COLOR_DARK = {"HA": "black", "MA": "black"}
+
+# Increased alpha values based on Reference style requirements
+_ALPHA_VIOLIN = 0.55  # Increased density
+_ALPHA_BOX    = 0.85  # Much more solid, less pastel
 _VIOLIN_WIDTH = 0.30   # half-violin max half-width in data-x units
 _BOX_WIDTH    = 0.10
 _WHISK_CAP    = 0.06
@@ -502,9 +498,9 @@ _SIDE_OFFSET = {"HA": -0.18, "MA": +0.18}
 # violin fans outward from the box (HA to the left, MA to the right)
 _VIOLIN_DIR  = {"HA": -1, "MA": +1}
  
-_FS_AXIS  = 24
-_FS_TICK_X  = 24
-_FS_TICK_Y  = 20
+_FS_AXIS  = 30
+_FS_TICK_X  = 30
+_FS_TICK_Y  = 30
 _FS_PANEL = 28
 _FS_LEG   = 30
  
@@ -520,16 +516,12 @@ def _aggregate(records: list[dict], key: str):
     return mean, sem, len(arr), arr.tolist()
  
  
-def _draw_half_violin(ax, x_center, values, color, direction, y_min=None, y_max=None):
-    """
-    Draw a half-violin (kernel density) fanning in `direction` (+1=right, -1=left)
-    from x_center.  Returns the KDE object for optional reuse.
-    """
+def _draw_half_violin(ax, x_center, values, color, direction, color_dark='black', y_min=None, y_max=None):
+    """Draw a high-contrast half-violin fanning in `direction` (+1=right, -1=left)"""
     arr = np.array(values, dtype=float)
     arr = arr[np.isfinite(arr)]
     if len(arr) < 2:
         return
-    # If all values are identical the KDE is singular – add tiny jitter
     if np.std(arr) < 1e-10:
         arr = arr + np.random.default_rng(0).normal(0, 1e-8, size=len(arr))
     kde = gaussian_kde(arr, bw_method="scott")
@@ -537,17 +529,18 @@ def _draw_half_violin(ax, x_center, values, color, direction, y_min=None, y_max=
     y_hi = arr.max() if y_max is None else y_max
     ys = np.linspace(y_lo, y_hi, 200)
     density = kde(ys)
-    # Normalise so max half-width == _VIOLIN_WIDTH
     density_norm = (density / density.max() * _VIOLIN_WIDTH * direction
                     if density.max() > 0 else density * 0)
     xs_outer = x_center + density_norm
     xs_inner = np.full_like(xs_outer, x_center)
-    ax.fill_betweenx(ys, xs_inner, xs_outer, color=color, alpha=_ALPHA_VIOLIN, linewidth=0)
-    ax.plot(xs_outer, ys, color=color, linewidth=0.8, alpha=0.7)
+    # Area fill (transparent)
+    ax.fill_betweenx(ys, xs_inner, xs_outer, color=color, alpha=_ALPHA_VIOLIN, linewidth=0, zorder=2)
+    # Add solid dark path outline
+    ax.plot(xs_outer, ys, color=color_dark, linewidth=1.0, alpha=1.0, zorder=2.5)
  
  
 def _draw_boxplot(ax, x_center, values, color, color_dark):
-    """IQR box + whiskers (1.5×IQR) centred at x_center."""
+    """High-contrast IQR box + whiskers (1.5×IQR) centred at x_center."""
     arr = np.array(values, dtype=float)
     arr = arr[np.isfinite(arr)]
     if len(arr) < 2:
@@ -561,31 +554,31 @@ def _draw_boxplot(ax, x_center, values, color, color_dark):
     rect = plt.Rectangle(
         (x_center - bw, q1), _BOX_WIDTH, iqr,
         facecolor=color, edgecolor=color_dark,
-        linewidth=1.2, alpha=_ALPHA_BOX, zorder=3,
+        linewidth=1.3, alpha=_ALPHA_BOX, zorder=3,
     )
     ax.add_patch(rect)
-    # Median line
+    # Thicker black median line
     ax.plot([x_center - bw, x_center + bw], [med, med],
-            color=color_dark, linewidth=1.5, zorder=4)
-    # Whisker lines
+            color=color_dark, linewidth=1.8, zorder=4)
+    # Pure black whiskers
     ax.plot([x_center, x_center], [lo_whisk, q1],
-            color=color_dark, linewidth=1.0, zorder=3)
+            color=color_dark, linewidth=1.2, zorder=3)
     ax.plot([x_center, x_center], [q3, hi_whisk],
-            color=color_dark, linewidth=1.0, zorder=3)
-    # Whisker caps
+            color=color_dark, linewidth=1.2, zorder=3)
+    # Pure black caps
     cw = _WHISK_CAP / 2
     ax.plot([x_center - cw, x_center + cw], [lo_whisk, lo_whisk],
-            color=color_dark, linewidth=1.0, zorder=3)
+            color=color_dark, linewidth=1.2, zorder=3)
     ax.plot([x_center - cw, x_center + cw], [hi_whisk, hi_whisk],
-            color=color_dark, linewidth=1.0, zorder=3)
+            color=color_dark, linewidth=1.2, zorder=3)
  
  
 def _draw_diamond_mean(ax, x_center, mean, color, color_dark, size=10):
-    """Large filled diamond marker for the mean."""
+    """Large filled diamond marker for the mean with dark outline."""
     ax.plot(x_center, mean,
             marker="D", markersize=size,
             markerfacecolor=color, markeredgecolor=color_dark,
-            markeredgewidth=1.4, zorder=5, linestyle="none")
+            markeredgewidth=1.5, zorder=5, linestyle="none")
  
  
 def make_figure(
@@ -595,21 +588,14 @@ def make_figure(
     checkpoint: str,
     output_path: Path,
 ):
-    """
-    Raincloud plot matching the reference figure.
- 
-    data keys: ('Baseline', 'HA'), ('Baseline', 'MA'),
-               ('Encouraged', 'HA'), ('Encouraged', 'MA')
-    """
     maps        = ["Baseline", "Encouraged"]
-    map_labels  = ["Open", "Partially-blocked"]   # x-tick labels as in the reference
+    map_labels  = ["Open", "PB"]   # x-tick labels as in the reference
     agent_types = ["HA", "MA"]
     legend_labels = {"HA": "High", "MA": "Mixed"}
  
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5), dpi=150)
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5)) # DPI handled by config
     fig.subplots_adjust(left=0.09, right=0.97, top=0.88, bottom=0.22, wspace=0.40)
  
-    panel_labels = ["G", "H"]
     metric_keys  = ["total_deliveries", "specialization_index"]
     ylabels      = ["Game score", "Specialization index"]
  
@@ -617,34 +603,19 @@ def make_figure(
         metric_key = metric_keys[ax_idx]
         is_spec    = (ax_idx == 1)
  
-        # ── Collect all values for axis-range calculation ────────────────
-        all_vals = []
-        for map_name in maps:
-            for at in agent_types:
-                recs = data.get((map_name, at), [])
-                _, _, _, vals = _aggregate(recs, metric_key)
-                all_vals.extend([v for v in vals if v is not None and np.isfinite(v)])
- 
-        if all_vals:
-            v_min, v_max = min(all_vals), max(all_vals)
-            pad = (v_max - v_min) * 0.15 if v_max != v_min else 1.0
-            y_lo = max(0.0, v_min - pad)
-            y_hi = v_max + pad
-        else:
-            y_lo, y_hi = 0.0, 1.0
- 
         if is_spec:
+            # Force limits to 0.0 and 1.0 (0-100%) for Specialization Index
             y_lo = 0.0
-            y_hi = min(1.0, y_hi)
+            y_hi = 1.0
         else:
-            # Game score axis
+            # Game score axis matched limits
             y_lo = 0.0
             y_hi = 16.0
  
         ax.set_ylim(y_lo, y_hi)
  
         # ── Draw per map × agent_type ────────────────────────────────────
-        mean_pts = {at: [] for at in agent_types}   # collect (x, mean) for lines
+        mean_pts = {at: [] for at in agent_types}
  
         for map_name, map_x in _MAP_X.items():
             for at in agent_types:
@@ -659,14 +630,12 @@ def make_figure(
                 color_dark = _COLOR_DARK[at]
                 direction  = _VIOLIN_DIR[at]
  
-                # Half-violin
+                # High-contrast primitives
                 _draw_half_violin(
-                    ax, x_center, vals, color, direction,
+                    ax, x_center, vals, color, direction, color_dark=color_dark,
                     y_min=y_lo, y_max=y_hi,
                 )
-                # Boxplot
                 _draw_boxplot(ax, x_center, vals, color, color_dark)
-                # Diamond mean
                 _draw_diamond_mean(ax, x_center, mean, color, color_dark)
  
                 mean_pts[at].append((x_center, mean))
@@ -678,29 +647,26 @@ def make_figure(
             ys = [p[1] for p in pts]
             valid = [not np.isnan(y) for y in ys]
             if all(valid):
-                ax.plot(xs, ys,
-                        color=_COLOR_DARK[at], linewidth=2.0,
-                        zorder=4, solid_capstyle="round")
+                actual_color = _COLOR_HA if at == "HA" else _COLOR_MA
+                ax.plot(xs, ys, color=actual_color, linewidth=2.5,
+                        zorder=4, solid_capstyle="round", alpha=0.8)
  
         # ── x-axis ticks / labels ────────────────────────────────────────
         ax.set_xticks(list(_MAP_X.values()))
         ax.set_xticklabels(map_labels, fontsize=_FS_TICK_X)
-        #ax.set_xlabel("Map", fontsize=_FS_AXIS)
         ax.set_xlim(0.4, 2.6)
  
-        # ── y-axis ──────────────────────────────────────────────────────
-        ax.set_ylabel(ylabels[ax_idx], fontsize=_FS_AXIS)
+        # ── y-axis Formatting (PNAS Style) ──────────────────────────────────────────────────────
+        ax.set_ylabel(ylabels[ax_idx], fontweight="bold", fontsize=_FS_AXIS) # BOLD Y-Label
         ax.tick_params(axis="y", labelsize=_FS_TICK_Y)
         if is_spec:
-            # Format y as percentage, tick at 0%, 10%, 20%, 30%
-            ax.yaxis.set_major_formatter(
-                matplotlib.ticker.FuncFormatter(lambda y, _: f"{y:.0%}")
-            )
- 
-        # ── Panel label (A / B) ──────────────────────────────────────────
-        #ax.text(-0.12, 1.02, panel_labels[ax_idx],
-        #        transform=ax.transAxes,
-        #        fontsize=_FS_PANEL, fontweight="bold", va="bottom")
+            # Force limits to 0 and 100 for Specialization Index
+            y_lo, y_hi = 0.0, 100.0
+            ax.set_ylim(y_lo, y_hi)
+
+            # Format y as percentage
+            import matplotlib.ticker as mtick
+            ax.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=100, decimals=0))
  
         # ── Grid (light horizontal lines as in reference) ────────────────
         ax.yaxis.grid(True, color="lightgray", linewidth=0.7, zorder=0)
@@ -710,29 +676,24 @@ def make_figure(
         ax.spines["right"].set_visible(False)
         ax.spines["left"].set_visible(False)
  
-    # ── Shared legend (below both panels, centred) ───────────────────────
+    # ── Shared legend (High-Contrast HandlerTuple style) ───────────────────────
     legend_handles = []
     for at in agent_types:
         handle = matplotlib.lines.Line2D(
-            [], [],
-            marker="D", markersize=9,
-            markerfacecolor=_COLOR[at],
-            markeredgecolor=_COLOR_DARK[at],
-            markeredgewidth=1.2,
-            linewidth=0,
-            label=legend_labels[at],
+            [], [], marker="D", markersize=10,
+            markerfacecolor=_COLOR[at], markeredgecolor="black",
+            markeredgewidth=1.5, linewidth=0, label=legend_labels[at],
+            alpha=1.0 # Legend solid
         )
-        # Add a small filled square to represent the box
         box_patch = matplotlib.patches.Patch(
-            facecolor=_COLOR[at], edgecolor=_COLOR_DARK[at],
-            alpha=_ALPHA_BOX, linewidth=1.2,
+            facecolor=_COLOR[at], edgecolor="black",
+            alpha=_ALPHA_BOX, linewidth=1.3,
         )
         legend_handles.append((box_patch, handle))
-
  
     plt.savefig(output_path, bbox_inches="tight")
     plt.close(fig)
-    print(f"\n✅ Figure saved → {output_path}")
+    print(f"\n✅ Figure saved (High Resolution, PNAS style) → {output_path}")
  
  
 # ---------------------------------------------------------------------------
@@ -768,10 +729,10 @@ def main():
     parser.add_argument("--cluster",        default="cuenca",
                         choices=["cuenca", "brigit", "local"],
                         help="Cluster preset (default: cuenca)")
-    parser.add_argument("--output_dir",     default='data/figures',
+    parser.add_argument("--output_dir",     default='./figures',
                         help="Where to save the figure (default: current directory)")
-    parser.add_argument("--output_name",    default=None,
-                        help="Output filename (default: HA_MA_comparison-RL.png)")
+    parser.add_argument("--output_name",    default="figure3_HA_MA_comparison_RL.png",
+                        help="Output filename (default: figure3_HA_MA_comparison_RL.png)")
     parser.add_argument("--verbose",        action="store_true",
                         help="Print per-simulation details")
  

@@ -707,10 +707,7 @@ def main():
         local_path = config.cluster_paths[cluster]
 
         if args.output_dir is None:
-            if local_path:
-                output_dir_base = f"{local_path}/data/samuel_lozano/cooked/grid_2d_abilities_figures"
-            else:
-                output_dir_base = "/data/samuel_lozano/cooked/grid_2d_abilities_figures"
+            output_dir_base = "./figures/"
         else:
             output_dir_base = args.output_dir
 
