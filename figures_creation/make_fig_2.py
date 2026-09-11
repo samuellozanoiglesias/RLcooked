@@ -87,9 +87,9 @@ mpl.rcParams.update({
     'axes.unicode_minus': False,
     'font.size':         20,
     'axes.titlesize':    20,
-    'axes.labelsize':    20,
-    'xtick.labelsize':    18,
-    'ytick.labelsize':    18,
+    'axes.labelsize':    30,
+    'xtick.labelsize':    24,
+    'ytick.labelsize':    24,
     'legend.fontsize':    30,
     'axes.linewidth':    1.0,
     'grid.color':        '#d9d9d9',
@@ -111,7 +111,8 @@ CATEGORY_LABELS = [
 ]
 
 HATCHES = ['.', '//', '\\\\', None]
-COLORS  = ['#988ED5','#FBC15E','#8EBA42','#777777']
+HUMAN_COLORS  = ['#988ED5','#FBC15E','#8EBA42','#777777']
+RL_COLORS  = ['#FBC15E', '#8EBA42', '#988ED5', '#777777']
 
 ['#4C72B0', '#DD8452', '#55A868', '#8C8C8C']  # fill colour per category (index-matched)
 
@@ -169,13 +170,17 @@ def load_data():
 # --------------------------------------------------------------------------
 # 3. PANEL DRAWING FUNCTIONS
 # --------------------------------------------------------------------------
-def plot_action_counts(ax, data, order, hatch_by_category):
+def plot_action_counts(ax, data, order, hatch_by_category, RL=False):
     n_actions = data.shape[1]
     cum0 = np.zeros(n_actions)
     for i, o in enumerate(order):
         hatch_idx = o if hatch_by_category else i
+        if RL:
+            facecolor = RL_COLORS[o]
+        else:
+            facecolor = HUMAN_COLORS[o]
         ax.bar(range(n_actions), data[o], bottom=cum0, width=BAR_WIDTH,
-               facecolor=COLORS[o], hatch=HATCHES[hatch_idx],
+               facecolor=facecolor, hatch=HATCHES[hatch_idx],
                edgecolor='k', linewidth=1.3)
         cum0 += data[o]
 
@@ -183,7 +188,7 @@ def plot_action_counts(ax, data, order, hatch_by_category):
     ax.grid(visible=True, axis='both', color=mpl.rcParams['grid.color'])
     ax.set_ylabel('Frequency')
     ax.set_xlabel('Action')
-    ax.set_xticks(np.arange(0.5, n_actions + 0.5, 1), range(n_actions))
+    ax.set_xticks(np.arange(n_actions), labels=np.arange(n_actions))
     ax.set_ylim(0, cum0.max() * 1.12)
 
 
@@ -194,7 +199,7 @@ def plot_specialization(ax, toplot):
                widths=0.22, boxprops={"linewidth": 1.3}, showfliers=False)
 
     for i, pc in enumerate(parts['bodies']):
-        pc.set_facecolor(COLORS[i])
+        pc.set_facecolor(HUMAN_COLORS[i])
         pc.set_hatch(HATCHES[i])
         pc.set_edgecolor('black')
         pc.set_linewidth(0)
@@ -202,33 +207,40 @@ def plot_specialization(ax, toplot):
 
     means = [np.mean(t) for t in toplot]
     ax.scatter([1, 2, 3, 4], means, marker='d', edgecolor='k',
-               linewidths=1.5, s=90, c=COLORS[:4], zorder=3)
+               linewidths=1.5, s=90, c=HUMAN_COLORS[:4], zorder=3)
 
     labels = ["I", "CS", "CC", "O"]
 
     ax.set_xticks([1, 2, 3, 4])
-    ax.set_xticklabels(labels, ha="right", rotation_mode="anchor")
+    ax.set_xticklabels(labels, ha="center")
     ax.set_ylabel('Specialization Index')
+    from matplotlib.ticker import PercentFormatter
+
+    ax.yaxis.set_major_formatter(PercentFormatter(xmax=100))
     ax.set_facecolor('w')
     ax.grid(visible=True, axis='both', color=mpl.rcParams['grid.color'])
 
 
-def plot_clusters_by_map(ax, count_of_types, order, hatch_by_category, row_index=None):
+def plot_clusters_by_map(ax, count_of_types, order, hatch_by_category, row_index=None, RL=False):
     xs = [0, 1, 2.2, 3.2]
     cum0 = np.zeros(4)
     count_of_types = count_of_types.astype(float)
     count_of_types = count_of_types / count_of_types.sum(axis=1, keepdims=True)
     for i, o in enumerate(order):
         hatch_idx = o if hatch_by_category else i
+        if RL:
+            facecolor = RL_COLORS[o]
+        else:
+            facecolor = HUMAN_COLORS[o]
         rows = count_of_types[row_index, o] if row_index is not None else count_of_types[:, o]
         ax.bar(xs, rows, bottom=cum0, width=BAR_WIDTH,
-               facecolor=COLORS[o], hatch=HATCHES[hatch_idx],
+               facecolor=facecolor, hatch=HATCHES[hatch_idx],
                edgecolor='k', linewidth=1.3)
         cum0 += rows
 
-    ax.set_xticks([0.5, 2.7], labels=['\nOpen', '\nPartially Blocked'])
+    ax.set_xticks([0.5, 2.7], labels=['\nOpen', '\nPartially-Blocked'])
     ax.set_xticks(xs, labels=['HA', 'MA', 'HA', 'MA'], minor=True)
-    ax.set_ylabel('Frequency', labelpad=-0.1)
+    ax.set_ylabel('Frequency', labelpad=3)
     ax.set_facecolor('w')
     ax.grid(visible=True, axis='both', color=mpl.rcParams['grid.color'])
     ax.set_ylim(0, cum0.max() * 1.10)
@@ -265,7 +277,7 @@ def create_individual_pngs(data):
 
     # --- Panel D ---
     fig, ax = plt.subplots(figsize=fs_wide)
-    plot_action_counts(ax, data['action_rl'], order=[2, 1, 0, 3], hatch_by_category=False)
+    plot_action_counts(ax, data['action_rl'], order=[2, 1, 0, 3], hatch_by_category=False, RL=True)
     fig.savefig(f"{figures_directory}/figure2_panel_D.png", dpi=600, bbox_inches='tight')
     plt.close(fig)
 
@@ -277,20 +289,31 @@ def create_individual_pngs(data):
 
     # --- Panel F ---
     fig, ax = plt.subplots(figsize=fs_wide)
-    plot_clusters_by_map(ax, data['cluster_rl'], order=[2, 1, 0, 3], hatch_by_category=False, row_index=None)
+    plot_clusters_by_map(ax, data['cluster_rl'], order=[2, 1, 0, 3], hatch_by_category=False, row_index=None, RL=True)
     fig.savefig(f"{figures_directory}/figure2_panel_F.png", dpi=600, bbox_inches='tight')
     plt.close(fig)
 
     # --- Legend ---
     handles = [
-        Patch(facecolor=COLORS[i], hatch=HATCHES[i], edgecolor="k", 
+        Patch(facecolor=HUMAN_COLORS[i], hatch=HATCHES[i], edgecolor="k", 
               linewidth=1.3, label=CATEGORY_LABELS[i]) 
         for i in range(4)
     ]
     legend_fig = plt.figure(figsize=(4.8, 2.0))
-    legend_fig.legend(handles=handles, ncol=4, loc="center", frameon=False,
-                       handlelength=2.0, handleheight=1.5,
-                      columnspacing=2.5, labelspacing=1.2)
+    legend_fig.legend(
+        handles=handles,
+        ncol=4,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 0.02),
+        frameon=False,
+        fontsize=24,
+        handlelength=1.6,
+        handleheight=1,
+        handletextpad=0.8,
+        columnspacing=1.6,
+        borderpad=0.6,
+        labelspacing=1.2,
+    )
     legend_fig.savefig(f"{figures_directory}/figure2_legend.png", dpi=600, transparent=True, bbox_inches="tight")
     plt.close(legend_fig)
 
@@ -320,9 +343,9 @@ def build_figure(data):
     plot_clusters_by_map(axes['C'], data['cluster_human'], order=[0, 2, 1, 3], hatch_by_category=True, row_index=[1, 0, 3, 2])
 
     # --- RL row (D, E, F) ---
-    plot_action_counts(axes['D'], data['action_rl'], order=[2, 1, 0, 3], hatch_by_category=False)
+    plot_action_counts(axes['D'], data['action_rl'], order=[2, 1, 0, 3], hatch_by_category=False, RL=True)
     plot_specialization(axes['E'], data['spec_rl'])
-    plot_clusters_by_map(axes['F'], data['cluster_rl'], order=[2, 1, 0, 3], hatch_by_category=False, row_index=None)
+    plot_clusters_by_map(axes['F'], data['cluster_rl'], order=[2, 1, 0, 3], hatch_by_category=False, row_index=None, RL=True)
 
     # --- panel labels (A-F) ---
     panel_labels = {}
@@ -338,7 +361,7 @@ def build_figure(data):
 
     # --- single shared legend ---
     handles = [
-        Patch(facecolor=COLORS[i], hatch=HATCHES[i], edgecolor="k",
+        Patch(facecolor=HUMAN_COLORS[i], hatch=HATCHES[i], edgecolor="k",
               linewidth=1.3, label=CATEGORY_LABELS[i])
         for i in range(4)
     ]

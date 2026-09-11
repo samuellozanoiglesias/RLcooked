@@ -238,7 +238,7 @@ def make_figure(df: pd.DataFrame, output_path: Path, title: str | None = None):
 
     # Create figure with high DPI setting
     fig, axes = plt.subplots(1, 2, figsize=(10, 5)) 
-    fig.subplots_adjust(left=0.06, right=0.98, top=0.86, bottom=0.24, wspace=0.40)
+    fig.subplots_adjust(left=0.06, right=0.98, top=0.86, bottom=0.24, wspace=0.60)
 
     if title:
         fig.suptitle(title, fontsize=20, y=0.97, color="#444444")

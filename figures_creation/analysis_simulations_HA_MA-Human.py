@@ -247,7 +247,7 @@ def make_figure(panels: list[dict], output_path: Path, title: str | None = None)
     fig, axes = plt.subplots(1, n_panels, figsize=(5 * n_panels, 5)) # DPI handled by config
     if n_panels == 1:
         axes = [axes]
-    fig.subplots_adjust(left=0.07, right=0.97, top=0.86, bottom=0.24, wspace=0.40)
+    fig.subplots_adjust(left=0.07, right=0.97, top=0.86, bottom=0.24, wspace=0.6)
 
     if title:
         fig.suptitle(title, fontsize=10, y=0.97, color="#444444")

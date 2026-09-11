@@ -594,7 +594,7 @@ def make_figure(
     legend_labels = {"HA": "High", "MA": "Mixed"}
  
     fig, axes = plt.subplots(1, 2, figsize=(10, 5)) # DPI handled by config
-    fig.subplots_adjust(left=0.09, right=0.97, top=0.88, bottom=0.22, wspace=0.40)
+    fig.subplots_adjust(left=0.09, right=0.97, top=0.88, bottom=0.22, wspace=0.6)
  
     metric_keys  = ["total_deliveries", "specialization_index"]
     ylabels      = ["Game score", "Specialization index"]
@@ -606,7 +606,7 @@ def make_figure(
         if is_spec:
             # Force limits to 0.0 and 1.0 (0-100%) for Specialization Index
             y_lo = 0.0
-            y_hi = 1.0
+            y_hi = 100.0
         else:
             # Game score axis matched limits
             y_lo = 0.0
@@ -660,10 +660,6 @@ def make_figure(
         ax.set_ylabel(ylabels[ax_idx], fontweight="bold", fontsize=_FS_AXIS) # BOLD Y-Label
         ax.tick_params(axis="y", labelsize=_FS_TICK_Y)
         if is_spec:
-            # Force limits to 0 and 100 for Specialization Index
-            y_lo, y_hi = 0.0, 100.0
-            ax.set_ylim(y_lo, y_hi)
-
             # Format y as percentage
             import matplotlib.ticker as mtick
             ax.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=100, decimals=0))
