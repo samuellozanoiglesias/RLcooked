@@ -1,5 +1,5 @@
-# USE:   <cluster> <input_path> <map_nr> <lr> <game_version> [<num_agents>] [<num_epochs>] [<seed>] [<checkpoints>] [<rewards_on_delivery_only>] [<random_initial_state>] [<synergy_scaling_factor>] [<specialization_penalty_scale>] [<collision_penalty>] [<agent_to_train>] [<allow_blocked>] [<kappa>] [<activate_synergy_positive>] [<enable_reward_decay>] [<collision_harshness>] [<entropy_coef>] [<specialization_theta>] > log_training.log 2>&1 &
-# Example: nohup python training-DTDE-spoiled_broth.py cuenca ./cuenca/input_0_0.txt baseline_division_of_labor_v2 0.0003 classic 2 1000 0 none true false 0.5 5.0 10.0 false 1.0 true false true 2.0 0.001 1.0 > log_training.log 2>&1 &
+# USE:   <cluster> <input_path> <map_nr> <lr> <game_version> <num_agents> [<num_epochs>] [<seed>] [<checkpoints>] [<rewards_on_delivery_only>] [<random_initial_state>] [<synergy_scaling_factor>] [<specialization_penalty_scale>] [<counter_reward>] [<collision_penalty>] [<allow_blocked>] [<kappa>] [<activate_synergy_positive>] [<enable_reward_decay>] [<collision_harshness>] [<entropy_coef>] [<agent_to_train> (only if num_agents=1)] [<specialization_theta>] > log_training.log 2>&1 &
+# Example (2 agents): nohup python training-DTDE-spoiled_broth.py brigit ./inputs/input.txt baseline_division_of_labor_large 0.0003 classic_collision 2 2000 0 none true false 1.35 0.25 0.0 0.0 false 4.8 false false 10.0 0.001 3.0 > log_training.log 2>&1 &
 #   synergy_scaling_factor=0: Standard rewards (no team synergy shaping)
 #   synergy_scaling_factor>0: Team synergy-based reward shaping enabled with given sensitivity
 #   specialization_penalty_scale=0: No specialization penalty
@@ -43,7 +43,11 @@ GAME_VERSION = str(sys.argv[5]).lower()
 NUM_AGENTS = int(sys.argv[6])
 NUM_EPOCHS = int(sys.argv[7]) if len(sys.argv) > 7 else 500
 SEED = int(sys.argv[8]) if len(sys.argv) > 8 else 0
-CHECKPOINT_PATHS = str(sys.argv[9]).lower() if len(sys.argv) > 9 else "none"
+# Do NOT lowercase the path itself (file paths are case-sensitive on Linux);
+# only the "none" keyword is compared case-insensitively.
+CHECKPOINT_PATHS = str(sys.argv[9]) if len(sys.argv) > 9 else "none"
+if CHECKPOINT_PATHS.lower() == "none":
+    CHECKPOINT_PATHS = "none"
 REWARDS_ON_DELIVERY_ONLY = str(sys.argv[10]).lower() if len(sys.argv) > 10 else "true"
 RANDOM_INITIAL_STATE = str(sys.argv[11]).lower() if len(sys.argv) > 11 else "false"
 SYNERGY_SCALING_FACTOR = float(sys.argv[12]) if len(sys.argv) > 12 else 0.0
@@ -229,7 +233,7 @@ config = {
     "CUTTING_SPEEDS": cutting_speeds,
     "INITIAL_SEED": SEED,
     "WAIT_FOR_COMPLETION": True,
-    "RANDOM_INITIAL_STATE": RANDOM_INITIAL_STATE,
+    "RANDOM_INITIAL_STATE": (RANDOM_INITIAL_STATE == "true"),
     "SAVE_DIR": save_dir,
     "CHECKPOINTS": pretrained_policies,
     # Configurations from modules

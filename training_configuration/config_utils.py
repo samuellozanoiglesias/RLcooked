@@ -152,7 +152,7 @@ def get_hyperparameters():
         "save_every_n_epochs": 375,
         "payoff_matrix": [1, 1, -2],
         "mlp_layers": [1024, 512, 256],
-        "gamma": 0.9,
+        "gamma": 0.99,  # per DECISION (decision_level_steps=True); was 0.9 per 0.5-s tick
         "gae_lambda": 0.95,
         "ent_coef": 0.001,
         "clip_eps": 0.3,
@@ -182,4 +182,3 @@ def validate_configuration(num_agents, synergy_scaling_factor, agent_to_train=No
     
     if num_agents == 1 and agent_to_train is not None and agent_to_train not in [1, 2]:
         raise ValueError("When NUM_AGENTS=1, agent_to_train must be 1 or 2")
-    

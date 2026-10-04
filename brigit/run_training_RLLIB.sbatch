@@ -75,17 +75,17 @@ SPEED_PAIRS=(
 #)
 
 # Define SYNERGY_SCALING_FACTOR values (team synergy sensitivity)
-SYNERGY_SCALING_FACTOR_VALUES=(0)
+SYNERGY_SCALING_FACTOR_VALUES=(1.35)
 
 # Define specialization penalty scale values
-SPECIALIZATION_PENALTY_SCALE_VALUES=(0)
+SPECIALIZATION_PENALTY_SCALE_VALUES=(0.25)
 
 # Define theta values for exponential specialization penalty
 # penalty = base_reward * (exp(theta * (1.0 - speed)) - 1) * specialization_scale * event_count
-SPECIALIZATION_THETA_VALUES=(1.0)
+SPECIALIZATION_THETA_VALUES=(3.0)
 
 # Define kappa values (competence transformation parameter for team synergy distribution)
-KAPPA_VALUES=(20.0)
+KAPPA_VALUES=(4.8)
 
 # Define activate_synergy_positive values (whether to activate positive synergy signals)
 ACTIVATE_SYNERGY_POSITIVE_VALUES=(False)

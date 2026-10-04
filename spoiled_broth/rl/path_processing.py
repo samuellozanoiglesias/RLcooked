@@ -30,7 +30,19 @@ class PathProcessor:
             collision_enabled: Whether to treat other agents as obstacles
         """
         self.collision_enabled = collision_enabled
+        self.map_nr = map_nr
         self.active_paths: Dict[str, AgentPathInfo] = {}  # Track agent paths (for reference only)
+        # Cache of obstacle-free A* paths. Tile walkability is static for a map,
+        # so these paths never change; agents are handled separately as obstacles.
+        self._static_path_cache: Dict[tuple, Optional[List[Node]]] = {}
+
+    def _static_path(self, grid, start_xy: Tuple[int, int], goal_xy: Tuple[int, int]) -> Optional[List[Node]]:
+        """A* path ignoring agents (cached). Returns a fresh list or None."""
+        key = (self.map_nr, grid.width, grid.height, start_xy, goal_xy)
+        if key not in self._static_path_cache:
+            self._static_path_cache[key] = find_path(grid, Node(*start_xy), Node(*goal_xy))
+        path = self._static_path_cache[key]
+        return list(path) if path else None
         
     def is_enabled(self) -> bool:
         """Check if collision detection is enabled."""
@@ -90,8 +102,7 @@ class PathProcessor:
             best_path = None
             
             for neighbor_xy in neighbors:
-                neighbor_node = Node(neighbor_xy[0], neighbor_xy[1])
-                path = find_path(grid, start_node, neighbor_node)
+                path = self._static_path(grid, tuple(from_xy), tuple(neighbor_xy))
                 
                 # Check if path exists and doesn't go through obstacles
                 if path and len(path) > 1:
@@ -110,8 +121,7 @@ class PathProcessor:
                 return None, None
         
         # Target is walkable - direct pathfinding
-        target_node = Node(target_x, target_y)
-        path = find_path(grid, start_node, target_node)
+        path = self._static_path(grid, tuple(from_xy), (target_x, target_y))
         
         # Validate path
         if path and len(path) > 1:

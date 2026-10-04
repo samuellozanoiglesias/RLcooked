@@ -11,9 +11,18 @@ import torch  # For direct state loading fallback
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def env_creator(config):
-    # Your existing GameEnv class goes here
-    env = GameEnv(**config)
-    return env
+    """Build a GameEnv from an RLlib EnvContext (or a plain dict).
+
+    Each env runner gets a distinct seed stream (previously all runners used the
+    same seed sequence, producing correlated rollouts whenever randomness is used,
+    e.g. random_initial_state) and knows its index for logging.
+    """
+    cfg = dict(config)
+    worker_index = getattr(config, "worker_index", 0) or 0
+    vector_index = getattr(config, "vector_index", 0) or 0
+    cfg["initial_seed"] = int(cfg.get("initial_seed", 0)) + 10007 * worker_index + 101 * vector_index
+    cfg.setdefault("worker_index", worker_index)
+    return GameEnv(**cfg)
 
 # Define separate policies for each agent
 def policy_mapping_fn(agent_id, episode=None, worker=None, **kwargs):
@@ -23,6 +32,32 @@ def betas_tensor_to_float(learner):
     for param_grp_key in learner._optimizer_parameters.keys():
         param_grp = param_grp_key.param_groups[0]
         param_grp["betas"] = tuple(beta.item() if hasattr(beta, 'item') else beta for beta in param_grp["betas"])
+
+def _episodes_completed(path, fallback=None):
+    """Global number of completed episodes, from the counter written by GameEnv."""
+    counter_path = os.path.join(path, "episode_counter.txt")
+    try:
+        with open(counter_path, "r") as f:
+            return int(f.read().strip())
+    except (OSError, ValueError):
+        return fallback
+
+def _write_checkpoint_log(path, lines):
+    with open(os.path.join(path, "checkpoint_load_log.txt"), "w") as logf:
+        for line in lines:
+            logf.write(line + "\n")
+
+def _sync_env_runner_weights(trainer, log_lines):
+    """Push learner weights to all env runners (API differs slightly across Ray versions)."""
+    runner_group = getattr(trainer, "env_runner_group", None) or getattr(trainer, "workers", None)
+    if runner_group is None:
+        log_lines.append("Warning: no env runner group found; weights not synced explicitly")
+        return
+    try:
+        runner_group.sync_weights(from_worker_or_learner_group=trainer.learner_group, inference_only=True)
+    except TypeError:
+        runner_group.sync_weights(from_worker_or_learner_group=trainer.learner_group)
+    log_lines.append("Synced restored weights to env runners")
 
 def make_train_rllib(config):
     current_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -86,10 +121,13 @@ def make_train_rllib(config):
             "solo_baselines": config.get("SOLO_BASELINES", None),
             "allow_blocked": config.get("ALLOW_BLOCKED", False),
         }
+        env_cfg["enable_csv_logging"] = False
+        env_cfg["decision_level_steps"] = True
+        _space_env = env_creator(env_cfg)
         policies[f"policy_{agent_id}"] = (
             None,  # Use default PPO policy
-            env_creator(env_cfg).observation_space(agent_id),
-            env_creator(env_cfg).action_space(agent_id),
+            _space_env.observation_space(agent_id),
+            _space_env.action_space(agent_id),
             {}
         )
         policies_to_train.append(f"policy_{agent_id}")
@@ -119,8 +157,14 @@ def make_train_rllib(config):
                     checkpoint_log_lines.append(msg)
                     raise
 
+        # A run initialised from checkpoints is a NEW run with its own directory:
+        # its episode numbering (and any reward-decay schedule) starts at 0 so that
+        # pretrained and scratch runs are directly comparable. Set
+        # CONTINUE_EPISODE_COUNT=True only when genuinely resuming the same run.
         if checkpoint_episodes:
-            start_episode = min(checkpoint_episodes) + 1
+            checkpoint_log_lines.append(f"Source checkpoint episode counts: {checkpoint_episodes}")
+            if config.get("CONTINUE_EPISODE_COUNT", False):
+                start_episode = min(checkpoint_episodes) + 1
 
     def dynamic_policy_mapping_fn(agent_id, episode=None, worker=None, **kwargs):
         return f"policy_{agent_id}"
@@ -166,6 +210,12 @@ def make_train_rllib(config):
                 "reference_reward_cfg": config.get("REFERENCE_REWARD_CFG", None),
                 "solo_baselines": config.get("SOLO_BASELINES", None),
                 "allow_blocked": config.get("ALLOW_BLOCKED", False),
+                # Was never passed before, so runs saved under random_init/ actually
+                # started from the empty state.
+                "random_initial_state": config.get("RANDOM_INITIAL_STATE", False),
+                # One RL sample per real decision (see game_env.py header).
+                "decision_level_steps": True,
+                "enable_csv_logging": True,
             },
             clip_actions=True,
         )
@@ -200,7 +250,8 @@ def make_train_rllib(config):
             lambda_=config["GAE_LAMBDA"],
             entropy_coeff=config["ENT_COEF"],
             clip_param=config["CLIP_EPS"],
-            vf_loss_coeff=config["VF_COEF"]
+            vf_loss_coeff=config["VF_COEF"],
+            grad_clip=config.get("GRAD_CLIP", None),  # was defined but never passed
         )
     )
 
@@ -266,7 +317,21 @@ def make_train_rllib(config):
                     raise FileNotFoundError(f"Policy path not found: {source_policy_path}")
                         
             except Exception as e:
+                # Previously the error was only logged and training silently
+                # continued FROM SCRATCH. A failed load must abort the run.
                 checkpoint_log_lines.append(f"✗ Error processing {target_agent_id}: {e}")
+                _write_checkpoint_log(path, checkpoint_log_lines)
+                raise
+
+        expected = {f"policy_{aid}" for aid, info in config["CHECKPOINTS"].items() if info}
+        missing = expected - loaded_policies
+        if missing:
+            _write_checkpoint_log(path, checkpoint_log_lines)
+            raise RuntimeError(f"Pretrained policies not loaded: {sorted(missing)}")
+
+        # The env runners hold their own copy of the weights; make sure the first
+        # rollouts already use the restored policies.
+        _sync_env_runner_weights(trainer, checkpoint_log_lines)
         
         # Apply beta tensor fix to main trainer after all loading is complete
         try:
@@ -281,11 +346,7 @@ def make_train_rllib(config):
     else:
         checkpoint_log_lines.append("No checkpoint specified, training from scratch.")
     
-    # Write checkpoint log to file in the training directory
-    log_path = os.path.join(path, "checkpoint_load_log.txt")
-    with open(log_path, "w") as logf:
-        for line in checkpoint_log_lines:
-            logf.write(line + "\n")        
+    _write_checkpoint_log(path, checkpoint_log_lines)
 
     # Save initial checkpoint at episode 0 (or start_episode if resuming)
     initial_checkpoint_result = trainer.save(os.path.join(path, f"checkpoint_{start_episode}"))
@@ -301,36 +362,11 @@ def make_train_rllib(config):
 
         # Save checkpoint
         if (epoch - 1) % config["SAVE_EVERY_N_EPOCHS"] == 0:
-            # Get current episode count from training_stats.csv for checkpoint naming
-            current_episode = epoch  # fallback to epoch if CSV reading fails
-            stats_csv_path = os.path.join(path, "training_stats.csv")
-            if os.path.exists(stats_csv_path):
-                try:
-                    with open(stats_csv_path, "r") as f:
-                        lines = f.readlines()
-                        if lines:
-                            last_line = lines[-1].strip()
-                            if last_line:
-                                current_episode = int(last_line.split(",")[0])
-                except Exception:
-                    pass  # Use fallback value
-            
+            current_episode = _episodes_completed(path, fallback=epoch)
             checkpoint_result = trainer.save(os.path.join(path, f"checkpoint_{current_episode}"))
             checkpoint_path = checkpoint_result.checkpoint.path
             print(f"Checkpoint saved at {checkpoint_path} (episode {current_episode})")
 
-    # Get the final episode count from training_stats.csv
-    final_episode_count = None
-    stats_csv_path = os.path.join(path, "training_stats.csv")
-    if os.path.exists(stats_csv_path):
-        try:
-            with open(stats_csv_path, "r") as f:
-                lines = f.readlines()
-                if lines:
-                    last_line = lines[-1].strip()
-                    if last_line:
-                        final_episode_count = int(last_line.split(",")[0])
-        except Exception as e:
-            print(f"Warning: Could not read final episode count from CSV: {e}")
+    final_episode_count = _episodes_completed(path, fallback=None)
 
     return trainer, current_date, final_episode_count
