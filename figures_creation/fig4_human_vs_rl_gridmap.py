@@ -7,13 +7,19 @@ exactly:
 
     a  "Open Map"               (baseline_division_of_labor_large)
     b  "Partially-Blocked Map"  (encouraged_division_of_labor_large)
-    shared colour bar  "Score difference with respect to full speeds (1.0, 1.0)"
+    shared colour bar  "Score difference with respect to full speeds (100%, 100%)"
     legend band        [square] MARL   [diamond] Human
 
 For each map, the MARL heat-map shows the mean total deliveries of every
 (walking speed of player 1, cutting speed of player 2) configuration minus
-the (1.0, 1.0) configuration; human results are overlaid as diamonds using
+the (100%, 100%) configuration; human results are overlaid as diamonds using
 the same colour scale (RdBu_r, clipped to [-4, +4]).
+
+Speeds are given internally as fractions of full speed (0.1 ... 1.0, as in the
+training data) but are DISPLAYED as speed percentages relative to the
+high-ability team (10 ... 100 %), the convention used throughout the paper.
+Axis labels and colour-bar labels are centred on their axes, so they stay
+centred if the wording changes.
 
 All positions, sizes, line widths and fonts (Computer Modern via LaTeX)
 were measured from Fig4.pdf; the figure is written at the same page size
@@ -24,8 +30,7 @@ Usage:
 
 Examples:
     # Default analysis
-    nohup python fig4_human_vs_rl_gridmap.py --episode_range specific --init_type empty_init \
-    --num_episodes 20 --specialization 0.25 --synergy 1.35 --target_episode 750 > fig4.log 2>&1 &
+    nohup python fig4_human_vs_rl_gridmap.py --episode_range specific --init_type empty_init --num_episodes 20 --specialization 0.25 --synergy 1.35 --target_episode 750 > fig4.log 2>&1 &
 
     # Analyze empty_init data for a specific study
     nohup python fig4_human_vs_rl_gridmap.py --episode_range final --init_type empty_init --study_name my_study > fig4.log 2>&1 &
@@ -88,37 +93,64 @@ def _format_speed_label(value: float) -> str:
     return text
 
 
+def _format_speed_percent(value: float) -> str:
+    """Speed fraction -> percentage label, e.g. 0.4 -> '40'."""
+    return f'{round(value * 100):d}'
+
+
 def _format_speed_token(value: float) -> str:
     return _format_speed_label(value).replace('.', 'p')
 
 
 # --------------------------------------------------------------------------
 # Human results (raw scores; the figure shows score - score(1.0, 1.0)).
-# NOTE: the (0.2, 1.0) and (0.1, 0.1) entries are not in the original
-# script; their values were ESTIMATED from the diamond colours in Fig4.pdf
-# (the Open-map ones are saturated at <= -4). Replace them with the exact
-# measured scores.
+# Keys are (walking speed of player 1, cutting speed of player 2) as fractions
+# of full speed. An entry set to None is NOT drawn.
+# Values = condition means of the first 70 teams per condition (collision game
+# version), as computed by fig_sm_ability_pairs_humans_rl.py. If the per-team file
+# written by that script exists (--human_teams_csv, default
+# ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv), the means are taken from
+# it instead, so that Fig. 4 always uses the same human teams as the SI.
 # --------------------------------------------------------------------------
 HUMAN_RESULTS = {
     'baseline_division_of_labor_large': {
         'scores': {
-            (1.0, 1.0): 8.63,
-            (0.7, 0.4): 6.71,
-            (0.4, 0.2): 5.31,
-            (0.2, 1.0): 4.8,   # ESTIMATED (colour saturated, <= -4)
-            (0.1, 0.1): 4,   # ESTIMATED (colour saturated, <= -4)
+            (1.0, 1.0): 8.53,
+            (0.7, 0.4): 6.90,
+            (0.4, 0.2): 5.44,
+            (0.2, 1.0): 4.80,
+            (0.1, 0.1): 2.31,
         },
     },
     'encouraged_division_of_labor_large': {
         'scores': {
-            (1.0, 1.0): 5.99,
-            (0.7, 0.4): 7.66,
-            (0.4, 0.2): 6.96,
-            (0.2, 1.0): 7.13,    # ESTIMATED from colour (~ +1.6)
-            (0.1, 0.1): 3.67,    # ESTIMATED from colour (~ +0.6)
+            (1.0, 1.0): 5.90,
+            (0.7, 0.4): 7.47,
+            (0.4, 0.2): 6.97,
+            (0.2, 1.0): 7.44,
+            (0.1, 0.1): 4.54,
         },
     },
 }
+_HUMAN_TEAMS_DEFAULT = './figures/fig_sm_ability_pairs_humans_rl_human_teams.csv'
+_HUMAN_MAP_OF = {'Open': 'baseline_division_of_labor_large', 'PB': 'encouraged_division_of_labor_large'}
+
+
+def load_human_results_from_teams(path: str) -> bool:
+    """Replace HUMAN_RESULTS by the condition means of the per-team human file."""
+    if not path or not os.path.exists(path):
+        return False
+    teams = pd.read_csv(path)
+    for (mp, w, c), g in teams.groupby(['map', 'walk', 'cut']):
+        key = _HUMAN_MAP_OF.get(mp)
+        if key is None:
+            continue
+        HUMAN_RESULTS.setdefault(key, {'scores': {}})['scores'][(round(float(w), 4), round(float(c), 4))] = \
+            float(g['total_deliveries'].mean())
+    print(f'Human means taken from {path}:')
+    for key, d in HUMAN_RESULTS.items():
+        print(f'  {key}: ' + ', '.join(f'{k}={v:.2f}' for k, v in sorted(d['scores'].items()) if v is not None))
+    return True
 
 
 def _resolve_human_map_key(map_name: str) -> Optional[str]:
@@ -367,21 +399,27 @@ XTICKLABEL_DX = {'a': 1.4, 'b': 0.35}
 YTICKLABEL_DY = -1.5
 TICK_FONT = ('cmr10', 30)
 
-HUMAN_MARKER_SIZE = 287                      # scatter 's' (pt^2)
-HUMAN_MARKER_LW = 2.24
+HUMAN_MARKER_SIZE = 287
+HUMAN_MARKER_LW = 2.0
 
-# Free text: (TeX font, size pt, text, x, y, rotation); (x, y) is the
-# left/baseline anchor of the text (rotation_mode='anchor').
+# Two-layer outline for visibility on every heatmap colour.
+HUMAN_EDGE_COLOR = '#000000'       # Black inner contour
+HUMAN_HALO_COLOR = '#FFFFFF'       # White outer halo
+HUMAN_HALO_EXTRA_LW = 3.0          # Additional width of the halo
+
+# Free text: (TeX font, size pt, text, x, y, rotation[, ha]); (x, y) is the
+# baseline anchor of the text (rotation_mode='anchor'), left-aligned unless a
+# 7th element gives ha='center' (then x, y is the centre along the text).
 TEXTS = {
     'letter_a':  ('cmbx10', 50, 'a', 64.83, 52.20, 0),
     'letter_b':  ('cmbx10', 50, 'b', 613.31, 52.20, 0),
     'title_a':   ('cmbx10', 38, 'Open Map', 255.66, 39.54, 0),
     'title_b':   ('cmbx10', 38, 'Partially-Blocked Map', 689.80, 38.64, 0),
-    'xlabel_a':  ('cmr10', 36, 'Walking speed of player 1', 155.25, 615.15, 0),
-    'xlabel_b':  ('cmr10', 36, 'Walking speed of player 1', 703.13, 615.06, 0),
-    'ylabel_a':  ('cmr10', 36, 'Cutting speed of player 2', 41.84, 500.89, 90),
-    'cbar_lab1': ('cmr10', 34.1, 'Score difference with respect', 1274.91, 515.19, 90),
-    'cbar_lab2': ('cmr10', 34.1, 'to full speeds (1.0, 1.0)', 1315.78, 473.73, 90),
+    'xlabel_a':  ('cmr10', 36, r'Walking speed of player 1 (\%)', (123.52 + 589.43) / 2, 615.15, 0, 'center'),
+    'xlabel_b':  ('cmr10', 36, r'Walking speed of player 1 (\%)', (672.33 + 1138.13) / 2, 615.06, 0, 'center'),
+    'ylabel_a':  ('cmr10', 36, r'Cutting speed of player 2 (\%)', 41.84, (68.10 + 534.12) / 2, 90, 'center'),
+    'cbar_lab1': ('cmr10', 34.1, 'Score difference with respect', 1274.91, (63.04 + 545.61) / 2, 90, 'center'),
+    'cbar_lab2': ('cmr10', 34.1, r'to full speeds (100\%, 100\%)', 1315.78, (63.04 + 545.61) / 2, 90, 'center'),
     'cbar_+4':   ('cmr10', 30, '+4', 1194.91, 73.32, 0),
     'cbar_+2':   ('cmr10', 30, '+2', 1196.03, 189.22, 0),
     'cbar_0':    ('cmr10', 30, '0', 1204.03, 315.95, 0),
@@ -432,7 +470,7 @@ def tex(font: str, size: float, text: str) -> str:
     """Text set in a specific Computer Modern font (cmr10 / cmbx10) at `size` pt."""
     if LATEX_OK and mpl.rcParams['text.usetex']:
         return rf'{{\font\figfont={font} at {size}pt\figfont {text}}}'
-    return text
+    return text.replace('\\%', '%')   # plain-text fallback: '\%' -> '%'
 
 
 def _text_kw(font: str, size: float) -> dict:
@@ -479,8 +517,8 @@ class Figure4Plotter:
 
         nx, ny = len(self.walk1_values), len(self.cut2_values)
 
-        def lab(v):  # label every 0.2 (0.2, 0.4, ..., 1.0), tick every cell
-            return tex(*TICK_FONT, _format_speed_label(v)) if round(v * 10) % 2 == 0 else ''
+        def lab(v):  # label every 20 % (20, 40, ..., 100), tick every cell
+            return tex(*TICK_FONT, _format_speed_percent(v)) if round(v * 10) % 2 == 0 else ''
 
         ax.set_xticks(range(nx))
         ax.set_xticklabels([lab(v) for v in self.walk1_values])
@@ -518,6 +556,9 @@ class Figure4Plotter:
 
         xs, ys, values = [], [], []
         for (walk1, cut2), value in human_data.items():
+            if value is None:
+                print(f'Human marker not drawn for walk1={walk1}, cut2={cut2} (no data yet).')
+                continue
             coord = self._speed_to_display_coord(walk1, cut2)
             if coord is None:
                 print(f'Human marker skipped for walk1={walk1}, cut2={cut2} (not in grid).')
@@ -527,18 +568,30 @@ class Figure4Plotter:
             values.append(value if baseline_value is None else value - baseline_value)
 
         if xs:
-            # Use white diamond outlines when the diamond fill is very dark.
-            # This keeps the marker visible over the dark-blue part of RdBu_r.
-            edgecolors = []
-            for value in values:
-                rgba = CMAP(norm(value))
-                r, g, b = rgba[:3]
-                luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
-                edgecolors.append('white' if luminance < 0.42 else 'black')
+            # Draw a white halo first, then a black contour.
+            ax.scatter(
+                xs, ys,
+                c='none',
+                marker='D',
+                s=HUMAN_MARKER_SIZE,
+                edgecolors=HUMAN_HALO_COLOR,
+                linewidths=HUMAN_MARKER_LW + HUMAN_HALO_EXTRA_LW,
+                zorder=6,
+                clip_on=False,
+            )
 
-            ax.scatter(xs, ys, c=values, cmap=CMAP, norm=norm, marker='D',
-                       s=HUMAN_MARKER_SIZE, edgecolors=edgecolors,
-                       linewidths=HUMAN_MARKER_LW, zorder=6, clip_on=False)
+            ax.scatter(
+                xs, ys,
+                c=values,
+                cmap=CMAP,
+                norm=norm,
+                marker='D',
+                s=HUMAN_MARKER_SIZE,
+                edgecolors=HUMAN_EDGE_COLOR,
+                linewidths=HUMAN_MARKER_LW,
+                zorder=7,
+                clip_on=False,
+            )
 
     # -- full figure ------------------------------------------------------
     def create_figure(self, grids: Dict[str, np.ndarray], map_names: Dict[str, str],
@@ -572,14 +625,43 @@ class Figure4Plotter:
                                  joinstyle='miter', zorder=2))
         dm = LEGEND_DIAMOND
         r = dm['tip'] / 2
-        fig.add_artist(Polygon([(dm['cx'], dm['cy'] - r), (dm['cx'] + r, dm['cy']),
-                                (dm['cx'], dm['cy'] + r), (dm['cx'] - r, dm['cy'])],
-                               closed=True, transform=page, facecolor='white', edgecolor='black',
-                               linewidth=dm['lw'], joinstyle='miter', zorder=2))
+        diamond_vertices = [
+            (dm['cx'], dm['cy'] - r),
+            (dm['cx'] + r, dm['cy']),
+            (dm['cx'], dm['cy'] + r),
+            (dm['cx'] - r, dm['cy']),
+        ]
+
+        # White halo
+        fig.add_artist(Polygon(
+            diamond_vertices,
+            closed=True,
+            transform=page,
+            facecolor='white',
+            edgecolor=HUMAN_HALO_COLOR,
+            linewidth=(
+                dm['lw'] * HUMAN_MARKER_LW / 2.24
+                + HUMAN_HALO_EXTRA_LW
+            ),
+            joinstyle='miter',
+            zorder=2,
+        ))
+
+        # Black contour
+        fig.add_artist(Polygon(
+            diamond_vertices,
+            closed=True,
+            transform=page,
+            facecolor='white',
+            edgecolor=HUMAN_EDGE_COLOR,
+            linewidth=dm['lw'] * HUMAN_MARKER_LW / 2.24,
+            joinstyle='miter',
+            zorder=3,
+        ))
 
         # Free text (panel letters, titles, axis labels, colour-bar labels, legend)
-        for font, size, text, x, y, rot in TEXTS.values():
-            fig.text(x, y, tex(font, size, text), transform=page, ha='left', va='baseline',
+        for font, size, text, x, y, rot, *ha in TEXTS.values():
+            fig.text(x, y, tex(font, size, text), transform=page, ha=(ha[0] if ha else 'left'), va='baseline',
                      rotation=rot, rotation_mode='anchor', zorder=3, **_text_kw(font, size))
 
         if output_path:
@@ -623,6 +705,9 @@ def setup_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--cut2_step', type=float, default=0.1, help='Step for agent 2 cutting speed')
     parser.add_argument('--fixed_cut1', type=float, default=1.0, help='Fixed cutting speed for agent 1')
     parser.add_argument('--fixed_walk2', type=float, default=1.0, help='Fixed walking speed for agent 2')
+    parser.add_argument('--human_teams_csv', type=str, default=_HUMAN_TEAMS_DEFAULT,
+                        help='Per-team human data from fig_sm_ability_pairs_humans_rl.py; if it exists, '
+                             'the human diamonds are its condition means (else HUMAN_RESULTS is used)')
     parser.add_argument('--no_latex', action='store_true', help='Do not use LaTeX for text')
     parser.add_argument('--demo', action='store_true',
                         help='Use synthetic MARL grids (layout test, no project data needed)')
@@ -638,6 +723,8 @@ def main():
 
     try:
         LATEX_OK = configure_style(not args.no_latex)
+        if not load_human_results_from_teams(args.human_teams_csv):
+            print(f'Per-team human file not found ({args.human_teams_csv}); using HUMAN_RESULTS.')
         cluster = args.cluster if args.cluster else 'cuenca'
 
         if args.output_dir is not None:
@@ -660,8 +747,8 @@ def main():
         print('=' * 60)
         print(f'Cluster: {cluster} | Game type: {args.game_type} | Init type: {args.init_type}')
         print(f'Maps: a = {args.map_open}, b = {args.map_blocked}')
-        print(f'Agent 1 walking speed: {args.walk1_min}-{args.walk1_max} (step {args.walk1_step})')
-        print(f'Agent 2 cutting speed: {args.cut2_min}-{args.cut2_max} (step {args.cut2_step})')
+        print(f'Player 1 walking speed: {args.walk1_min:.0%}-{args.walk1_max:.0%} (step {args.walk1_step:.0%})')
+        print(f'Player 2 cutting speed: {args.cut2_min:.0%}-{args.cut2_max:.0%} (step {args.cut2_step:.0%})')
 
         grids: Dict[str, np.ndarray] = {}
         analyzers: Dict[str, AbilityGridAnalyzer] = {}

@@ -1,0 +1,20 @@
+================================================================================
+FIG. 3 -- players per condition and archetype (rows of 3c / 3f)
+================================================================================
+
+Humans (I, CS, CC, O):
+  Open HA (100%,100%)  total=  140    84     2     4    50
+  Open MA (40%,20%)    total=  140    93     9    11    27
+  PB HA (100%,100%)    total=  140    59    33    39     9
+  PB MA (40%,20%)      total=  140    30    52    55     3
+  all conditions       total=  560
+  OK: 140 players (70 teams) per condition, as in Figs. 2 and 4
+
+MARL agents (I, CS, CC, O):
+  Open HA (100%,100%)  total=  258   226    12    11     9
+  Open MA (40%,20%)    total=  258   241    11     2     4
+  PB HA (100%,100%)    total=  258    14    84    71    89
+  PB MA (40%,20%)      total=  258     2    97   123    36
+  all conditions       total= 1032
+
+Note: panel b/e specialization values come from 3b/3e as computed by the clustering pipeline; they must use the specialization index of the Methods (same as Fig. 2).

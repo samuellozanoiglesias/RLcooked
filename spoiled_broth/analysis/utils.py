@@ -982,7 +982,6 @@ def setup_argument_parser(experiment_type: str) -> argparse.ArgumentParser:
     parser.add_argument(
         '--init_type',
         type=str,
-        choices=['random_init', 'empty_init'],
         default="",
         help='Initialization type subdirectory to analyze (default: process all available init types)'
     )

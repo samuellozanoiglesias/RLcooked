@@ -3,10 +3,13 @@
 Figure 5 -- MARL theoretical solutions: flow maps (a) and grid map (b),
 plus the supplementary MARL-simulations grid.
 
-Default output (--version v2):
-  fig5.pdf   a  flow maps of P1 (Open map) and P2 (PB map), Mixed / High abilities
-             b  theoretical score-difference grid map with the points 1 (P1) and 2 (P2)
+Default output (--version v3):
+  fig5_theory.pdf   a  theoretical phase diagram (score difference, rho x switch cost)
+                       with the Open-map / PB-map / mixed-ability guide lines
+                    b  learning landscape: flow maps for the Open map (s = 0.05) and
+                       the PB map (s = 0.5), Mixed / High abilities
   figS_marl_simulations_grid.pdf   (with --sm) the MARL-simulations grid (old panel c)
+--version v2 rebuilds the previous layout (a = flow maps, b = phase diagram);
 --version original rebuilds the 3-panel Fig5.pdf described below.
 
 Original 3-panel layout (all elements keep these sizes/fonts in every version):
@@ -28,10 +31,7 @@ everything else (axes, colour bars, text) is drawn with matplotlib. All
 positions/sizes were measured from Fig5.pdf (page 3174.96 x 637.80 pt).
 
 Usage:
-nohup python fig5_marl_theory_and_simulations.py --sm --episode_range specific --init_type empty_init \
-    --num_episodes 20 --specialization 0.25 --synergy 1.35 --target_episode 750 \
-    > fig5.log 2>&1 &
-
+nohup python fig5_marl_theory_and_simulations.py --sm --episode_range specific --init_type empty_init --num_episodes 20 --specialization 0.25 --synergy 1.35 --target_episode 750 > fig5.log 2>&1 &
     # main figure only (needs no training data)
     python fig5_marl_theory_and_simulations.py
     # re-plot the SM figure from the cached MARL-simulations grid
@@ -954,22 +954,22 @@ TEXTS = {
     'xlab_b': (r'Specialization ($\boldsymbol{x}$)', 38, 1477.16, 622.08, 0),
     'local': ('Local reward', 38, 2179.24, 428.52, 90),
     'high': ('high', 34, 2145.33, 141.64, 0), 'low': ('low', 34, 2144.85, 548.21, 0),
-    'final': (r'Final trajectory specialization ($x_{10}$)', 38, 2329.16, 598.44, 90),
+    'final': (r'Final specialization ($|x_{170}|$)', 38, 2329.16, 598.44, 90),
     'jt_0.0': ('0.0', 34, 2246.32, 544.92, 0), 'jt_1.0': ('1.0', 34, 2246.32, 442.38, 0),
     'jt_2.0': ('2.0', 34, 2246.43, 339.87, 0), 'jt_3.0': ('3.0', 34, 2246.32, 237.25, 0),
     'jt_4.0': ('4.0', 34, 2246.32, 134.61, 0),
     # panel c
     'c': (r'\textbf{c}', 60, 2438.46, 84.09, 0),
     'title_c': (r'\textbf{MARL Simulations}', 48, 2551.66, 49.90, 0),
-    'xt_c_0.2': ('0.2', 34, 2548.56, 569.94, 0), 'xt_c_0.4': ('0.4', 34, 2639.64, 569.82, 0),
-    'xt_c_0.6': ('0.6', 34, 2734.50, 569.94, 0), 'xt_c_0.8': ('0.8', 34, 2827.64, 569.94, 0),
-    'xt_c_1.0': ('1.0', 34, 2921.40, 569.94, 0),
-    'xlab_c': (rf'Mixed-ability parameter ({RHO})', 38, 2497.98, 619.03, 0),
+    'xt_c_0.2': ('20', 34, 2548.56, 569.94, 0), 'xt_c_0.4': ('40', 34, 2639.64, 569.82, 0),
+    'xt_c_0.6': ('60', 34, 2734.50, 569.94, 0), 'xt_c_0.8': ('80', 34, 2827.64, 569.94, 0),
+    'xt_c_1.0': ('100', 34, 2921.40, 569.94, 0),
+    'xlab_c': (rf'Speed percentage (\%)', 38, 2577.98, 619.03, 0),
     'cbt_c_+4': ('+4', 34, 3021.19, 194.08, 0), 'cbt_c_+2': ('+2', 34, 3022.57, 267.09, 0),
     'cbt_c_0': ('0', 34, 3030.39, 339.49, 0), 'cbt_c_-2': ('-2', 34, 3026.07, 405.75, 0),
     'cbt_c_-4': ('-4', 34, 3024.93, 476.58, 0),
     'cbl_c1': ('Score difference with respect', 38.29, 3108.24, 578.04, 90),
-    'cbl_c2': (rf'to {RHO} $\boldsymbol{{=1}}$ of that column', 38, 3154.00, 539.04, 90),
+    'cbl_c2': (rf'to 100\% speed on the same map', 38, 3154.00, 584.04, 90),
 }
 
 
@@ -1007,8 +1007,9 @@ def configure_style():
 # layouts are obtained by moving whole groups of elements horizontally, so
 # every element keeps exactly its original size, font and relative position.
 #
-#   'v2'  (default) main figure:  a = flow maps P1 (Open map) & P2 (PB map),
-#                                 b = theoretical grid map with points 1 & 2
+#   'v3'  (default) main figure:  a = theoretical grid map (phase diagram),
+#                                 b = flow maps P1 (Open map) & P2 (PB map)
+#   'v2'  previous main figure:   a = flow maps, b = grid map (panels flipped)
 #   'sm'  supplementary figure:   MARL-simulations grid (old panel c)
 #   'original'                    the 3-panel Fig5 as submitted
 GRID_KEYS = ['a', 'title_a', 'xlab_a', 'ylab_a', 'cbl_a1', 'cbl_a2']       # + xt_a_*, yt_a_*, cbt_a_*
@@ -1040,9 +1041,32 @@ V2_OVERRIDES = {          # key -> (text or None, x or None[, ha]) ; x = new anc
     'a': (r'\textbf{b}', None),                                    # grid map becomes panel b
     'title_b': (None, _v2_axes_centre - 667.1 / 2 - 0.34),         # centred over P1-P2
     'xlab_b': (None, _v2_axes_centre - 286.8 / 2 - 3.14),
+    'final': (None, None, 'center', (CB_JET[2] + CB_JET[3]) / 2),
     # column titles centred over their column of flow maps
     'P1': (V2_COLUMN_TITLES[1], (VF_RECTS[('MA', 1)][0] + VF_RECTS[('MA', 1)][1]) / 2 + V2_DX_FLOW, 'center'),
     'P2': (V2_COLUMN_TITLES[2], (VF_RECTS[('MA', 2)][0] + VF_RECTS[('MA', 2)][1]) / 2 + V2_DX_FLOW, 'center'),
+}
+
+# --- v3 (default): panels of v2 flipped ----------------------------------
+# a = phase diagram on the left (at its original position, as in the 3-panel
+# Fig5), b = flow maps on the right, followed by their two colour bars. The text
+# reads the phase diagram first (when weaker teams win) and ends with the
+# learning landscape (why), so the landscape is now the last panel.
+V3_COLUMNS = V2_COLUMNS
+V3_DX_GRID = 0.0
+V3_GAP = 60.0                                # grid colour-bar label -> flow-map row labels (pt)
+_v3_grid_right = TEXTS['cbl_a2'][2] + 8.0    # right edge of the rotated colour-bar label
+_v3_flow_left = TEXTS['row_MA1'][2] - 27.0   # left edge of the rotated 'Mixed' row label
+V3_DX_FLOW = _v3_grid_right + V3_GAP - _v3_flow_left
+V3_DX_FLOW_CB = V3_DX_FLOW - (VF_RECTS[('MA', 4)][0] - VF_RECTS[('MA', 2)][0])   # colour bars next to P2
+V3_PAGE_W = TEXTS['final'][2] + V3_DX_FLOW_CB + 8.0 + 20.0   # 20 pt right margin
+_v3_axes_centre = (VF_RECTS[('MA', 1)][0] + VF_RECTS[('MA', 2)][1]) / 2 + V3_DX_FLOW
+V3_OVERRIDES = {          # panel letters keep their original meaning: a = grid map, b = flow maps
+    'xlab_b': (None, _v3_axes_centre, 'center'),                   # centred under P1-P2
+    # colour-bar label centred on the trajectory colour bar (4th element = new y)
+    'final': (None, None, 'center', (CB_JET[2] + CB_JET[3]) / 2),
+    'P1': (V2_COLUMN_TITLES[1], (VF_RECTS[('MA', 1)][0] + VF_RECTS[('MA', 1)][1]) / 2 + V3_DX_FLOW, 'center'),
+    'P2': (V2_COLUMN_TITLES[2], (VF_RECTS[('MA', 2)][0] + VF_RECTS[('MA', 2)][1]) / 2 + V3_DX_FLOW, 'center'),
 }
 
 # --- sm -------------------------------------------------------------------
@@ -1171,7 +1195,8 @@ def _draw_sim_grid(fig, page_w, dx, grid_c, figures_dir):
 
 
 def _draw_texts(fig, page, keep, shifts, overrides=None):
-    """Free text: keep(key) -> bool, shifts[group] -> dx, overrides[key] -> (text|None, x|None)."""
+    """Free text: keep(key) -> bool, shifts[group] -> dx,
+    overrides[key] -> (text|None, x|None[, ha[, y]])."""
     overrides = overrides or {}
     for key, (tex, size, x, y, rot) in TEXTS.items():
         if not keep(key):
@@ -1180,6 +1205,7 @@ def _draw_texts(fig, page, keep, shifts, overrides=None):
         ov = overrides.get(key, (None, None))
         new_tex, new_x = ov[0], ov[1]
         ha = ov[2] if len(ov) > 2 else 'left'
+        y = ov[3] if len(ov) > 3 else y
         tex = new_tex if new_tex is not None else tex
         x = new_x if new_x is not None else x
         fig.text(x, y, tex, transform=page, fontsize=size, ha=ha, va='baseline',
@@ -1192,7 +1218,23 @@ def build_figure(version: str, figures_dir: Path, grid_c: Optional[np.ndarray] =
     configure_style()
     embeds = []
 
-    if version == 'v2':
+    if version == 'v3':
+        page_w = V3_PAGE_W
+        fig = plt.figure(figsize=(page_w / 72.0, PAGE_H / 72.0))
+        page = _page_transform(fig)
+        _draw_grid_map(fig, page, page_w, V3_DX_GRID, figures_dir, embeds,
+                       V2_POINTS if draw_points else [], guide_lines=True)
+        _draw_flow_maps(fig, page_w, V3_DX_FLOW, V3_DX_FLOW_CB, figures_dir, embeds, V3_COLUMNS)
+        dropped = [f'P{p}' for p in (1, 2, 3, 4) if p not in V3_COLUMNS]
+
+        def keep(key):
+            if _group_of(key) == 'sim':
+                return False
+            return not any(key == d or key.startswith(f'xt_{d}_') for d in dropped)
+        _draw_texts(fig, page, keep, {'grid': V3_DX_GRID, 'flow': V3_DX_FLOW,
+                                      'flow_cb': V3_DX_FLOW_CB, 'sim': 0.0}, V3_OVERRIDES)
+
+    elif version == 'v2':
         page_w = V2_PAGE_W
         fig = plt.figure(figsize=(page_w / 72.0, PAGE_H / 72.0))
         page = _page_transform(fig)
@@ -1284,10 +1326,11 @@ def save_figure(fig, embeds, output_pdf: Path, page_w: float, png_dpi: int = 300
 # ===========================================================================
 def setup_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description='Figure 5 (flow maps + theoretical grid map) and its SM figure (MARL simulations grid)',
+        description='Figure 5 (theoretical grid map + flow maps) and its SM figure (MARL simulations grid)',
         formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('--version', choices=['v2', 'original'], default='v2',
-                        help="v2: a = flow maps P1/P2, b = grid map (default); original: 3-panel Fig5")
+    parser.add_argument('--version', choices=['v3', 'v2', 'original'], default='v3',
+                        help="v3: a = grid map (phase diagram), b = flow maps (default);\n"
+                             "v2: a = flow maps, b = grid map (previous layout); original: 3-panel Fig5")
     parser.add_argument('--sm', action='store_true',
                         help='Also build the SM figure with the MARL-simulations grid (needs training data, '
                              '--grid_csv or --demo)')
@@ -1314,6 +1357,50 @@ def setup_argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def write_seed_report(prepared: pd.DataFrame, args, path: Path):
+    """Seeds (trainings) and episodes per map x ability condition of the MARL-simulations grid.
+
+    One training = one 'timestamp' (independent random seed). The episode window is the one
+    selected by --episode_range / --num_episodes / --target_episode, i.e. exactly the data
+    averaged in each cell of the grid."""
+    df = prepared.copy()
+    tcol = next((c for c in ('timestamp', 'training_id', 'run_id') if c in df.columns), None)
+    lines = ['=' * 90,
+             'MARL-SIMULATIONS GRID (SI map bank) -- seeds and episodes per condition',
+             '=' * 90,
+             f'episode window: {args.episode_range}, num_episodes={args.num_episodes}, '
+             f'target_episode={args.target_episode}',
+             f'synergy={args.synergy}, specialization={args.specialization}, init_type={args.init_type}, '
+             f'game_type={args.game_type}',
+             '(one training = one independent random seed; episode numbers as stored in the data)', '']
+    if tcol is None or 'condition' not in df.columns:
+        lines.append(f'No training-id / condition column found; columns: {sorted(df.columns)}')
+    else:
+        rows = []
+        for cond, g in df.groupby('condition'):
+            per = g.groupby(tcol).size()
+            ep = pd.to_numeric(g['episode'], errors='coerce') if 'episode' in g.columns else pd.Series(dtype=float)
+            rows.append(dict(condition=cond, map=g['map_name'].iloc[0] if 'map_name' in g.columns else '',
+                             n_trainings=len(per), ep_min=int(per.min()), ep_max=int(per.max()),
+                             first_ep=int(ep.min()) if ep.notna().any() else -1,
+                             last_ep=int(ep.max()) if ep.notna().any() else -1,
+                             trainings=', '.join(sorted(map(str, per.index)))))
+        tab = pd.DataFrame(rows).sort_values(['map', 'condition'])
+        lines.append(f'{"condition":<45} {"seeds":>5}  {"episodes/seed":>13}  episode numbers')
+        for _, r in tab.iterrows():
+            lines.append(f'{r.condition:<45} {r.n_trainings:>5}  {r.ep_min:>6}..{r.ep_max:<6}  '
+                         f'{r.first_ep}..{r.last_ep}')
+        counts = tab['n_trainings'].value_counts().sort_index()
+        lines += ['', 'Summary: ' + '; '.join(f'{n} seed(s) in {k} condition(s)' for n, k in counts.items())
+                  + f' (total {len(tab)} conditions, {int(tab.n_trainings.sum())} trainings)', '',
+                  'Training ids per condition:']
+        lines += [f'  {r.condition}: {r.trainings}' for _, r in tab.iterrows()]
+        tab.drop(columns='trainings').to_csv(path.with_suffix('.csv'), index=False)
+    path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    print('\n'.join(lines[:60]))
+    print(f'[fig5] seed report -> {path} (+ .csv)')
+
+
 def load_sim_grid(args, output_dir: Path) -> np.ndarray:
     """MARL-simulations grid: synthetic (--demo), cached CSV (--grid_csv) or from the training data."""
     if args.demo:
@@ -1323,6 +1410,8 @@ def load_sim_grid(args, output_dir: Path) -> np.ndarray:
         grid[:, -1] = -5.5
         return grid
     if args.grid_csv:
+        print('[fig5] grid read from --grid_csv: the seed report is only written when the grid is '
+              'computed from the training data')
         return np.loadtxt(args.grid_csv, delimiter=',')
 
     analyzer = CooperativeAnalyzer(
@@ -1341,6 +1430,7 @@ def load_sim_grid(args, output_dir: Path) -> np.ndarray:
     prepared = analyzer.prepare_episode_data(df, episode_selection=args.episode_range,
                                              num_episodes=args.num_episodes,
                                              target_episode=args.target_episode)
+    write_seed_report(prepared, args, output_dir / 'figS_marl_simulations_grid_seeds.txt')
     grid = row_score_difference_grid(prepared, analyzer.map_names, analyzer.ability_configs,
                                      args.game_type)
     grid_csv = output_dir / 'fig5c_grid.csv'

@@ -10,16 +10,21 @@ into a single script that builds the complete compound figure in ONE
 matplotlib figure (PDF + PNG), reproducing the Fig2 layout:
 
     Map configuration          | Human Experiments
-      a  Open (O) map          |   c  Game score         d  Specialization index
+      a  Open map              |   c  Game score         d  Specialization index
       b  Partially-blocked map |
     MARL Simulations           | MARL Theoretical Solutions
       e  Game score            |   g  Reward Rate
       f  Specialization index  |   h  Specialization Index
-    [ legend band: High ability (rho = 1) | Mixed ability (rho < 1) ]
+    [ legend band: High ability (100%, 100%; rho = 1) | Mixed ability (40%, 20%; rho = 0.85) ]
+      (speed percentages for humans / MARL simulations; rho for MARL theory)
 
 Inputs
   ./figures/open_map.png, ./figures/PB_map.png      (map screenshots, --maps_dir)
-  Human   : scores_human.csv, specialization_index_human.csv  (wide format)
+  Human   : the per-team file written by fig_sm_ability_pairs_humans_rl.py
+            (--human_teams_csv, default ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv):
+            the first 70 teams per condition, specialization index with the Methods formula,
+            i.e. the same teams as Figs. 4, S-pairs and S-pretraining. Only if that file is
+            missing, the old wide files scores_human.csv / specialization_index_human.csv.
   MARL    : SLURM simulation tree (as in the RL script), or a cached CSV
             written by a previous run (--rl_csv)
   Theory  : figure3_specialization_index_long.csv   (long format)
@@ -31,15 +36,12 @@ its original 10 x 5 in design and uniformly scaled by the same factor used
 when the figure was assembled, and the page is written at the same size
 (804.96 x 446.52 pt) without bbox_inches='tight'.
 
+Section titles ("Map configuration", "Human Experiments", ...) are centred
+automatically over the panels of their group (see TITLES), so renaming them
+or changing axis labels keeps them centred.
+
 Usage:
-nohup python3 fig2_human_marl_comparison.py \
-    --scores_csv ./data/human/scores_human.csv \
-    --specialization_csv ./data/human/specialization_index_human.csv \
-    --analytic_csv ./data/analytic_model/figure3_specialization_index_long.csv \
-    --map_baseline baseline_division_of_labor_large \
-    --map_encouraged encouraged_division_of_labor_large \
-    --synergy 1.35 --specialization 0.25 --checkpoint 753 \
-    --game_version classic_collision --cluster cuenca > log_fig2.out 2>&1 &
+nohup python3 fig2_human_marl_comparison.py --scores_csv ./data/human/scores_human.csv --specialization_csv ./data/human/specialization_index_human.csv --analytic_csv ./data/analytic_model/figure3_specialization_index_long.csv --map_baseline baseline_division_of_labor_large --map_encouraged encouraged_division_of_labor_large --synergy 1.35 --specialization 0.25 --checkpoint 753 --game_version classic_collision --cluster cuenca > log_fig2.out 2>&1 &
 
     # re-plot quickly from the MARL records cached by a previous run
     python3 fig2_human_marl_comparison.py --rl_csv ./figures/fig2_rl_records.csv
@@ -63,10 +65,13 @@ import matplotlib.patches
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 from matplotlib.legend_handler import HandlerTuple
-from matplotlib.transforms import Affine2D
+from matplotlib.transforms import Affine2D, Bbox
 import numpy as np
 import pandas as pd
 from scipy.stats import gaussian_kde
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import paper_stats as ps                                   # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Global Style Configuration (PNAS requirements) -- identical in all 3 scripts
@@ -124,6 +129,55 @@ def load_wide_human_csv(csv_path: Path) -> pd.DataFrame:
     long_df = pd.concat(frames, ignore_index=True)
     long_df["value"] = pd.to_numeric(long_df["value"], errors="coerce")
     return long_df.dropna(subset=["value"])
+
+
+_HUMAN_TEAMS_DEFAULT = "./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv"
+
+
+def load_human_teams(csv_path: Path) -> pd.DataFrame:
+    """Per-team human file -> long df (switch_cost_condition, ability_type, total_deliveries,
+    specialization_index): HA = (100%, 100%), MA = (40%, 20%)."""
+    t = pd.read_csv(csv_path)
+    ha = np.isclose(t["walk"], 1.0) & np.isclose(t["cut"], 1.0)
+    ma = np.isclose(t["walk"], 0.4) & np.isclose(t["cut"], 0.2)
+    t = t[ha | ma].copy()
+    t["ability_type"] = np.where(np.isclose(t["walk"], 1.0), "HA", "MA")
+    t["switch_cost_condition"] = np.where(t["map"].astype(str).str.lower().str.startswith("open"), "low", "high")
+    return t
+
+
+def write_stats(human_df: pd.DataFrame | None, rl_df: pd.DataFrame | None, path: Path):
+    """Main-text statistics of Fig. 2 c-f with the conventions of paper_stats.py."""
+    lines = ["=" * 100, "FIG. 2 STATISTICS -- conventions of paper_stats.py (higher group first, Welch's t(df) = |t|;",
+             "two-way between-subjects ANOVA ability x map, effect coding, Type III SS, partial eta^2)", "=" * 100]
+    lab = {"low": "Open", "high": "PB"}
+    blocks = []
+    if human_df is not None:
+        blocks.append(("HUMANS (unit = team)", human_df))
+    if rl_df is not None and not rl_df.empty:
+        r = rl_df.copy()
+        for c in ("total_deliveries", "specialization_index"):
+            r[c] = pd.to_numeric(r[c], errors="coerce")
+        blocks.append(("MARL SIMULATIONS (unit = training; mean of its simulated games)",
+                       r.groupby(["switch_cost_condition", "ability_type", "training_id"], as_index=False)
+                        [["total_deliveries", "specialization_index"]].mean()))
+        blocks.append(("MARL SIMULATIONS (unit = simulated game)", r))
+    for title, d in blocks:
+        lines.append(f"\n{title}")
+        for (sw, at), g in d.groupby(["switch_cost_condition", "ability_type"]):
+            lines.append(f"  n {lab[sw]:<4} {at}: {len(g)}")
+        for col, name, pct in (("total_deliveries", "Game score", False), ("specialization_index", "Specialization index", True)):
+            a = ps.anova_type3(d, col, "switch_cost_condition", "ability_type")
+            lines.append(f"  {name}: Map x Ability ({ps.fmt_F(a.iloc[2])}); map ({ps.fmt_F(a.iloc[0])}); "
+                         f"ability ({ps.fmt_F(a.iloc[1])})")
+            for sw in _SWITCH_ORDER:
+                sel = d["switch_cost_condition"] == sw
+                txt, _ = ps.fmt_compare("HA", d.loc[sel & (d["ability_type"] == "HA"), col],
+                                        "MA", d.loc[sel & (d["ability_type"] == "MA"), col], pct)
+                lines.append(f"    {lab[sw]:<4} {txt}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines))
+    print(f"\nStatistics saved -> {path}")
 
 
 def groups_from_long(df: pd.DataFrame, value_col: str = "value") -> dict:
@@ -473,8 +527,9 @@ _COLOR_MA = '#348ABD'   # Teal-Blue
 _COLOR = {"HA": _COLOR_HA, "MA": _COLOR_MA}
 _COLOR_DARK = {"HA": "black", "MA": "black"}
 _LEGEND_LABELS = {
-    "HA": r"\textbf{High ability ($\boldsymbol{\rho = 1}$)}",
-    "MA": r"\textbf{Mixed ability ($\boldsymbol{\rho = 0.85}$)}",
+    # speed percentages (humans, MARL simulations) and the theory parameter rho
+    "HA": r"\textbf{High ability (100\%, 100\%; $\boldsymbol{\rho = 1}$)}",
+    "MA": r"\textbf{Mixed ability (40\%, 20\%; $\boldsymbol{\rho = 0.85}$)}",
 }
 
 _ALPHA_VIOLIN = 0.55
@@ -615,7 +670,10 @@ MAP_RECTS = {                          # (left, right, top, bottom)
 }
 MAP_FILES = {'open': 'open_map', 'pb': 'PB_map'}
 
-# free text: (TeX font, size pt, text, x, y) -- left/baseline anchor
+# free text: (TeX font, size pt, text, x, y[, ha]) -- baseline anchor, left-aligned
+# unless ha is given (ha='center': x is the horizontal centre of the text)
+_MAP_CAP_Y = 181.76                    # common baseline of the two map captions
+_MAP_CAP_SIZE = 16                     # common size of the two map captions
 TEXTS = {
     'a': ('cmbx10', 20, 'a', 18.15, 48.48),
     'b': ('cmbx10', 20, 'b', 191.21, 48.51),
@@ -625,18 +683,31 @@ TEXTS = {
     'f': ('cmbx10', 20, 'f', 181.15, 238.99),
     'g': ('cmbx10', 20, 'g', 391.82, 239.07),
     'h': ('cmbx10', 20, 'h', 582.00, 241.43),
-    'title_map':  ('cmbx10', 18, 'Map configuration', 108.38, 21.24),
-    'title_hum':  ('cmbx10', 18, 'Human Experiments', 502.02, 21.30),
-    'title_marl': ('cmbx10', 18, 'MARL Simulations', 104.11, 217.41),
-    'title_theo': ('cmbx10', 18, 'MARL Theoretical Solutions', 464.85, 217.41),
-    'cap_open':   ('cmr10', 18, 'Open (O)', 65.69, 183.73),
-    'cap_pb':     ('cmr10', 16, 'Partially-blocked (PB)', 200.83, 181.76),
+    # map captions centred under their map (MAP_RECTS), same size and baseline
+    'cap_open':   ('cmr10', _MAP_CAP_SIZE, 'Open', (39.95 + 171.09) / 2, _MAP_CAP_Y, 'center'),
+    'cap_pb':     ('cmr10', _MAP_CAP_SIZE, 'Partially-blocked (PB)', (213.72 + 343.83) / 2, _MAP_CAP_Y, 'center'),
 }
 
-LEGEND_BOX = dict(x0=128.23, x1=673.64, top=403.44, bottom=444.79,
+# Section titles: the horizontal position is computed automatically (centred
+# over the panels of their group), so only font, size, text and baseline are
+# set here. Keys must be 'map' or a key of PANEL_GROUPS.
+_TITLE_Y_TOP = 21.27        # baseline of the top-row titles (pt from top)
+_TITLE_Y_BOTTOM = 217.41    # baseline of the bottom-row titles
+TITLES = {  # group -> (TeX font, size pt, text, baseline y)
+    'map':      ('cmbx10', 18, 'Map configuration', _TITLE_Y_TOP),
+    'human':    ('cmbx10', 18, 'Human Experiments', _TITLE_Y_TOP),
+    'rl':       ('cmbx10', 18, 'MARL Simulations',  _TITLE_Y_BOTTOM),
+    'analytic': ('cmbx10', 18, 'MARL Theory',       _TITLE_Y_BOTTOM),
+}
+# True  -> centre over the visible content (axes + tick labels + y-labels)
+# False -> centre over the plotting areas only
+TITLE_CENTER_ON_CONTENT = True
+
+LEGEND_BOX = dict(x0=118.23, x1=683.64, top=403.44, bottom=444.79,
                   face='#f2f2f2', edge='#595959', lw=2.25)
-LEGEND_CENTER = (402.50, 424.835)
+LEGEND_CENTER = (PAGE_W / 2, 424.835)   # legend band centred on the page
 LEGEND_SCALE = 0.60231
+LEGEND_PAD = 14.0          # horizontal padding of the legend band (pt)
 
 
 def tex(font: str, size: float, text: str) -> str:
@@ -651,6 +722,21 @@ def _rect_to_fig(rect):
     L, R, T, B = rect
     return [L / PAGE_W, 1.0 - B / PAGE_H, (R - L) / PAGE_W, (B - T) / PAGE_H]
 
+
+def _group_center_x_pt(fig, axes, renderer, use_content: bool = True) -> float:
+    """Horizontal centre (page points) of the union of the given axes.
+
+    use_content=True uses the tight bbox (tick labels, y-labels included);
+    hidden axes (e.g. the map images) always use their plotting area.
+    """
+    bbs = []
+    for ax in axes:
+        if use_content and ax.axison:
+            bbs.append(ax.get_tightbbox(renderer))
+        else:
+            bbs.append(ax.get_window_extent(renderer))
+    bb = Bbox.union(bbs)
+    return 0.5 * (bb.x0 + bb.x1) / fig.dpi * 72.0
 
 
 def _load_map_image(maps_dir: Path, subfolder: str, stem: str):
@@ -686,9 +772,10 @@ def make_figure(human: dict, rl: dict, theory: dict, maps_dir: Path, output_path
     fig = plt.figure(figsize=(PAGE_W / 72.0, PAGE_H / 72.0))
     page = _page_transform(fig)
     specs = build_panel_specs(human, rl, theory)
+    axes_by_group = {name: [] for name in list(PANEL_GROUPS) + ['map']}
 
     # -- raincloud panels ------------------------------------------------
-    for group in PANEL_GROUPS.values():
+    for gname, group in PANEL_GROUPS.items():
         s = group['s']
         for key, rect in group['axes'].items():
             sp = specs[key]
@@ -696,6 +783,7 @@ def make_figure(human: dict, rl: dict, theory: dict, maps_dir: Path, output_path
             draw_raincloud_panel(ax, sp['groups'], ylabel=sp['ylabel'], xticklabels=sp['xt'],
                                  ylim=sp['ylim'], violin_full_range=sp['full'],
                                  percent=sp['percent'], s=s)
+            axes_by_group[gname].append(ax)
 
     # -- map screenshots ---------------------------------------------------
     for key, rect in MAP_RECTS.items():
@@ -704,17 +792,22 @@ def make_figure(human: dict, rl: dict, theory: dict, maps_dir: Path, output_path
         ax.set_axis_off()
         if img is not None:
             ax.imshow(img, aspect='auto', interpolation='lanczos')
+        axes_by_group['map'].append(ax)
 
-    # -- free text ---------------------------------------------------------
-    for font, size, text, x, y in TEXTS.values():
-        fig.text(x, y, tex(font, size, text), transform=page, ha='left', va='baseline',
-                 fontsize=size)
+    # -- free text (panel letters, map captions) ---------------------------
+    for font, size, text, x, y, *ha in TEXTS.values():
+        fig.text(x, y, tex(font, size, text), transform=page, ha=(ha[0] if ha else 'left'),
+                 va='baseline', fontsize=size)
+
+    # -- section titles, centred automatically over their panels -----------
+    renderer = fig.canvas.get_renderer()
+    for gname, (font, size, text, y) in TITLES.items():
+        x = _group_center_x_pt(fig, axes_by_group[gname], renderer, TITLE_CENTER_ON_CONTENT)
+        fig.text(x, y, tex(font, size, text), transform=page, ha='center',
+                 va='baseline', fontsize=size)
 
     # -- legend band ---------------------------------------------------------
     lb = LEGEND_BOX
-    fig.add_artist(matplotlib.patches.Rectangle(
-        (lb['x0'], lb['top']), lb['x1'] - lb['x0'], lb['bottom'] - lb['top'], transform=page,
-        facecolor=lb['face'], edgecolor=lb['edge'], linewidth=lb['lw'], zorder=0))
     sl = LEGEND_SCALE
     handles = []
     for at in _ABILITY_ORDER:
@@ -725,10 +818,19 @@ def make_figure(human: dict, rl: dict, theory: dict, maps_dir: Path, output_path
                                       markeredgewidth=1.5 * sl, linewidth=0)
         handles.append((box, dia))
     cx, cy = LEGEND_CENTER
-    fig.legend(handles, [_LEGEND_LABELS[at] for at in _ABILITY_ORDER],
-               handler_map={tuple: HandlerTuple(ndivide=None)}, fontsize=_FS * sl,
-               frameon=False, loc="center", ncol=2, handlelength=2.5, columnspacing=2.5,
-               bbox_to_anchor=(cx / PAGE_W, 1.0 - cy / PAGE_H), bbox_transform=fig.transFigure)
+    leg = fig.legend(handles, [_LEGEND_LABELS[at] for at in _ABILITY_ORDER],
+                     handler_map={tuple: HandlerTuple(ndivide=None)}, fontsize=_FS * sl,
+                     frameon=False, loc="center", ncol=2, handlelength=2.0, columnspacing=1.5,
+                     handletextpad=0.6, bbox_to_anchor=(cx / PAGE_W, 1.0 - cy / PAGE_H),
+                     bbox_transform=fig.transFigure)
+    # grey band sized to the legend (never narrower than the original band), centred on it
+    bb = leg.get_window_extent(renderer)
+    width_pt = max(bb.width / fig.dpi * 72.0 + 2 * LEGEND_PAD, lb['x1'] - lb['x0'])
+    if width_pt > PAGE_W:
+        print(f"WARNING: legend band ({width_pt:.0f} pt) is wider than the page ({PAGE_W:.0f} pt)")
+    fig.add_artist(matplotlib.patches.Rectangle(
+        (cx - width_pt / 2, lb['top']), width_pt, lb['bottom'] - lb['top'], transform=page,
+        facecolor=lb['face'], edgecolor=lb['edge'], linewidth=lb['lw'], zorder=0))
 
     # NB: no bbox_inches='tight' -- the page size is part of the layout.
     fig.savefig(output_path)
@@ -776,7 +878,10 @@ def demo_data(seed: int = 0):
 def main():
     parser = argparse.ArgumentParser(description="Figure 2: maps + HA vs MA (humans, MARL, theory).")
     # human
-    parser.add_argument("--scores_csv", default="data/human/scores_human.csv")
+    parser.add_argument("--human_teams_csv", default=_HUMAN_TEAMS_DEFAULT,
+                        help="Per-team human data from fig_sm_ability_pairs_humans_rl.py (used if it exists)")
+    parser.add_argument("--scores_csv", default="data/human/scores_human.csv",
+                        help="FALLBACK (old wide format), only if --human_teams_csv is missing")
     parser.add_argument("--specialization_csv", default="data/human/specialization_index_human.csv")
     # analytic model
     parser.add_argument("--analytic_csv", default="data/analytic_model/figure3_specialization_index_long.csv")
@@ -787,7 +892,8 @@ def main():
     parser.add_argument("--map_encouraged", default="encouraged_division_of_labor_large")
     parser.add_argument("--synergy", default="1.35")
     parser.add_argument("--specialization", default="0.25")
-    parser.add_argument("--checkpoint", default="753", help="Checkpoint number or 'all'")
+    parser.add_argument("--checkpoint", default="750",
+                        help="Checkpoint folder (750 = the human-like checkpoint used throughout) or 'all'")
     parser.add_argument("--game_version", default="classic_collision",
                         choices=["classic", "competition", "classic_collision", "competition_collision"])
     parser.add_argument("--num_agents", type=int, default=2, choices=[1, 2])
@@ -808,9 +914,18 @@ def main():
         human, rl, theory = demo_data()
     else:
         # humans
-        scores = load_wide_human_csv(Path(args.scores_csv))
-        spec = load_wide_human_csv(Path(args.specialization_csv))   # already in %
-        human = {'score': groups_from_long(scores), 'spec': groups_from_long(spec)}
+        human_df = None
+        if Path(args.human_teams_csv).exists():
+            human_df = load_human_teams(Path(args.human_teams_csv))
+            print(f"Humans: {len(human_df)} teams from {args.human_teams_csv}")
+            human = {'score': groups_from_long(human_df, "total_deliveries"),
+                     'spec': groups_from_long(human_df, "specialization_index")}
+        else:
+            print(f"[!] {args.human_teams_csv} not found: using the OLD wide human files "
+                  f"({args.scores_csv}, {args.specialization_csv}). Run fig_sm_ability_pairs_humans_rl.py first.")
+            scores = load_wide_human_csv(Path(args.scores_csv))
+            spec = load_wide_human_csv(Path(args.specialization_csv))   # already in %
+            human = {'score': groups_from_long(scores), 'spec': groups_from_long(spec)}
 
         # MARL
         if args.rl_csv:
@@ -822,6 +937,7 @@ def main():
             print(f"\nMARL records cached -> {cache}  (re-use with --rl_csv)")
         rl = {'score': groups_from_long(rl_df, "total_deliveries"),
               'spec': groups_from_long(rl_df, "specialization_index")}
+        write_stats(human_df, rl_df, output_dir / (Path(args.output_name).stem + "_stats.txt"))
 
         # theory
         th = load_analytic_csv(Path(args.analytic_csv))
