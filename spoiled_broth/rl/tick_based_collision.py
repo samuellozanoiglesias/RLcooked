@@ -9,7 +9,6 @@ This module handles:
 
 import logging
 from engine.extensions.topDownGridWorld.a_star import Node, find_path
-from spoiled_broth.rl.tick_based_structure import TICK_DURATION, movement_step_cost
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ def predict_next_tile_positions(env):
     """
     next_positions = {}
     agent_movement_status = {}
-    tick_duration = float(getattr(env, 'tick_duration', TICK_DURATION))
+    tick_duration = float(getattr(env, 'tick_duration', 0.5))
     
     for agent_id in env.agents:
         state = env.agent_state[agent_id]
@@ -34,15 +33,16 @@ def predict_next_tile_positions(env):
         if (len(state['current_path']) > 0 and 
             state['path_index'] < len(state['current_path'])):
             
-            # Same rule as advance_agent_movement: accumulated progress must
-            # cover the cost of the step to the next node (1 or sqrt(2) tiles).
+            # Get agent's movement speed
             agent_speed_tiles = (agent.speed / 16.0)  # Convert pixels/sec to tiles/sec
             movement_distance = agent_speed_tiles * tick_duration  # Distance in next tick
+            
+            # Check if agent will reach next tile in this tick
             new_progress = state['movement_progress'] + movement_distance
-            next_node = state['current_path'][state['path_index']]
-
-            if new_progress >= movement_step_cost(agent, next_node):
+            
+            if new_progress >= 1.0:
                 # Agent will move to next tile
+                next_node = state['current_path'][state['path_index']]
                 next_positions[agent_id] = (next_node.x, next_node.y)
                 agent_movement_status[agent_id] = True  # Agent is moving
             else:
