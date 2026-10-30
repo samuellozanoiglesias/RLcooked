@@ -22,11 +22,15 @@ Inputs
   ./figures/open_map.png, ./figures/PB_map.png      (map screenshots, --maps_dir)
   Human   : the per-team file written by fig_sm_ability_pairs_humans_rl.py
             (--human_teams_csv, default ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv):
-            the first 70 teams per condition, specialization index with the Methods formula,
-            i.e. the same teams as Figs. 4, S-pairs and S-pretraining. Only if that file is
-            missing, the old wide files scores_human.csv / specialization_index_human.csv.
-  MARL    : SLURM simulation tree (as in the RL script), or a cached CSV
-            written by a previous run (--rl_csv)
+            the first 70 teams per condition (test phase), specialization index with the
+            Methods formula, i.e. the same teams as Figs. 4, S-pairs and S-pretraining.
+            Required: the script stops if the file is missing.
+  MARL    : simulated games of the simulation tree (see marl_simulations.py, same folder)
+              <base>/data/samuel_lozano/cooked/<game_version>/simulations/<init_type>/map_<map>/
+                  synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+            HA = abilities_1.0_1.0, MA = abilities_0.4_0.2 (walk1 = walking speed of ai_rl_1,
+            cut2 = cutting speed of ai_rl_2, the other speeds 1.0); every Training_* and
+            simulation_* folder is used. Or a cached CSV written by a previous run (--rl_csv)
   Theory  : figure3_specialization_index_long.csv   (long format)
 
 Every panel keeps the raincloud style of the original scripts (half-violin +
@@ -41,7 +45,7 @@ automatically over the panels of their group (see TITLES), so renaming them
 or changing axis labels keeps them centred.
 
 Usage:
-nohup python3 fig2_human_marl_comparison.py --scores_csv ./data/human/scores_human.csv --specialization_csv ./data/human/specialization_index_human.csv --analytic_csv ./data/analytic_model/figure3_specialization_index_long.csv --map_baseline baseline_division_of_labor_large --map_encouraged encouraged_division_of_labor_large --synergy 1.35 --specialization 0.25 --checkpoint 753 --game_version classic_collision --cluster cuenca > log_fig2.out 2>&1 &
+nohup python3 fig2_human_marl_comparison.py --human_teams_csv ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv --analytic_csv ./data/analytic_model/figure3_specialization_index_long.csv --map_baseline baseline_division_of_labor_large --map_encouraged encouraged_division_of_labor_large --synergy 1.35 --specialization 0.25 --init_type empty_init --checkpoint 753 --game_version classic_collision --cluster cuenca > log_fig2.out 2>&1 &
 
     # re-plot quickly from the MARL records cached by a previous run
     python3 fig2_human_marl_comparison.py --rl_csv ./figures/fig2_rl_records.csv
@@ -72,6 +76,7 @@ from scipy.stats import gaussian_kde
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import paper_stats as ps                                   # noqa: E402
+import marl_simulations as ms                              # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Global Style Configuration (PNAS requirements) -- identical in all 3 scripts
@@ -112,23 +117,6 @@ def _parse_column_label(col: str) -> tuple[str, str]:
     else:
         raise ValueError(f"Could not parse ability type from column: {col!r}")
     return switch, ability
-
-
-def load_wide_human_csv(csv_path: Path) -> pd.DataFrame:
-    """Wide (participant x condition) CSV -> long df: switch_cost_condition, ability_type, value."""
-    df = pd.read_csv(csv_path).reset_index(names="subject_id")
-    frames = []
-    for col in df.columns:
-        if col == "subject_id":
-            continue
-        switch, ability = _parse_column_label(col)
-        sub = df[["subject_id", col]].rename(columns={col: "value"})
-        sub["switch_cost_condition"] = switch
-        sub["ability_type"] = ability
-        frames.append(sub)
-    long_df = pd.concat(frames, ignore_index=True)
-    long_df["value"] = pd.to_numeric(long_df["value"], errors="coerce")
-    return long_df.dropna(subset=["value"])
 
 
 _HUMAN_TEAMS_DEFAULT = "./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv"
@@ -193,299 +181,46 @@ def groups_from_long(df: pd.DataFrame, value_col: str = "value") -> dict:
 # ===========================================================================
 # 2. MARL SIMULATION DATA  (from analysis_simulations_HA_MA-RL.py)
 # ===========================================================================
-HA_WALKING = {"ai_rl_1": 1.0, "ai_rl_2": 1.0}
-HA_CUTTING = {"ai_rl_1": 1.0, "ai_rl_2": 1.0}
-# MA: one agent is a fast cutter (C=1.0, W low), the other fast walker (C low, W=1.0)
-MA_SPEED_SETS = [
-    ({"ai_rl_1": 1.0, "ai_rl_2": 0.4}, {"ai_rl_1": 0.2, "ai_rl_2": 1.0}),
-    ({"ai_rl_1": 0.4, "ai_rl_2": 1.0}, {"ai_rl_1": 1.0, "ai_rl_2": 0.2}),
-]
-CLUSTER_DIRS = {
-    "cuenca": "",
-    "brigit": "/mnt/lustre/home/samuloza/",
-    "local": "C:/OneDrive - Universidad Complutense de Madrid (UCM)/Doctorado",
-}
+# Simulated games are read from the abilities_<walk1>_<cut2> folders of the simulation tree
+# (marl_simulations.py): walk1 = walking speed of ai_rl_1, cut2 = cutting speed of ai_rl_2,
+# the other two speeds are 1.0.
+#   HA = abilities_1.0_1.0 ; MA = abilities_0.4_0.2 (ai_rl_1 slow walker, ai_rl_2 slow cutter)
+ABILITY_PAIRS = {"HA": (1.0, 1.0), "MA": (0.4, 0.2)}
+CLUSTER_DIRS = ms.CLUSTER_DIRS
 
 
-def _parse_speed_dict(raw: str) -> dict:
-    result = {}
-    for m in re.finditer(r"['\"]?(ai_rl_\d+)['\"]?\s*:\s*([\d.]+)", raw.strip()):
-        result[m.group(1)] = float(m.group(2))
-    return result
-
-
-def _speeds_match(parsed: dict, reference: dict, tol: float = 1e-6) -> bool:
-    if set(parsed.keys()) != set(reference.keys()):
-        return False
-    return all(abs(parsed[k] - reference[k]) < tol for k in reference)
-
-
-def classify_config(config_path: Path):
-    """Return ('HA' | 'MA' | None, checkpoint) from a simulation config.txt."""
-    if not config_path.exists():
-        return None, None
-    text = config_path.read_text(errors="replace")
-    m_walk = re.search(r"WALKING_SPEEDS\s*:\s*(\{[^}]+\})", text)
-    m_cut = re.search(r"CUTTING_SPEEDS\s*:\s*(\{[^}]+\})", text)
-    if not m_walk or not m_cut:
-        return None, None
-    walking = _parse_speed_dict(m_walk.group(1))
-    cutting = _parse_speed_dict(m_cut.group(1))
-
-    if _speeds_match(walking, HA_WALKING) and _speeds_match(cutting, HA_CUTTING):
-        agent_type = "HA"
-    else:
-        agent_type = None
-        for w_ref, c_ref in MA_SPEED_SETS:
-            if _speeds_match(walking, w_ref) and _speeds_match(cutting, c_ref):
-                agent_type = "MA"
-                break
-    m_ck = re.search(r"CHECKPOINT_NUMBER\s*:\s*(\S+)", text)
-    return agent_type, (m_ck.group(1) if m_ck else None)
-
-
-def resolve_simulations_root(base_cluster_dir: str, map_nr: str, game_version: str,
-                             synergy: str | None, specialization: str | None,
-                             num_agents: int = 2, study_name: str = "") -> Path:
-    def _with_nested(root: Path) -> Path | None:
-        candidates = []
-        if synergy and specialization:
-            candidates.append(root / f"synergy_{synergy}" / f"specialized_{specialization}")
-        elif synergy:
-            candidates.append(root / f"synergy_{synergy}")
-        elif specialization:
-            candidates.append(root / f"specialized_{specialization}")
-        candidates.append(root)
-        for c in candidates:
-            if c.exists():
-                return c
-        return None
-
-    sub = "pretraining/" if num_agents == 1 else ""
-    roots = [
-        Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/{sub}{game_version}/map_{map_nr}"),
-        Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/{sub}map_{map_nr}"),
-    ]
-    for root in roots:
-        found = _with_nested(root)
-        if found is not None:
-            break
-    else:
-        found = roots[0]
-    sims_root = found / "simulations"
-    return sims_root / study_name if study_name else sims_root
-
-
-def _extract_agent_id_from_filename(file_path: Path, prefixes: list[str]) -> str:
-    stem = file_path.stem
-    for prefix in prefixes:
-        if stem.startswith(prefix):
-            return stem[len(prefix):]
-    return stem
-
-
-def load_positions(simulation_path: Path) -> pd.DataFrame | None:
-    sim_csv = simulation_path / "simulation.csv"
-    if sim_csv.exists():
-        df = pd.read_csv(sim_csv)
-        for old, new in [("tile_x", "x"), ("tile_y", "y"), ("tick", "frame")]:
-            if new not in df.columns and old in df.columns:
-                df[new] = df[old]
-        return df
-
-    pos_files = sorted(simulation_path.glob("positions_*.csv")) or \
-        sorted(simulation_path.glob("human_like_positions_*.csv"))
-    if not pos_files:
-        return None
-    frames = []
-    for pf in pos_files:
-        try:
-            d = pd.read_csv(pf)
-        except Exception:
-            continue
-        if "agent_id" not in d.columns:
-            d["agent_id"] = _extract_agent_id_from_filename(pf, ["positions_", "human_like_positions_"])
-        for old, new in [("tile_x", "x"), ("tile_y", "y"), ("tick", "frame")]:
-            if new not in d.columns and old in d.columns:
-                d[new] = d[old]
-        frames.append(d)
-    return pd.concat(frames, ignore_index=True, sort=False) if frames else None
-
-
-def _normalize_actions(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    if "agent_id" not in df.columns:
-        df["agent_id"] = df["player_id"] if "player_id" in df.columns else "unknown"
-    if "action_category_name" not in df.columns:
-        df["action_category_name"] = np.nan
-    for col in ["action_long", "action_name", "action_type", "action"]:
-        if col in df.columns:
-            df["action_category_name"] = df["action_category_name"].fillna(df[col])
-    df["action_category_name"] = df["action_category_name"].fillna("unknown")
-    return df
-
-
-def load_actions(simulation_path: Path) -> pd.DataFrame:
-    meaningful = simulation_path / "meaningful_actions.csv"
-    if meaningful.exists():
-        try:
-            return _normalize_actions(pd.read_csv(meaningful))
-        except Exception:
-            pass
-    hl_files = sorted(simulation_path.glob("human_like_actions_*.csv"))
-    if hl_files:
-        frames = []
-        for af in hl_files:
-            try:
-                d = pd.read_csv(af)
-            except Exception:
-                continue
-            if "agent_id" not in d.columns:
-                d["agent_id"] = d["player_id"] if "player_id" in d.columns else \
-                    _extract_agent_id_from_filename(af, ["human_like_actions_"])
-            frames.append(d)
-        if frames:
-            return _normalize_actions(pd.concat(frames, ignore_index=True, sort=False))
-    actions_csv = simulation_path / "actions.csv"
-    if actions_csv.exists():
-        try:
-            return _normalize_actions(pd.read_csv(actions_csv))
-        except Exception:
-            pass
-    return pd.DataFrame(columns=["agent_id", "action_category_name"])
-
-
-def extract_metrics(simulation_path: Path, initialization_period: float = 0.0) -> dict | None:
-    pos = load_positions(simulation_path)
-    if pos is None or pos.empty or "score" not in pos.columns or "agent_id" not in pos.columns:
-        return None
-    pos = pos.copy()
-    pos["agent_id"] = pos["agent_id"].astype(str)
-    for _col in ("second", "frame", "score"):
-        if _col in pos.columns:
-            pos[_col] = pd.to_numeric(pos[_col], errors="coerce")
-    if "second" in pos.columns:
-        pos = pos.dropna(subset=["second"])
-    elif "frame" in pos.columns:
-        pos = pos.dropna(subset=["frame"])
-    pos = pos.dropna(subset=["score"])
-    if pos.empty:
-        return None
-
-    if "second" in pos.columns:
-        pos["adj_sec"] = (pos["second"] - initialization_period).clip(lower=0)
-    elif "frame" in pos.columns:
-        pos["adj_sec"] = (pos["frame"] / 30.0 - initialization_period).clip(lower=0)
-    else:
-        pos["adj_sec"] = 0.0
-
-    score_ts = pos.groupby("adj_sec")["score"].max().sort_index()
-    team_deliveries = int((score_ts.diff().fillna(0) > 0).sum())
-
-    deliveries_per_agent: dict[str, int] = {}
-    for agent_id, grp in pos.groupby("agent_id"):
-        diffs = grp.sort_values("adj_sec")["score"].diff().fillna(0)
-        deliveries_per_agent[agent_id] = int((diffs > 0).sum())
-    if sum(deliveries_per_agent.values()) == 0 and team_deliveries > 0:
-        agents = sorted(pos["agent_id"].unique())
-        deliveries_per_agent = {a: team_deliveries // len(agents) for a in agents}
-
-    actions = load_actions(simulation_path)
-    cuts_per_agent: dict[str, int] = {}
-    if not actions.empty and "action_category_name" in actions.columns:
-        actions["agent_id"] = actions["agent_id"].astype(str)
-        cut_mask = actions["action_category_name"].astype(str).str.contains("cut", case=False, na=False)
-        for agent_id, grp in actions.groupby("agent_id"):
-            cuts_per_agent[agent_id] = int(cut_mask[grp.index].sum())
-
-    return {"total_deliveries": team_deliveries,
-            "deliveries_per_agent": deliveries_per_agent,
-            "cuts_per_agent": cuts_per_agent}
-
-
-def read_init_period(config_path: Path) -> float:
-    if not config_path.exists():
-        return 0.0
-    m = re.search(r"AGENT_INITIALIZATION_PERIOD\s*:\s*([\d.]+)", config_path.read_text(errors="replace"))
-    return float(m.group(1)) if m else 0.0
-
-
-def specialization_index(metrics: dict) -> float | None:
-    """|(cuts_a1 - cuts_a2)/total_cuts + (del_a2 - del_a1)/total_del| * 100 / 2"""
-    per_agent_cuts = metrics.get("cuts_per_agent", {})
-    per_agent_del = metrics.get("deliveries_per_agent", {})
-    if len(per_agent_cuts) < 2 or len(per_agent_del) < 2:
-        return None
-    vals_cuts = list(per_agent_cuts.values())[:2]
-    vals_del = list(per_agent_del.values())[:2]
-    total_cuts, total_del = sum(vals_cuts), sum(vals_del)
-    if total_cuts == 0 or total_del == 0:
-        return 0.0
-    cuts_term = (vals_cuts[0] - vals_cuts[1]) / total_cuts
-    del_term = (vals_del[1] - vals_del[0]) / total_del
-    return abs(del_term + cuts_term) * 100 / 2
-
-
-def collect_group_metrics(simulations_root: Path, checkpoint_filter: str | None,
-                          agent_type_filter: str, verbose: bool = True) -> list[dict]:
-    results = []
-    if not simulations_root.exists():
-        print(f"  [WARN] simulations root not found: {simulations_root}")
-        return results
-    training_dirs = sorted(simulations_root.glob("Training_*"))
-    if not training_dirs:
-        print(f"  [WARN] no Training_* dirs found in {simulations_root}")
-        return results
-
-    for training_dir in training_dirs:
-        for ck_dir in sorted(training_dir.glob("checkpoint_*")):
-            ck_number = ck_dir.name.replace("checkpoint_", "")
-            if checkpoint_filter is not None and ck_number != str(checkpoint_filter):
-                continue
-            for sim_dir in sorted(ck_dir.glob("simulation_*")):
-                config_path = sim_dir / "config.txt"
-                agent_type, config_ck = classify_config(config_path)
-                effective_ck = config_ck if config_ck is not None else ck_number
-                if checkpoint_filter is not None and str(effective_ck) != str(checkpoint_filter):
-                    continue
-                if agent_type != agent_type_filter:
-                    continue
-                metrics = extract_metrics(sim_dir, initialization_period=read_init_period(config_path))
-                if metrics is None:
-                    if verbose:
-                        print(f"  [SKIP] no usable data in {sim_dir}")
-                    continue
-                spec = specialization_index(metrics)
-                results.append({
-                    "training_id": training_dir.name,
-                    "checkpoint": ck_number,
-                    "simulation": sim_dir.name,
-                    "total_deliveries": metrics["total_deliveries"],
-                    "specialization_index": spec,
-                })
-                if verbose:
-                    spec_str = f"{spec:.3f}" if spec is not None else "N/A"
-                    print(f"  {sim_dir.name}  deliveries={metrics['total_deliveries']}  spec_idx={spec_str}")
-    return results
+def collect_group_metrics(map_root: Path, checkpoint, agent_type: str, verbose: bool = True) -> list[dict]:
+    """Every Training_*/checkpoint_<ck>/simulation_* of the abilities folder of agent_type."""
+    pair = ABILITY_PAIRS[agent_type]
+    adir = ms.find_ability_dir(map_root, *pair)
+    if adir is None:
+        print(f"  [WARN] no abilities_{pair[0]:g}_{pair[1]:g} folder in {map_root}")
+        return []
+    print(f"  Abilities folder : {adir}")
+    df = ms.collect_records(map_root, pairs=[pair], checkpoint=checkpoint, verbose=verbose)
+    if df.empty:
+        print(f"  [WARN] no simulations with usable data under {adir}/Training_*/checkpoint_{checkpoint}")
+        return []
+    return df[["training_id", "checkpoint", "simulation", "total_deliveries",
+               "specialization_index"]].to_dict("records")
 
 
 def collect_rl_records(args) -> pd.DataFrame:
     """Crawl the simulation tree -> long df (switch_cost_condition, ability_type, metrics)."""
-    base_cluster_dir = CLUSTER_DIRS[args.cluster]
-    checkpoint_filter = None if str(args.checkpoint).lower() == "all" else args.checkpoint
+    base_cluster_dir = ms.cluster_base_dir(args.cluster)
     rows = []
     for switch, map_nr in (("low", args.map_baseline), ("high", args.map_encouraged)):
-        sims_root = resolve_simulations_root(base_cluster_dir, map_nr, args.game_version,
-                                             args.synergy, args.specialization,
-                                             args.num_agents, args.study_name)
+        root = ms.map_root(base_cluster_dir, args.game_version, map_nr, args.synergy, args.specialization,
+                           init_type=args.init_type, study_name=args.study_name or None)
         for at in _ABILITY_ORDER:
             print(f"\n{'=' * 60}\nCollecting {at} data for map {map_nr}\n"
-                  f"  Simulations root : {sims_root}\n"
-                  f"  Checkpoint filter: {checkpoint_filter or 'all'}\n{'=' * 60}")
-            recs = collect_group_metrics(sims_root, checkpoint_filter, at, verbose=args.verbose)
+                  f"  Simulations root : {root}\n"
+                  f"  Checkpoint folder: checkpoint_{args.checkpoint}\n{'=' * 60}")
+            recs = collect_group_metrics(root, args.checkpoint, at, verbose=args.verbose)
             for r in recs:
                 rows.append({"switch_cost_condition": switch, "ability_type": at, "map": map_nr, **r})
-            print(f"  -> {len(recs)} simulations collected")
+            print(f"  -> {len(recs)} simulations collected from "
+                  f"{len({r['training_id'] for r in recs})} trainings")
     return pd.DataFrame(rows, columns=["switch_cost_condition", "ability_type", "map", "training_id",
                                        "checkpoint", "simulation", "total_deliveries",
                                        "specialization_index"])
@@ -879,10 +614,7 @@ def main():
     parser = argparse.ArgumentParser(description="Figure 2: maps + HA vs MA (humans, MARL, theory).")
     # human
     parser.add_argument("--human_teams_csv", default=_HUMAN_TEAMS_DEFAULT,
-                        help="Per-team human data from fig_sm_ability_pairs_humans_rl.py (used if it exists)")
-    parser.add_argument("--scores_csv", default="data/human/scores_human.csv",
-                        help="FALLBACK (old wide format), only if --human_teams_csv is missing")
-    parser.add_argument("--specialization_csv", default="data/human/specialization_index_human.csv")
+                        help="Per-team human data from fig_sm_ability_pairs_humans_rl.py (required)")
     # analytic model
     parser.add_argument("--analytic_csv", default="data/analytic_model/figure3_specialization_index_long.csv")
     # MARL simulations
@@ -892,13 +624,15 @@ def main():
     parser.add_argument("--map_encouraged", default="encouraged_division_of_labor_large")
     parser.add_argument("--synergy", default="1.35")
     parser.add_argument("--specialization", default="0.25")
-    parser.add_argument("--checkpoint", default="750",
-                        help="Checkpoint folder (750 = the human-like checkpoint used throughout) or 'all'")
+    parser.add_argument("--checkpoint", default=ms.DEFAULT_CHECKPOINT,
+                        help="Checkpoint folder checkpoint_<n> of the simulated games (default 753), "
+                             "'latest' or 'all'")
     parser.add_argument("--game_version", default="classic_collision",
                         choices=["classic", "competition", "classic_collision", "competition_collision"])
-    parser.add_argument("--num_agents", type=int, default=2, choices=[1, 2])
+    parser.add_argument("--init_type", default=ms.DEFAULT_INIT_TYPE, choices=["empty_init", "random_init"])
     parser.add_argument("--study_name", default="")
-    parser.add_argument("--cluster", default="cuenca", choices=list(CLUSTER_DIRS))
+    parser.add_argument("--cluster", default="cuenca",
+                        help=f"{list(CLUSTER_DIRS)} or a literal base folder")
     parser.add_argument("--verbose", action="store_true")
     # output
     parser.add_argument("--maps_dir", default="./figures", help="Folder with open_map.png and PB_map.png")
@@ -914,18 +648,14 @@ def main():
         human, rl, theory = demo_data()
     else:
         # humans
-        human_df = None
-        if Path(args.human_teams_csv).exists():
-            human_df = load_human_teams(Path(args.human_teams_csv))
-            print(f"Humans: {len(human_df)} teams from {args.human_teams_csv}")
-            human = {'score': groups_from_long(human_df, "total_deliveries"),
-                     'spec': groups_from_long(human_df, "specialization_index")}
-        else:
-            print(f"[!] {args.human_teams_csv} not found: using the OLD wide human files "
-                  f"({args.scores_csv}, {args.specialization_csv}). Run fig_sm_ability_pairs_humans_rl.py first.")
-            scores = load_wide_human_csv(Path(args.scores_csv))
-            spec = load_wide_human_csv(Path(args.specialization_csv))   # already in %
-            human = {'score': groups_from_long(scores), 'spec': groups_from_long(spec)}
+        if not Path(args.human_teams_csv).exists():
+            raise FileNotFoundError(
+                f"Per-team human file not found: {args.human_teams_csv}. Run fig_sm_ability_pairs_humans_rl.py "
+                f"first (it writes <output>_human_teams.csv) or pass --human_teams_csv.")
+        human_df = load_human_teams(Path(args.human_teams_csv))
+        print(f"Humans: {len(human_df)} teams from {args.human_teams_csv}")
+        human = {'score': groups_from_long(human_df, "total_deliveries"),
+                 'spec': groups_from_long(human_df, "specialization_index")}
 
         # MARL
         if args.rl_csv:

@@ -8,13 +8,13 @@ Conventions (paper_stats.py, identical in every figure script):
   Two-way between-subjects ANOVAs: effect coding, Type III SS, partial eta^2.
   p = .059 / p < .001.
 Definitions
-  Game score = deliveries in the 180-s test game (humans) / in a 180-s simulated game ('sims') or
-    training episode ('fig4') of the MARL agents.
-  RL source: hybrid.
+  Game score = deliveries in the 180-s test game (humans) / in a 180-s simulated game of the
+    MARL agents (checkpoint_753, abilities_<walk>_<cut> folders).
+  RL source: sims.
   Specialization index = 100 * |(D1 - D2)/(D1 + D2) + (C2 - C1)/(C1 + C2)| / 2 (D deliveries,
     C cuts per player); no deliveries or no cuts -> 0.
-    Human cuts: 'start_cutting'. RL cuts: per-agent cut counters of the training data.
-  Units: humans = team; RL = training (mean over its episode window), as in the SI pretraining section.
+    Human cuts: 'start_cutting'. RL cuts: per-agent cut actions of each simulated game.
+  Units: humans = team; RL = training (mean over its simulated games), as in the SI pretraining section.
 
 ====================================================================================================
 DATA AUDIT (humans)
@@ -51,38 +51,44 @@ All game versions found (games per condition x map); [USED] = analysed version:
             2  forced_division_of_labor             [p(2, 2)_cs(1.0)_ws(0.5)]_[p(5, 2)_cs(0.5)_ws(1.0)]_ability_hints
            24  encouraged_division_of_labor         [p(2, 2)_cs(1.0)_ws(1.0)]_[p(5, 2)_cs(1.0)_ws(1.0)]_ability_hints
 
-Selection: first 70 teams per ability pair x map (by game_start_time):
+Test phase only: deliveries and cuts are counted in phase == 'test'; selected games without any test-phase row: 0
+
+Selection: first 70 teams per ability pair x map, in the order of the CSV files (no re-ordering):
   (100%, 100%) Open  available=  81  used= 70  dates 2025-11-25 .. 2025-11-30
   (100%, 100%) PB    available=  79  used= 70  dates 2025-11-24 .. 2025-11-26
   (70%, 40%)   Open  available=  97  used= 70  dates 2026-04-30 .. 2026-05-03
   (70%, 40%)   PB    available= 102  used= 70  dates 2026-04-30 .. 2026-05-02
-  (40%, 20%)   Open  available=  85  used= 70  dates 2025-11-25 .. 2025-11-30
+  (40%, 20%)   Open  available=  85  used= 70  dates 2025-11-25 .. 2025-12-01
   (40%, 20%)   PB    available=  99  used= 70  dates 2025-11-24 .. 2025-11-27
   (20%, 100%)  Open  available=  75  used= 70  dates 2026-06-15 .. 2026-07-06
   (20%, 100%)  PB    available=  74  used= 70  dates 2026-06-15 .. 2026-07-06
   (10%, 10%)   Open  available=  77  used= 70  dates 2026-10-22 .. 2026-10-22
   (10%, 10%)   PB    available=  65  used= 65  dates 2026-07-09 .. 2026-10-26   <-- only 65 teams available
 
-Player seats without a valid Prolific ID ('undefined'): 103
-Teams with a participant who already played in an earlier selected team: 30
+Selected games -> fig_sm_ability_pairs_humans_rl_selected_games.csv:
+  game_id: all 695 selected games unique  OK
+
+Player seats without a valid Prolific ID ('undefined'): 105
+Teams with a participant who already played in an earlier selected team: 29
     (10%, 10%)   Open 4
-    (10%, 10%)   PB   7
-    (20%, 100%)  Open 6
-    (20%, 100%)  PB   4
-    (40%, 20%)   PB   1
-    (70%, 40%)   Open 2
-    (70%, 40%)   PB   4
+    (10%, 10%)   PB   3
+    (20%, 100%)  Open 3
+    (20%, 100%)  PB   7
+    (70%, 40%)   Open 6
+    (70%, 40%)   PB   3
     (100%, 100%) Open 1
-    (100%, 100%) PB   1
+    (100%, 100%) PB   2
   (kept; --exclude_repeat_participants for the sensitivity check)
 
 Teams with no deliveries or no cuts (specialization index 0):
-    (10%, 10%)   Open 13
+    (10%, 10%)   Open 15
     (10%, 10%)   PB   8
     (20%, 100%)  Open 4
-    (40%, 20%)   PB   3
-    (70%, 40%)   PB   3
-    (100%, 100%) PB   2
+    (20%, 100%)  PB   2
+    (40%, 20%)   PB   2
+    (70%, 40%)   Open 1
+    (70%, 40%)   PB   2
+    (100%, 100%) PB   3
 
 Collection batches (cells whose games span more than 30 days):
   (10%, 10%) PB: batch 1 n=30 (2026-07-09..2026-07-09), batch 2 n=35 (2026-10-26..2026-10-26)
@@ -90,8 +96,8 @@ Collection batches (cells whose games span more than 30 days):
       Specialization index: batch 2 > batch 1: ($91.7 \pm 4.6\%$ vs.\ $66.6 \pm 8.3\%$; Welch's $t(46.0) = 2.64$, $p = .011$)
 
 Demographics (unique valid Prolific IDs of the selected teams; age numeric only):
-  main experiment  participants=508  age mean=37.81 SD=9.88 (n with age=496)  Female=327, Male=166, CONSENT_REVOKED=15, DATA_EXPIRED=2, Prefer not to say=1
-  second round     participants=750  age mean=34.03 SD=9.44 (n with age=750)  Female=444, Male=295, CONSENT_REVOKED=26, DATA_EXPIRED=6, Prefer not to say=5
+  main experiment  participants=506  age mean=37.98 SD=9.83 (n with age=497)  Female=331, Male=164, CONSENT_REVOKED=12, DATA_EXPIRED=2
+  second round     participants=751  age mean=34.38 SD=9.52 (n with age=748)  Female=447, Male=290, CONSENT_REVOKED=28, DATA_EXPIRED=6, Prefer not to say=5
 
 ====================================================================================================
 HUMANS (unit = team)
@@ -99,133 +105,126 @@ HUMANS (unit = team)
 
 --- Humans: descriptives (unit = team; mean +- SEM) ---
   Game score:
-    (100%, 100%) Open n= 70  $8.53 \pm 0.38$            SD=  3.16  median=  9.00
-    (100%, 100%) PB   n= 70  $5.90 \pm 0.34$            SD=  2.88  median=  6.00
-    (70%, 40%)   Open n= 70  $6.90 \pm 0.29$            SD=  2.44  median=  7.00
-    (70%, 40%)   PB   n= 70  $7.47 \pm 0.40$            SD=  3.32  median=  8.00
-    (40%, 20%)   Open n= 70  $5.44 \pm 0.25$            SD=  2.11  median=  5.00
-    (40%, 20%)   PB   n= 70  $6.97 \pm 0.39$            SD=  3.24  median=  8.00
-    (20%, 100%)  Open n= 70  $4.80 \pm 0.31$            SD=  2.56  median=  5.00
-    (20%, 100%)  PB   n= 70  $7.44 \pm 0.32$            SD=  2.66  median=  8.00
-    (10%, 10%)   Open n= 70  $2.31 \pm 0.23$            SD=  1.93  median=  2.00
+    (100%, 100%) Open n= 70  $8.60 \pm 0.38$            SD=  3.22  median=  9.00
+    (100%, 100%) PB   n= 70  $5.97 \pm 0.36$            SD=  3.00  median=  6.00
+    (70%, 40%)   Open n= 70  $6.70 \pm 0.31$            SD=  2.62  median=  7.00
+    (70%, 40%)   PB   n= 70  $7.66 \pm 0.40$            SD=  3.32  median=  8.50
+    (40%, 20%)   Open n= 70  $5.31 \pm 0.25$            SD=  2.10  median=  5.00
+    (40%, 20%)   PB   n= 70  $6.94 \pm 0.37$            SD=  3.10  median=  8.00
+    (20%, 100%)  Open n= 70  $4.79 \pm 0.30$            SD=  2.54  median=  5.00
+    (20%, 100%)  PB   n= 70  $7.13 \pm 0.36$            SD=  3.01  median=  8.00
+    (10%, 10%)   Open n= 70  $2.33 \pm 0.24$            SD=  1.99  median=  2.00
     (10%, 10%)   PB   n= 65  $4.54 \pm 0.38$            SD=  3.04  median=  4.00
   Specialization index:
-    (100%, 100%) Open n= 70  $43.9 \pm 4.3\%$           SD= 36.39  median= 29.58
-    (100%, 100%) PB   n= 70  $63.4 \pm 4.5\%$           SD= 37.68  median= 78.09
-    (70%, 40%)   Open n= 70  $36.7 \pm 4.5\%$           SD= 37.77  median= 21.83
-    (70%, 40%)   PB   n= 70  $84.4 \pm 3.8\%$           SD= 31.73  median=100.00
-    (40%, 20%)   Open n= 70  $38.7 \pm 4.6\%$           SD= 38.76  median= 19.52
-    (40%, 20%)   PB   n= 70  $86.6 \pm 3.6\%$           SD= 29.79  median=100.00
-    (20%, 100%)  Open n= 70  $26.6 \pm 3.8\%$           SD= 31.61  median= 15.00
-    (20%, 100%)  PB   n= 70  $96.5 \pm 1.7\%$           SD= 14.36  median=100.00
-    (10%, 10%)   Open n= 70  $26.5 \pm 3.5\%$           SD= 29.19  median= 25.00
+    (100%, 100%) Open n= 70  $47.9 \pm 4.4\%$           SD= 36.87  median= 46.06
+    (100%, 100%) PB   n= 70  $64.3 \pm 4.6\%$           SD= 38.33  median= 81.67
+    (70%, 40%)   Open n= 70  $35.6 \pm 4.5\%$           SD= 38.03  median= 18.57
+    (70%, 40%)   PB   n= 70  $83.0 \pm 3.9\%$           SD= 32.62  median=100.00
+    (40%, 20%)   Open n= 70  $40.5 \pm 4.7\%$           SD= 39.24  median= 20.42
+    (40%, 20%)   PB   n= 70  $88.7 \pm 3.2\%$           SD= 27.11  median=100.00
+    (20%, 100%)  Open n= 70  $25.7 \pm 3.7\%$           SD= 30.92  median= 12.20
+    (20%, 100%)  PB   n= 70  $92.3 \pm 2.9\%$           SD= 24.34  median=100.00
+    (10%, 10%)   Open n= 70  $28.5 \pm 3.5\%$           SD= 29.52  median= 25.00
     (10%, 10%)   PB   n= 65  $80.1 \pm 4.8\%$           SD= 38.81  median=100.00
 
 --- Humans: main experiment, HA (100%, 100%) vs MA (40%, 20%) (two-way ANOVA: ability x map, between-team factors) ---
   Game score:
-    map              ($F(1,276) = 2.54$, $p = .112$, $\eta_p^2 = .01$)
-    ability          ($F(1,276) = 8.53$, $p = .004$, $\eta_p^2 = .03$)
-    map x ability    ($F(1,276) = 36.34$, $p < .001$, $\eta_p^2 = .12$)
-    Open HA > MA: ($8.53 \pm 0.38$ vs.\ $5.44 \pm 0.25$; Welch's $t(120.3) = 6.79$, $p < .001$)
-    PB   MA > HA: ($6.97 \pm 0.39$ vs.\ $5.90 \pm 0.34$; Welch's $t(136.1) = 2.07$, $p = .041$)
+    map              ($F(1,276) = 2.10$, $p = .149$, $\eta_p^2 = .01$)
+    ability          ($F(1,276) = 11.23$, $p < .001$, $\eta_p^2 = .04$)
+    map x ability    ($F(1,276) = 38.00$, $p < .001$, $\eta_p^2 = .12$)
+    Open HA > MA: ($8.60 \pm 0.38$ vs.\ $5.31 \pm 0.25$; Welch's $t(118.8) = 7.15$, $p < .001$)
+    PB   MA > HA: ($6.94 \pm 0.37$ vs.\ $5.97 \pm 0.36$; Welch's $t(137.8) = 1.88$, $p = .062$)
   Specialization index:
-    map              ($F(1,276) = 61.82$, $p < .001$, $\eta_p^2 = .18$)
-    ability          ($F(1,276) = 4.44$, $p = .036$, $\eta_p^2 = .02$)
-    map x ability    ($F(1,276) = 10.91$, $p = .001$, $\eta_p^2 = .04$)
-    Open HA > MA: ($43.9 \pm 4.3\%$ vs.\ $38.7 \pm 4.6\%$; Welch's $t(137.5) = 0.81$, $p = .422$)
-    PB   MA > HA: ($86.6 \pm 3.6\%$ vs.\ $63.4 \pm 4.5\%$; Welch's $t(131.0) = 4.04$, $p < .001$)
+    map              ($F(1,276) = 57.19$, $p < .001$, $\eta_p^2 = .17$)
+    ability          ($F(1,276) = 3.97$, $p = .047$, $\eta_p^2 = .01$)
+    map x ability    ($F(1,276) = 13.84$, $p < .001$, $\eta_p^2 = .05$)
+    Open HA > MA: ($47.9 \pm 4.4\%$ vs.\ $40.5 \pm 4.7\%$; Welch's $t(137.5) = 1.15$, $p = .254$)
+    PB   MA > HA: ($88.7 \pm 3.2\%$ vs.\ $64.3 \pm 4.6\%$; Welch's $t(124.2) = 4.35$, $p < .001$)
 
 --- Humans: all ability pairs (5 x 2) ---
   Game score: omnibus two-way ANOVA, ability pair x map
-    map                    ($F(1,685) = 17.03$, $p < .001$, $\eta_p^2 = .02$)
-    ability pair           ($F(4,685) = 42.40$, $p < .001$, $\eta_p^2 = .20$)
-    map x ability pair     ($F(4,685) = 20.13$, $p < .001$, $\eta_p^2 = .11$)
+    map                    ($F(1,685) = 17.69$, $p < .001$, $\eta_p^2 = .03$)
+    ability pair           ($F(4,685) = 41.20$, $p < .001$, $\eta_p^2 = .19$)
+    map x ability pair     ($F(4,685) = 18.32$, $p < .001$, $\eta_p^2 = .10$)
   Game score: each MA pair vs HA (100%, 100%) within map (Welch; Holm over 8; Mann-Whitney U, Holm, as rank-based check)
-    Open HA > $(70\%, 40\%)$: ($8.53 \pm 0.38$ vs.\ $6.90 \pm 0.29$; Welch's $t(129.6) = 3.41$, $p < .001$); $p_{\text{Holm}} = .004$; MWU $p_{\text{Holm}} = .005$
-    PB   $(70\%, 40\%)$ > HA: ($7.47 \pm 0.40$ vs.\ $5.90 \pm 0.34$; Welch's $t(135.3) = 2.99$, $p = .003$); $p_{\text{Holm}} = .010$; MWU $p_{\text{Holm}} = .006$
-    Open HA > $(40\%, 20\%)$: ($8.53 \pm 0.38$ vs.\ $5.44 \pm 0.25$; Welch's $t(120.3) = 6.79$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
-    PB   $(40\%, 20\%)$ > HA: ($6.97 \pm 0.39$ vs.\ $5.90 \pm 0.34$; Welch's $t(136.1) = 2.07$, $p = .041$); $p_{\text{Holm}} = .041$; MWU $p_{\text{Holm}} = .031$
-    Open HA > $(20\%, 100\%)$: ($8.53 \pm 0.38$ vs.\ $4.80 \pm 0.31$; Welch's $t(132.3) = 7.67$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
-    PB   $(20\%, 100\%)$ > HA: ($7.44 \pm 0.32$ vs.\ $5.90 \pm 0.34$; Welch's $t(137.1) = 3.29$, $p = .001$); $p_{\text{Holm}} = .005$; MWU $p_{\text{Holm}} = .006$
-    Open HA > $(10\%, 10\%)$: ($8.53 \pm 0.38$ vs.\ $2.31 \pm 0.23$; Welch's $t(114.2) = 14.04$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
-    PB   HA > $(10\%, 10\%)$: ($5.90 \pm 0.34$ vs.\ $4.54 \pm 0.38$; Welch's $t(130.9) = 2.66$, $p = .009$); $p_{\text{Holm}} = .017$; MWU $p_{\text{Holm}} = .031$
+    Open HA > $(70\%, 40\%)$: ($8.60 \pm 0.38$ vs.\ $6.70 \pm 0.31$; Welch's $t(132.6) = 3.83$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} = .001$
+    PB   $(70\%, 40\%)$ > HA: ($7.66 \pm 0.40$ vs.\ $5.97 \pm 0.36$; Welch's $t(136.6) = 3.15$, $p = .002$); $p_{\text{Holm}} = .008$; MWU $p_{\text{Holm}} = .006$
+    Open HA > $(40\%, 20\%)$: ($8.60 \pm 0.38$ vs.\ $5.31 \pm 0.25$; Welch's $t(118.8) = 7.15$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
+    PB   $(40\%, 20\%)$ > HA: ($6.94 \pm 0.37$ vs.\ $5.97 \pm 0.36$; Welch's $t(137.8) = 1.88$, $p = .062$); $p_{\text{Holm}} = .062$; MWU $p_{\text{Holm}} = .037$
+    Open HA > $(20\%, 100\%)$: ($8.60 \pm 0.38$ vs.\ $4.79 \pm 0.30$; Welch's $t(130.8) = 7.79$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
+    PB   $(20\%, 100\%)$ > HA: ($7.13 \pm 0.36$ vs.\ $5.97 \pm 0.36$; Welch's $t(138.0) = 2.28$, $p = .024$); $p_{\text{Holm}} = .048$; MWU $p_{\text{Holm}} = .035$
+    Open HA > $(10\%, 10\%)$: ($8.60 \pm 0.38$ vs.\ $2.33 \pm 0.24$; Welch's $t(115.1) = 13.86$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
+    PB   HA > $(10\%, 10\%)$: ($5.97 \pm 0.36$ vs.\ $4.54 \pm 0.38$; Welch's $t(131.9) = 2.75$, $p = .007$); $p_{\text{Holm}} = .020$; MWU $p_{\text{Holm}} = .035$
   Game score: Map x Ability interaction, each MA pair vs HA (2 x 2 ANOVA; Holm over 4)
-    (70%, 40%)   ($F(1,276) = 20.31$, $p < .001$, $\eta_p^2 = .07$; $p_{\text{Holm}} < .001$)
-    (40%, 20%)   ($F(1,276) = 36.34$, $p < .001$, $\eta_p^2 = .12$; $p_{\text{Holm}} < .001$)
-    (20%, 100%)  ($F(1,276) = 60.84$, $p < .001$, $\eta_p^2 = .18$; $p_{\text{Holm}} < .001$)
-    (10%, 10%)   ($F(1,271) = 51.86$, $p < .001$, $\eta_p^2 = .16$; $p_{\text{Holm}} < .001$)
+    (70%, 40%)   ($F(1,276) = 24.17$, $p < .001$, $\eta_p^2 = .08$; $p_{\text{Holm}} < .001$)
+    (40%, 20%)   ($F(1,276) = 38.00$, $p < .001$, $\eta_p^2 = .12$; $p_{\text{Holm}} < .001$)
+    (20%, 100%)  ($F(1,276) = 49.69$, $p < .001$, $\eta_p^2 = .15$; $p_{\text{Holm}} < .001$)
+    (10%, 10%)   ($F(1,271) = 49.51$, $p < .001$, $\eta_p^2 = .15$; $p_{\text{Holm}} < .001$)
   Specialization index: omnibus two-way ANOVA, ability pair x map
-    map                    ($F(1,685) = 355.87$, $p < .001$, $\eta_p^2 = .34$)
-    ability pair           ($F(4,685) = 2.54$, $p = .039$, $\eta_p^2 = .01$)
-    map x ability pair     ($F(4,685) = 10.40$, $p < .001$, $\eta_p^2 = .06$)
+    map                    ($F(1,685) = 319.52$, $p < .001$, $\eta_p^2 = .32$)
+    ability pair           ($F(4,685) = 1.85$, $p = .118$, $\eta_p^2 = .01$)
+    map x ability pair     ($F(4,685) = 10.14$, $p < .001$, $\eta_p^2 = .06$)
   Specialization index: each MA pair vs HA (100%, 100%) within map (Welch; Holm over 8; Mann-Whitney U, Holm, as rank-based check)
-    Open HA > $(70\%, 40\%)$: ($43.9 \pm 4.3\%$ vs.\ $36.7 \pm 4.5\%$; Welch's $t(137.8) = 1.14$, $p = .255$); $p_{\text{Holm}} = .509$; MWU $p_{\text{Holm}} = .269$
-    PB   $(70\%, 40\%)$ > HA: ($84.4 \pm 3.8\%$ vs.\ $63.4 \pm 4.5\%$; Welch's $t(134.1) = 3.57$, $p < .001$); $p_{\text{Holm}} = .003$; MWU $p_{\text{Holm}} = .002$
-    Open HA > $(40\%, 20\%)$: ($43.9 \pm 4.3\%$ vs.\ $38.7 \pm 4.6\%$; Welch's $t(137.5) = 0.81$, $p = .422$); $p_{\text{Holm}} = .509$; MWU $p_{\text{Holm}} = .269$
-    PB   $(40\%, 20\%)$ > HA: ($86.6 \pm 3.6\%$ vs.\ $63.4 \pm 4.5\%$; Welch's $t(131.0) = 4.04$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
-    Open HA > $(20\%, 100\%)$: ($43.9 \pm 4.3\%$ vs.\ $26.6 \pm 3.8\%$; Welch's $t(135.4) = 2.99$, $p = .003$); $p_{\text{Holm}} = .013$; MWU $p_{\text{Holm}} = .009$
-    PB   $(20\%, 100\%)$ > HA: ($96.5 \pm 1.7\%$ vs.\ $63.4 \pm 4.5\%$; Welch's $t(88.6) = 6.88$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
-    Open HA > $(10\%, 10\%)$: ($43.9 \pm 4.3\%$ vs.\ $26.5 \pm 3.5\%$; Welch's $t(131.8) = 3.11$, $p = .002$); $p_{\text{Holm}} = .012$; MWU $p_{\text{Holm}} = .008$
-    PB   $(10\%, 10\%)$ > HA: ($80.1 \pm 4.8\%$ vs.\ $63.4 \pm 4.5\%$; Welch's $t(131.6) = 2.54$, $p = .012$); $p_{\text{Holm}} = .037$; MWU $p_{\text{Holm}} = .008$
+    Open HA > $(70\%, 40\%)$: ($47.9 \pm 4.4\%$ vs.\ $35.6 \pm 4.5\%$; Welch's $t(137.9) = 1.94$, $p = .055$); $p_{\text{Holm}} = .109$; MWU $p_{\text{Holm}} = .038$
+    PB   $(70\%, 40\%)$ > HA: ($83.0 \pm 3.9\%$ vs.\ $64.3 \pm 4.6\%$; Welch's $t(134.6) = 3.11$, $p = .002$); $p_{\text{Holm}} = .009$; MWU $p_{\text{Holm}} = .007$
+    Open HA > $(40\%, 20\%)$: ($47.9 \pm 4.4\%$ vs.\ $40.5 \pm 4.7\%$; Welch's $t(137.5) = 1.15$, $p = .254$); $p_{\text{Holm}} = .254$; MWU $p_{\text{Holm}} = .172$
+    PB   $(40\%, 20\%)$ > HA: ($88.7 \pm 3.2\%$ vs.\ $64.3 \pm 4.6\%$; Welch's $t(124.2) = 4.35$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
+    Open HA > $(20\%, 100\%)$: ($47.9 \pm 4.4\%$ vs.\ $25.7 \pm 3.7\%$; Welch's $t(133.9) = 3.85$, $p < .001$); $p_{\text{Holm}} = .001$; MWU $p_{\text{Holm}} < .001$
+    PB   $(20\%, 100\%)$ > HA: ($92.3 \pm 2.9\%$ vs.\ $64.3 \pm 4.6\%$; Welch's $t(116.9) = 5.15$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
+    Open HA > $(10\%, 10\%)$: ($47.9 \pm 4.4\%$ vs.\ $28.5 \pm 3.5\%$; Welch's $t(131.7) = 3.44$, $p < .001$); $p_{\text{Holm}} = .004$; MWU $p_{\text{Holm}} = .003$
+    PB   $(10\%, 10\%)$ > HA: ($80.1 \pm 4.8\%$ vs.\ $64.3 \pm 4.6\%$; Welch's $t(132.0) = 2.38$, $p = .019$); $p_{\text{Holm}} = .056$; MWU $p_{\text{Holm}} = .009$
   Specialization index: Map x Ability interaction, each MA pair vs HA (2 x 2 ANOVA; Holm over 4)
-    (70%, 40%)   ($F(1,276) = 10.73$, $p = .001$, $\eta_p^2 = .04$; $p_{\text{Holm}} = .002$)
-    (40%, 20%)   ($F(1,276) = 10.91$, $p = .001$, $\eta_p^2 = .04$; $p_{\text{Holm}} = .002$)
-    (20%, 100%)  ($F(1,276) = 44.99$, $p < .001$, $\eta_p^2 = .14$; $p_{\text{Holm}} < .001$)
-    (10%, 10%)   ($F(1,271) = 15.65$, $p < .001$, $\eta_p^2 = .05$; $p_{\text{Holm}} < .001$)
+    (70%, 40%)   ($F(1,276) = 12.61$, $p < .001$, $\eta_p^2 = .04$; $p_{\text{Holm}} < .001$)
+    (40%, 20%)   ($F(1,276) = 13.84$, $p < .001$, $\eta_p^2 = .05$; $p_{\text{Holm}} < .001$)
+    (20%, 100%)  ($F(1,276) = 40.18$, $p < .001$, $\eta_p^2 = .13$; $p_{\text{Holm}} < .001$)
+    (10%, 10%)   ($F(1,271) = 16.41$, $p < .001$, $\eta_p^2 = .06$; $p_{\text{Holm}} < .001$)
 
 LaTeX table (all ability pairs, mean +- SEM across teams):
 \begin{tabular}{llccc}
 \toprule
 Map & (walk, cut) & Game score & Spec.\ index & Teams \\
 \midrule
-Open & $(100\%, 100\%)$ & $8.53 \pm 0.38$ & $43.9 \pm 4.3\%$ & 70 \\
-Open & $(70\%, 40\%)$ & $6.90 \pm 0.29$ & $36.7 \pm 4.5\%$ & 70 \\
-Open & $(40\%, 20\%)$ & $5.44 \pm 0.25$ & $38.7 \pm 4.6\%$ & 70 \\
-Open & $(20\%, 100\%)$ & $4.80 \pm 0.31$ & $26.6 \pm 3.8\%$ & 70 \\
-Open & $(10\%, 10\%)$ & $2.31 \pm 0.23$ & $26.5 \pm 3.5\%$ & 70 \\
-PB   & $(100\%, 100\%)$ & $5.90 \pm 0.34$ & $63.4 \pm 4.5\%$ & 70 \\
-PB   & $(70\%, 40\%)$ & $7.47 \pm 0.40$ & $84.4 \pm 3.8\%$ & 70 \\
-PB   & $(40\%, 20\%)$ & $6.97 \pm 0.39$ & $86.6 \pm 3.6\%$ & 70 \\
-PB   & $(20\%, 100\%)$ & $7.44 \pm 0.32$ & $96.5 \pm 1.7\%$ & 70 \\
+Open & $(100\%, 100\%)$ & $8.60 \pm 0.38$ & $47.9 \pm 4.4\%$ & 70 \\
+Open & $(70\%, 40\%)$ & $6.70 \pm 0.31$ & $35.6 \pm 4.5\%$ & 70 \\
+Open & $(40\%, 20\%)$ & $5.31 \pm 0.25$ & $40.5 \pm 4.7\%$ & 70 \\
+Open & $(20\%, 100\%)$ & $4.79 \pm 0.30$ & $25.7 \pm 3.7\%$ & 70 \\
+Open & $(10\%, 10\%)$ & $2.33 \pm 0.24$ & $28.5 \pm 3.5\%$ & 70 \\
+PB   & $(100\%, 100\%)$ & $5.97 \pm 0.36$ & $64.3 \pm 4.6\%$ & 70 \\
+PB   & $(70\%, 40\%)$ & $7.66 \pm 0.40$ & $83.0 \pm 3.9\%$ & 70 \\
+PB   & $(40\%, 20\%)$ & $6.94 \pm 0.37$ & $88.7 \pm 3.2\%$ & 70 \\
+PB   & $(20\%, 100\%)$ & $7.13 \pm 0.36$ & $92.3 \pm 2.9\%$ & 70 \\
 PB   & $(10\%, 10\%)$ & $4.54 \pm 0.38$ & $80.1 \pm 4.8\%$ & 65 \\
 \bottomrule
 \end{tabular}
 
 ====================================================================================================
-RL DATA: MARL simulations (simulated games of the episode-750 policies, as Fig. 2e-f)
+RL DATA: MARL simulations (simulated games, checkpoint_753, every Training_* / simulation_*)
 ====================================================================================================
-[RL sims] baseline_division_of_labor_large (Open): root /data/samuel_lozano/cooked/classic_collision/map_baseline_division_of_labor_large/synergy_1.35/specialized_0.25/simulations; checkpoint folder 753
-    (100%, 100%)  352 simulations from 8 trainings
-    (70%, 40%)      0 simulations from 0 trainings
-    (40%, 20%)    394 simulations from 8 trainings
-    (20%, 100%)     0 simulations from 0 trainings
-    (10%, 10%)      0 simulations from 0 trainings
-[RL sims] encouraged_division_of_labor_large (PB): root /data/samuel_lozano/cooked/classic_collision/map_encouraged_division_of_labor_large/synergy_1.35/specialized_0.25/simulations; checkpoint folder 753
-    (100%, 100%)  246 simulations from 5 trainings
-    (70%, 40%)      0 simulations from 0 trainings
-    (40%, 20%)    319 simulations from 7 trainings
-    (20%, 100%)     0 simulations from 0 trainings
-    (10%, 10%)      0 simulations from 0 trainings
+[RL sims] baseline_division_of_labor_large (Open): root /data/samuel_lozano/cooked/classic_collision/simulations/empty_init/map_baseline_division_of_labor_large/synergy_1.35/specialized_0.25; checkpoint folder checkpoint_753
+    (100%, 100%)  220 simulations from 11 trainings
+    (70%, 40%)    220 simulations from 11 trainings
+    (40%, 20%)    220 simulations from 11 trainings
+    (20%, 100%)   220 simulations from 11 trainings
+    (10%, 10%)     40 simulations from 2 trainings
+[RL sims] encouraged_division_of_labor_large (PB): root /data/samuel_lozano/cooked/classic_collision/simulations/empty_init/map_encouraged_division_of_labor_large/synergy_1.35/specialized_0.25; checkpoint folder checkpoint_753
+    (100%, 100%)  200 simulations from 10 trainings
+    (70%, 40%)    200 simulations from 10 trainings
+    (40%, 20%)    220 simulations from 11 trainings
+    (20%, 100%)   220 simulations from 11 trainings
+    (10%, 10%)     60 simulations from 3 trainings
 Cached -> figures/fig_sm_ability_pairs_humans_rl_rl_records_sims.csv (re-use with --rl_csv)
 
-====================================================================================================
-RL DATA: training episodes 740-760 (as Fig. 4)
-====================================================================================================
-[RL] baseline_division_of_labor_large (Open): raw dir /data/samuel_lozano/cooked/classic_collision/empty_init/map_baseline_division_of_labor_large/synergy_1.35/specialized_0.25; window specific, 20 ep, target 753
-[RL] encouraged_division_of_labor_large (PB): raw dir /data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.35/specialized_0.25; window specific, 20 ep, target 753
-Cached -> figures/fig_sm_ability_pairs_humans_rl_rl_records_training.csv (re-use with --rl_csv_training)
-
-RL coverage, simulated games (trainings; games or episodes per training; episode numbers):
-    (100%, 100%) Open trainings=  8  per training=26..50  episode numbers n/a
-    (100%, 100%) PB   trainings=  5  per training=46..50  episode numbers n/a
-    (70%, 40%)   Open --
-    (70%, 40%)   PB   --
-    (40%, 20%)   Open trainings=  8  per training=48..50  episode numbers n/a
-    (40%, 20%)   PB   trainings=  7  per training=42..50  episode numbers n/a
-    (20%, 100%)  Open --
-    (20%, 100%)  PB   --
-    (10%, 10%)   Open --
-    (10%, 10%)   PB   --
+RL coverage, simulated games (trainings; games per training):
+    (100%, 100%) Open trainings= 11  per training=20..20
+    (100%, 100%) PB   trainings= 10  per training=20..20
+    (70%, 40%)   Open trainings= 11  per training=20..20
+    (70%, 40%)   PB   trainings= 10  per training=20..20
+    (40%, 20%)   Open trainings= 11  per training=20..20
+    (40%, 20%)   PB   trainings= 11  per training=20..20
+    (20%, 100%)  Open trainings= 11  per training=20..20
+    (20%, 100%)  PB   trainings= 11  per training=20..20
+    (10%, 10%)   Open trainings=  2  per training=20..20
+    (10%, 10%)   PB   trainings=  3  per training=20..20
 
 ====================================================================================================
 MARL SIMULATIONS (unit = training; mean of its simulated games)
@@ -233,145 +232,102 @@ MARL SIMULATIONS (unit = training; mean of its simulated games)
 
 --- MARL simulations: descriptives (unit = training; mean +- SEM) ---
   Game score:
-    (100%, 100%) Open n=  8  $7.54 \pm 0.43$            SD=  1.22  median=  7.31
-    (100%, 100%) PB   n=  5  $5.33 \pm 0.52$            SD=  1.15  median=  4.98
-    (40%, 20%)   Open n=  8  $5.66 \pm 0.41$            SD=  1.16  median=  5.76
-    (40%, 20%)   PB   n=  7  $6.44 \pm 0.27$            SD=  0.72  median=  6.60
+    (100%, 100%) Open n= 11  $10.55 \pm 0.52$           SD=  1.72  median=  9.85
+    (100%, 100%) PB   n= 10  $7.74 \pm 0.43$            SD=  1.35  median=  7.65
+    (70%, 40%)   Open n= 11  $9.60 \pm 0.38$            SD=  1.27  median=  9.65
+    (70%, 40%)   PB   n= 10  $9.46 \pm 0.46$            SD=  1.45  median=  9.62
+    (40%, 20%)   Open n= 11  $5.94 \pm 0.45$            SD=  1.50  median=  6.05
+    (40%, 20%)   PB   n= 11  $8.56 \pm 0.23$            SD=  0.75  median=  8.55
+    (20%, 100%)  Open n= 11  $5.65 \pm 0.38$            SD=  1.27  median=  5.80
+    (20%, 100%)  PB   n= 11  $2.11 \pm 0.36$            SD=  1.18  median=  1.65
+    (10%, 10%)   Open n=  2  $1.02 \pm 0.97$            SD=  1.38  median=  1.02
+    (10%, 10%)   PB   n=  3  $0.53 \pm 0.51$            SD=  0.88  median=  0.05
   Specialization index:
-    (100%, 100%) Open n=  8  $46.1 \pm 4.5\%$           SD= 12.66  median= 44.56
-    (100%, 100%) PB   n=  5  $61.3 \pm 3.5\%$           SD=  7.77  median= 59.77
-    (40%, 20%)   Open n=  8  $42.5 \pm 4.2\%$           SD= 11.93  median= 44.22
-    (40%, 20%)   PB   n=  7  $91.0 \pm 1.2\%$           SD=  3.26  median= 91.51
+    (100%, 100%) Open n= 11  $42.7 \pm 4.5\%$           SD= 14.99  median= 44.30
+    (100%, 100%) PB   n= 10  $55.6 \pm 3.6\%$           SD= 11.33  median= 50.42
+    (70%, 40%)   Open n= 11  $49.7 \pm 5.2\%$           SD= 17.36  median= 50.77
+    (70%, 40%)   PB   n= 10  $90.9 \pm 1.9\%$           SD=  5.86  median= 91.96
+    (40%, 20%)   Open n= 11  $32.7 \pm 4.2\%$           SD= 13.85  median= 31.15
+    (40%, 20%)   PB   n= 11  $88.3 \pm 2.6\%$           SD=  8.73  median= 90.93
+    (20%, 100%)  Open n= 11  $11.9 \pm 2.8\%$           SD=  9.45  median= 10.67
+    (20%, 100%)  PB   n= 11  $31.6 \pm 4.8\%$           SD= 15.85  median= 29.74
+    (10%, 10%)   Open n=  2  $4.6 \pm 0.9\%$            SD=  1.30  median=  4.56
+    (10%, 10%)   PB   n=  3  $15.7 \pm 13.2\%$          SD= 22.94  median=  5.00
 
 --- MARL simulations: main experiment, HA (100%, 100%) vs MA (40%, 20%) (two-way ANOVA: ability x map, between-training factors) ---
   Game score:
-    map              ($F(1,24) = 2.90$, $p = .101$, $\eta_p^2 = .11$)
-    ability          ($F(1,24) = 0.84$, $p = .368$, $\eta_p^2 = .03$)
-    map x ability    ($F(1,24) = 12.80$, $p = .002$, $\eta_p^2 = .35$)
-    Open HA > MA: ($7.54 \pm 0.43$ vs.\ $5.66 \pm 0.41$; Welch's $t(14.0) = 3.16$, $p = .007$)
-    PB   MA > HA: ($6.44 \pm 0.27$ vs.\ $5.33 \pm 0.52$; Welch's $t(6.2) = 1.90$, $p = .104$)
+    map              ($F(1,39) = 0.05$, $p = .825$, $\eta_p^2 = .00$)
+    ability          ($F(1,39) = 20.42$, $p < .001$, $\eta_p^2 = .34$)
+    map x ability    ($F(1,39) = 41.71$, $p < .001$, $\eta_p^2 = .52$)
+    Open HA > MA: ($10.55 \pm 0.52$ vs.\ $5.94 \pm 0.45$; Welch's $t(19.6) = 6.71$, $p < .001$)
+    PB   MA > HA: ($8.56 \pm 0.23$ vs.\ $7.74 \pm 0.43$; Welch's $t(13.8) = 1.69$, $p = .114$)
   Specialization index:
-    map              ($F(1,24) = 67.77$, $p < .001$, $\eta_p^2 = .74$)
-    ability          ($F(1,24) = 11.39$, $p = .003$, $\eta_p^2 = .32$)
-    map x ability    ($F(1,24) = 18.55$, $p < .001$, $\eta_p^2 = .44$)
-    Open HA > MA: ($46.1 \pm 4.5\%$ vs.\ $42.5 \pm 4.2\%$; Welch's $t(14.0) = 0.59$, $p = .567$)
-    PB   MA > HA: ($91.0 \pm 1.2\%$ vs.\ $61.3 \pm 3.5\%$; Welch's $t(5.0) = 8.06$, $p < .001$)
+    map              ($F(1,39) = 80.75$, $p < .001$, $\eta_p^2 = .67$)
+    ability          ($F(1,39) = 8.79$, $p = .005$, $\eta_p^2 = .18$)
+    map x ability    ($F(1,39) = 31.35$, $p < .001$, $\eta_p^2 = .45$)
+    Open HA > MA: ($42.7 \pm 4.5\%$ vs.\ $32.7 \pm 4.2\%$; Welch's $t(19.9) = 1.63$, $p = .118$)
+    PB   MA > HA: ($88.3 \pm 2.6\%$ vs.\ $55.6 \pm 3.6\%$; Welch's $t(16.9) = 7.34$, $p < .001$)
 
-RL coverage, training episodes (trainings; games or episodes per training; episode numbers):
-    (100%, 100%) Open trainings= 11  per training=21..21  episode numbers 742..762
-    (100%, 100%) PB   trainings= 11  per training=21..21  episode numbers 742..762
-    (70%, 40%)   Open trainings= 11  per training=21..21  episode numbers 742..762
-    (70%, 40%)   PB   trainings= 11  per training=21..21  episode numbers 742..762
-    (40%, 20%)   Open trainings= 11  per training=21..21  episode numbers 742..762
-    (40%, 20%)   PB   trainings= 11  per training=21..21  episode numbers 742..762
-    (20%, 100%)  Open trainings= 11  per training=21..21  episode numbers 742..762
-    (20%, 100%)  PB   trainings= 11  per training=21..21  episode numbers 742..762
-    (10%, 10%)   Open trainings=  2  per training=21..21  episode numbers 742..762
-    (10%, 10%)   PB   trainings=  3  per training=21..21  episode numbers 742..762
-
-====================================================================================================
-RL, TRAINING EPISODES 740-760 (unit = training; all pairs; the contrasts of (70%,40%), (20%,100%) and (10%,10%) with (100%,100%) use these data)
-====================================================================================================
-
---- RL training episodes: descriptives (unit = training; mean +- SEM) ---
-  Game score:
-    (100%, 100%) Open n= 11  $10.44 \pm 0.18$           SD=  0.59  median= 10.43
-    (100%, 100%) PB   n= 11  $5.90 \pm 0.40$            SD=  1.32  median=  6.15
-    (70%, 40%)   Open n= 11  $9.98 \pm 0.27$            SD=  0.90  median=  9.73
-    (70%, 40%)   PB   n= 11  $7.43 \pm 0.19$            SD=  0.61  median=  7.44
-    (40%, 20%)   Open n= 11  $6.77 \pm 0.33$            SD=  1.10  median=  7.23
-    (40%, 20%)   PB   n= 11  $6.29 \pm 0.15$            SD=  0.50  median=  6.20
-    (20%, 100%)  Open n= 11  $4.73 \pm 0.21$            SD=  0.70  median=  4.72
-    (20%, 100%)  PB   n= 11  $1.55 \pm 0.25$            SD=  0.82  median=  1.24
-    (10%, 10%)   Open n=  2  $0.72 \pm 0.72$            SD=  1.01  median=  0.72
-    (10%, 10%)   PB   n=  3  $1.02 \pm 0.56$            SD=  0.96  median=  0.49
-  Specialization index:
-    (100%, 100%) Open n= 11  $45.2 \pm 7.1\%$           SD= 23.50  median= 46.24
-    (100%, 100%) PB   n= 11  $38.6 \pm 5.9\%$           SD= 19.72  median= 28.58
-    (70%, 40%)   Open n= 11  $50.8 \pm 7.0\%$           SD= 23.24  median= 50.07
-    (70%, 40%)   PB   n= 11  $99.8 \pm 0.0\%$           SD=  0.13  median= 99.92
-    (40%, 20%)   Open n= 11  $43.8 \pm 6.8\%$           SD= 22.72  median= 50.57
-    (40%, 20%)   PB   n= 11  $98.6 \pm 0.2\%$           SD=  0.76  median= 98.82
-    (20%, 100%)  Open n= 11  $27.5 \pm 4.8\%$           SD= 15.80  median= 26.44
-    (20%, 100%)  PB   n= 11  $45.2 \pm 6.8\%$           SD= 22.50  median= 48.56
-    (10%, 10%)   Open n=  2  $10.0 \pm 10.0\%$          SD= 14.12  median=  9.98
-    (10%, 10%)   PB   n=  3  $91.7 \pm 4.6\%$           SD=  8.00  median= 94.99
-
---- RL training episodes: main experiment, HA (100%, 100%) vs MA (40%, 20%) (two-way ANOVA: ability x map, between-training factors) ---
-  Game score:
-    map              ($F(1,40) = 78.06$, $p < .001$, $\eta_p^2 = .66$)
-    ability          ($F(1,40) = 33.55$, $p < .001$, $\eta_p^2 = .46$)
-    map x ability    ($F(1,40) = 51.13$, $p < .001$, $\eta_p^2 = .56$)
-    Open HA > MA: ($10.44 \pm 0.18$ vs.\ $6.77 \pm 0.33$; Welch's $t(15.3) = 9.81$, $p < .001$)
-    PB   MA > HA: ($6.29 \pm 0.15$ vs.\ $5.90 \pm 0.40$; Welch's $t(12.8) = 0.90$, $p = .383$)
-  Specialization index:
-    map              ($F(1,40) = 17.55$, $p < .001$, $\eta_p^2 = .30$)
-    ability          ($F(1,40) = 25.94$, $p < .001$, $\eta_p^2 = .39$)
-    map x ability    ($F(1,40) = 28.48$, $p < .001$, $\eta_p^2 = .42$)
-    Open HA > MA: ($45.2 \pm 7.1\%$ vs.\ $43.8 \pm 6.8\%$; Welch's $t(20.0) = 0.14$, $p = .888$)
-    PB   MA > HA: ($98.6 \pm 0.2\%$ vs.\ $38.6 \pm 5.9\%$; Welch's $t(10.0) = 10.09$, $p < .001$)
-
---- RL training episodes: all ability pairs (5 x 2) ---
+--- MARL simulations: all ability pairs (5 x 2) ---
   Game score: omnibus two-way ANOVA, ability pair x map
-    map                    ($F(1,83) = 93.88$, $p < .001$, $\eta_p^2 = .53$)
-    ability pair           ($F(4,83) = 190.02$, $p < .001$, $\eta_p^2 = .90$)
-    map x ability pair     ($F(4,83) = 19.24$, $p < .001$, $\eta_p^2 = .48$)
+    map                    ($F(1,81) = 6.87$, $p = .010$, $\eta_p^2 = .08$)
+    ability pair           ($F(4,81) = 89.84$, $p < .001$, $\eta_p^2 = .82$)
+    map x ability pair     ($F(4,81) = 18.34$, $p < .001$, $\eta_p^2 = .48$)
   Game score: each MA pair vs HA (100%, 100%) within map (Welch; Holm over 8; Mann-Whitney U, Holm, as rank-based check)
-    Open HA > $(70\%, 40\%)$: ($10.44 \pm 0.18$ vs.\ $9.98 \pm 0.27$; Welch's $t(17.3) = 1.45$, $p = .165$); $p_{\text{Holm}} = .331$; MWU $p_{\text{Holm}} = .424$
-    PB   $(70\%, 40\%)$ > HA: ($7.43 \pm 0.19$ vs.\ $5.90 \pm 0.40$; Welch's $t(14.1) = 3.47$, $p = .004$); $p_{\text{Holm}} = .015$; MWU $p_{\text{Holm}} = .006$
-    Open HA > $(40\%, 20\%)$: ($10.44 \pm 0.18$ vs.\ $6.77 \pm 0.33$; Welch's $t(15.3) = 9.81$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
-    PB   $(40\%, 20\%)$ > HA: ($6.29 \pm 0.15$ vs.\ $5.90 \pm 0.40$; Welch's $t(12.8) = 0.90$, $p = .383$); $p_{\text{Holm}} = .383$; MWU $p_{\text{Holm}} = .743$
-    Open HA > $(20\%, 100\%)$: ($10.44 \pm 0.18$ vs.\ $4.73 \pm 0.21$; Welch's $t(19.4) = 20.70$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
-    PB   HA > $(20\%, 100\%)$: ($5.90 \pm 0.40$ vs.\ $1.55 \pm 0.25$; Welch's $t(16.7) = 9.27$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
-    Open HA > $(10\%, 10\%)$: ($10.44 \pm 0.18$ vs.\ $0.72 \pm 0.72$; Welch's $t(1.1) = 13.17$, $p = .036$); $p_{\text{Holm}} = .108$; MWU $p_{\text{Holm}} = .114$
-    PB   HA > $(10\%, 10\%)$: ($5.90 \pm 0.40$ vs.\ $1.02 \pm 0.56$; Welch's $t(4.4) = 7.13$, $p = .001$); $p_{\text{Holm}} = .007$; MWU $p_{\text{Holm}} = .022$
+    Open HA > $(70\%, 40\%)$: ($10.55 \pm 0.52$ vs.\ $9.60 \pm 0.38$; Welch's $t(18.4) = 1.48$, $p = .155$); $p_{\text{Holm}} = .227$; MWU $p_{\text{Holm}} = .308$
+    PB   $(70\%, 40\%)$ > HA: ($9.46 \pm 0.46$ vs.\ $7.74 \pm 0.43$; Welch's $t(17.9) = 2.74$, $p = .014$); $p_{\text{Holm}} = .054$; MWU $p_{\text{Holm}} = .113$
+    Open HA > $(40\%, 20\%)$: ($10.55 \pm 0.52$ vs.\ $5.94 \pm 0.45$; Welch's $t(19.6) = 6.71$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
+    PB   $(40\%, 20\%)$ > HA: ($8.56 \pm 0.23$ vs.\ $7.74 \pm 0.43$; Welch's $t(13.8) = 1.69$, $p = .114$); $p_{\text{Holm}} = .227$; MWU $p_{\text{Holm}} = .259$
+    Open HA > $(20\%, 100\%)$: ($10.55 \pm 0.52$ vs.\ $5.65 \pm 0.38$; Welch's $t(18.4) = 7.62$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
+    PB   HA > $(20\%, 100\%)$: ($7.74 \pm 0.43$ vs.\ $2.11 \pm 0.36$; Welch's $t(18.1) = 10.15$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
+    Open HA > $(10\%, 10\%)$: ($10.55 \pm 0.52$ vs.\ $1.02 \pm 0.97$; Welch's $t(1.6) = 8.63$, $p = .024$); $p_{\text{Holm}} = .071$; MWU $p_{\text{Holm}} = .114$
+    PB   HA > $(10\%, 10\%)$: ($7.74 \pm 0.43$ vs.\ $0.53 \pm 0.51$; Welch's $t(5.2) = 10.87$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} = .071$
   Game score: Map x Ability interaction, each MA pair vs HA (2 x 2 ANOVA; Holm over 4)
-    (70%, 40%)   ($F(1,40) = 13.34$, $p < .001$, $\eta_p^2 = .25$; $p_{\text{Holm}} = .001$)
-    (40%, 20%)   ($F(1,40) = 51.13$, $p < .001$, $\eta_p^2 = .56$; $p_{\text{Holm}} < .001$)
-    (20%, 100%)  ($F(1,40) = 6.24$, $p = .017$, $\eta_p^2 = .13$; $p_{\text{Holm}} = .017$)
-    (10%, 10%)   ($F(1,23) = 22.26$, $p < .001$, $\eta_p^2 = .49$; $p_{\text{Holm}} < .001$)
+    (70%, 40%)   ($F(1,38) = 8.75$, $p = .005$, $\eta_p^2 = .19$; $p_{\text{Holm}} = .016$)
+    (40%, 20%)   ($F(1,39) = 41.71$, $p < .001$, $\eta_p^2 = .52$; $p_{\text{Holm}} < .001$)
+    (20%, 100%)  ($F(1,39) = 0.76$, $p = .389$, $\eta_p^2 = .02$; $p_{\text{Holm}} = .389$)
+    (10%, 10%)   ($F(1,22) = 2.34$, $p = .141$, $\eta_p^2 = .10$; $p_{\text{Holm}} = .281$)
   Specialization index: omnibus two-way ANOVA, ability pair x map
-    map                    ($F(1,83) = 73.84$, $p < .001$, $\eta_p^2 = .47$)
-    ability pair           ($F(4,83) = 19.59$, $p < .001$, $\eta_p^2 = .49$)
-    map x ability pair     ($F(4,83) = 12.47$, $p < .001$, $\eta_p^2 = .38$)
+    map                    ($F(1,81) = 73.16$, $p < .001$, $\eta_p^2 = .47$)
+    ability pair           ($F(4,81) = 52.42$, $p < .001$, $\eta_p^2 = .72$)
+    map x ability pair     ($F(4,81) = 9.88$, $p < .001$, $\eta_p^2 = .33$)
   Specialization index: each MA pair vs HA (100%, 100%) within map (Welch; Holm over 8; Mann-Whitney U, Holm, as rank-based check)
-    Open $(70\%, 40\%)$ > HA: ($50.8 \pm 7.0\%$ vs.\ $45.2 \pm 7.1\%$; Welch's $t(20.0) = 0.57$, $p = .578$); $p_{\text{Holm}} = 1.000$; MWU $p_{\text{Holm}} = 1.000$
-    PB   $(70\%, 40\%)$ > HA: ($99.8 \pm 0.0\%$ vs.\ $38.6 \pm 5.9\%$; Welch's $t(10.0) = 10.30$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
-    Open HA > $(40\%, 20\%)$: ($45.2 \pm 7.1\%$ vs.\ $43.8 \pm 6.8\%$; Welch's $t(20.0) = 0.14$, $p = .888$); $p_{\text{Holm}} = 1.000$; MWU $p_{\text{Holm}} = 1.000$
-    PB   $(40\%, 20\%)$ > HA: ($98.6 \pm 0.2\%$ vs.\ $38.6 \pm 5.9\%$; Welch's $t(10.0) = 10.09$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} < .001$
-    Open HA > $(20\%, 100\%)$: ($45.2 \pm 7.1\%$ vs.\ $27.5 \pm 4.8\%$; Welch's $t(17.5) = 2.07$, $p = .053$); $p_{\text{Holm}} = .266$; MWU $p_{\text{Holm}} = .284$
-    PB   $(20\%, 100\%)$ > HA: ($45.2 \pm 6.8\%$ vs.\ $38.6 \pm 5.9\%$; Welch's $t(19.7) = 0.73$, $p = .471$); $p_{\text{Holm}} = 1.000$; MWU $p_{\text{Holm}} = 1.000$
-    Open HA > $(10\%, 10\%)$: ($45.2 \pm 7.1\%$ vs.\ $10.0 \pm 10.0\%$; Welch's $t(2.2) = 2.88$, $p = .092$); $p_{\text{Holm}} = .367$; MWU $p_{\text{Holm}} = .410$
-    PB   $(10\%, 10\%)$ > HA: ($91.7 \pm 4.6\%$ vs.\ $38.6 \pm 5.9\%$; Welch's $t(9.1) = 7.06$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} = .033$
+    Open $(70\%, 40\%)$ > HA: ($49.7 \pm 5.2\%$ vs.\ $42.7 \pm 4.5\%$; Welch's $t(19.6) = 1.01$, $p = .327$); $p_{\text{Holm}} = .327$; MWU $p_{\text{Holm}} = .358$
+    PB   $(70\%, 40\%)$ > HA: ($90.9 \pm 1.9\%$ vs.\ $55.6 \pm 3.6\%$; Welch's $t(13.5) = 8.75$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} = .001$
+    Open HA > $(40\%, 20\%)$: ($42.7 \pm 4.5\%$ vs.\ $32.7 \pm 4.2\%$; Welch's $t(19.9) = 1.63$, $p = .118$); $p_{\text{Holm}} = .256$; MWU $p_{\text{Holm}} = .176$
+    PB   $(40\%, 20\%)$ > HA: ($88.3 \pm 2.6\%$ vs.\ $55.6 \pm 3.6\%$; Welch's $t(16.9) = 7.34$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} = .002$
+    Open HA > $(20\%, 100\%)$: ($42.7 \pm 4.5\%$ vs.\ $11.9 \pm 2.8\%$; Welch's $t(16.9) = 5.77$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} = .002$
+    PB   HA > $(20\%, 100\%)$: ($55.6 \pm 3.6\%$ vs.\ $31.6 \pm 4.8\%$; Welch's $t(18.1) = 4.02$, $p < .001$); $p_{\text{Holm}} = .003$; MWU $p_{\text{Holm}} = .007$
+    Open HA > $(10\%, 10\%)$: ($42.7 \pm 4.5\%$ vs.\ $4.6 \pm 0.9\%$; Welch's $t(10.7) = 8.27$, $p < .001$); $p_{\text{Holm}} < .001$; MWU $p_{\text{Holm}} = .077$
+    PB   HA > $(10\%, 10\%)$: ($55.6 \pm 3.6\%$ vs.\ $15.7 \pm 13.2\%$; Welch's $t(2.3) = 2.91$, $p = .085$); $p_{\text{Holm}} = .256$; MWU $p_{\text{Holm}} = .028$
   Specialization index: Map x Ability interaction, each MA pair vs HA (2 x 2 ANOVA; Holm over 4)
-    (70%, 40%)   ($F(1,40) = 22.96$, $p < .001$, $\eta_p^2 = .36$; $p_{\text{Holm}} < .001$)
-    (40%, 20%)   ($F(1,40) = 28.48$, $p < .001$, $\eta_p^2 = .42$; $p_{\text{Holm}} < .001$)
-    (20%, 100%)  ($F(1,40) = 3.84$, $p = .057$, $\eta_p^2 = .09$; $p_{\text{Holm}} = .057$)
-    (10%, 10%)   ($F(1,23) = 18.16$, $p < .001$, $\eta_p^2 = .44$; $p_{\text{Holm}} < .001$)
+    (70%, 40%)   ($F(1,38) = 11.88$, $p = .001$, $\eta_p^2 = .24$; $p_{\text{Holm}} = .004$)
+    (40%, 20%)   ($F(1,39) = 31.35$, $p < .001$, $\eta_p^2 = .45$; $p_{\text{Holm}} < .001$)
+    (20%, 100%)  ($F(1,39) = 0.72$, $p = .402$, $\eta_p^2 = .02$; $p_{\text{Holm}} = .804$)
+    (10%, 10%)   ($F(1,22) = 0.02$, $p = .902$, $\eta_p^2 = .00$; $p_{\text{Holm}} = .902$)
 
 ====================================================================================================
 HUMANS vs RL
 ====================================================================================================
-  MA - HA differences of the agents are taken within one data type: simulated games for (40%, 20%), training episodes for the other pairs.
 
 --- Humans vs RL: MA - HA difference per map x ability cell (humans: teams; RL: trainings) ---
   Game score:
-    (70%, 40%)   Open humans   -1.63   RL   -0.47   same direction
-    (70%, 40%)   PB   humans   +1.57   RL   +1.53   same direction
-    (40%, 20%)   Open humans   -3.09   RL   -1.87   same direction
-    (40%, 20%)   PB   humans   +1.07   RL   +1.11   same direction
-    (20%, 100%)  Open humans   -3.73   RL   -5.71   same direction
-    (20%, 100%)  PB   humans   +1.54   RL   -4.35   OPPOSITE DIRECTION
-    (10%, 10%)   Open humans   -6.21   RL   -9.73   same direction
-    (10%, 10%)   PB   humans   -1.36   RL   -4.89   same direction
-    same direction in 7/8 cells; Pearson $r = .74$, $p = .036$ (n = 8 cells)
+    (70%, 40%)   Open humans   -1.90   RL   -0.95   same direction
+    (70%, 40%)   PB   humans   +1.69   RL   +1.71   same direction
+    (40%, 20%)   Open humans   -3.29   RL   -4.61   same direction
+    (40%, 20%)   PB   humans   +0.97   RL   +0.81   same direction
+    (20%, 100%)  Open humans   -3.81   RL   -4.90   same direction
+    (20%, 100%)  PB   humans   +1.16   RL   -5.64   OPPOSITE DIRECTION
+    (10%, 10%)   Open humans   -6.27   RL   -9.52   same direction
+    (10%, 10%)   PB   humans   -1.43   RL   -7.21   same direction
+    same direction in 7/8 cells; Pearson $r = .70$, $p = .054$ (n = 8 cells)
   Specialization index:
-    (70%, 40%)   Open humans   -7.17   RL   +5.64   OPPOSITE DIRECTION
-    (70%, 40%)   PB   humans  +21.00   RL  +61.25   same direction
-    (40%, 20%)   Open humans   -5.12   RL   -3.60   same direction
-    (40%, 20%)   PB   humans  +23.17   RL  +29.71   same direction
-    (20%, 100%)  Open humans  -17.21   RL  -17.70   same direction
-    (20%, 100%)  PB   humans  +33.17   RL   +6.63   same direction
-    (10%, 10%)   Open humans  -17.32   RL  -35.22   same direction
-    (10%, 10%)   PB   humans  +16.72   RL  +53.13   same direction
-    same direction in 7/8 cells; Pearson $r = .73$, $p = .040$ (n = 8 cells)
+    (70%, 40%)   Open humans  -12.27   RL   +6.96   OPPOSITE DIRECTION
+    (70%, 40%)   PB   humans  +18.73   RL  +35.29   same direction
+    (40%, 20%)   Open humans   -7.38   RL  -10.04   same direction
+    (40%, 20%)   PB   humans  +24.39   RL  +32.65   same direction
+    (20%, 100%)  Open humans  -22.15   RL  -30.82   same direction
+    (20%, 100%)  PB   humans  +27.97   RL  -23.99   OPPOSITE DIRECTION
+    (10%, 10%)   Open humans  -19.41   RL  -38.15   same direction
+    (10%, 10%)   PB   humans  +15.81   RL  -39.95   OPPOSITE DIRECTION
+    same direction in 5/8 cells; Pearson $r = .41$, $p = .316$ (n = 8 cells)

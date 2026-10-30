@@ -10,13 +10,20 @@ exactly:
     shared colour bar  "Score difference with respect to full speeds (100%, 100%)"
     legend band        [square] MARL   [diamond] Human
 
-For each map, the MARL heat-map shows the mean total deliveries of every
-(walking speed of player 1, cutting speed of player 2) configuration minus
+For each map, the MARL heat-map shows the mean total deliveries (simulated games) of
+every (walking speed of player 1, cutting speed of player 2) configuration minus
 the (100%, 100%) configuration; human results are overlaid as diamonds using
 the same colour scale (RdBu_r, clipped to [-4, +4]).
 
+MARL data: simulated games of the simulation tree (marl_simulations.py, same folder)
+    <base>/data/samuel_lozano/cooked/<game_type>/simulations/<init_type>/map_<map>/
+        synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+with walk1 = walking speed of ai_rl_1 and cut2 = cutting speed of ai_rl_2 (the other two
+speeds are 1.0). Every Training_* and every simulation_* folder is used; each grid cell is the
+mean over all simulated games of its abilities folder.
+
 Speeds are given internally as fractions of full speed (0.1 ... 1.0, as in the
-training data) but are DISPLAYED as speed percentages relative to the
+folder names) but are DISPLAYED as speed percentages relative to the
 high-ability team (10 ... 100 %), the convention used throughout the paper.
 Axis labels and colour-bar labels are centred on their axes, so they stay
 centred if the wording changes.
@@ -29,11 +36,14 @@ Usage:
     python fig4_human_vs_rl_gridmap.py [options]
 
 Examples:
-    # Default analysis
-    nohup python fig4_human_vs_rl_gridmap.py --episode_range specific --init_type empty_init --num_episodes 20 --specialization 0.25 --synergy 1.35 --target_episode 750 > fig4.log 2>&1 &
+    # Default analysis (simulated games, checkpoint_753, every Training_* / simulation_*)
+    nohup python fig4_human_vs_rl_gridmap.py --init_type empty_init --specialization 0.25 --synergy 1.35 --checkpoint 753 > fig4.log 2>&1 &
 
-    # Analyze empty_init data for a specific study
-    nohup python fig4_human_vs_rl_gridmap.py --episode_range final --init_type empty_init --study_name my_study > fig4.log 2>&1 &
+    # Besides the figure: <name>_coverage.txt (seeds and simulated games per cell) and
+    # <name>_per_training.csv (abilities, map, training_id, num_simulations, mean_score)
+
+    # re-plot from the per-game records cached by a previous run
+    python fig4_human_vs_rl_gridmap.py --specialization 0.25 --synergy 1.35 --records_csv ./figures/figure4_human_vs_rl_gridmap_synergy1p35_lambda0p25_sim_records.csv
 
     # Layout test without the project data (synthetic MARL grids)
     python fig4_human_vs_rl_gridmap.py --demo --output_dir ./figures
@@ -57,15 +67,12 @@ from typing import Dict, List, Tuple, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
-# Add the project root to the path
+# This folder (marl_simulations.py) and the project root on the path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-def _project_imports():
-    """Project modules are only needed to load the MARL data (not for --demo)."""
-    from spoiled_broth.analysis.utils import DataProcessor, AnalysisConfig
-    from training_configuration.path_utils import generate_save_directory
-    return DataProcessor, AnalysisConfig, generate_save_directory
+import marl_simulations as ms                              # noqa: E402  (same folder)
 
 
 def _inclusive_float_range(start: float, end: float, step: float) -> List[float]:
@@ -104,42 +111,21 @@ def _format_speed_token(value: float) -> str:
 
 # --------------------------------------------------------------------------
 # Human results (raw scores; the figure shows score - score(1.0, 1.0)).
-# Keys are (walking speed of player 1, cutting speed of player 2) as fractions
-# of full speed. An entry set to None is NOT drawn.
-# Values = condition means of the first 70 teams per condition (collision game
-# version), as computed by fig_sm_ability_pairs_humans_rl.py. If the per-team file
-# written by that script exists (--human_teams_csv, default
-# ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv), the means are taken from
-# it instead, so that Fig. 4 always uses the same human teams as the SI.
+# Keys are (walking speed of player 1, cutting speed of player 2) as fractions of full speed.
+# Filled ONLY from the per-team file written by fig_sm_ability_pairs_humans_rl.py
+# (--human_teams_csv, default ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv):
+# condition means of the selected teams, the same teams as Fig. 2 and the SI. No hard-coded values.
 # --------------------------------------------------------------------------
-HUMAN_RESULTS = {
-    'baseline_division_of_labor_large': {
-        'scores': {
-            (1.0, 1.0): 8.53,
-            (0.7, 0.4): 6.90,
-            (0.4, 0.2): 5.44,
-            (0.2, 1.0): 4.80,
-            (0.1, 0.1): 2.31,
-        },
-    },
-    'encouraged_division_of_labor_large': {
-        'scores': {
-            (1.0, 1.0): 5.90,
-            (0.7, 0.4): 7.47,
-            (0.4, 0.2): 6.97,
-            (0.2, 1.0): 7.44,
-            (0.1, 0.1): 4.54,
-        },
-    },
-}
+HUMAN_RESULTS: Dict[str, Dict[str, Dict[Tuple[float, float], float]]] = {}
 _HUMAN_TEAMS_DEFAULT = './figures/fig_sm_ability_pairs_humans_rl_human_teams.csv'
 _HUMAN_MAP_OF = {'Open': 'baseline_division_of_labor_large', 'PB': 'encouraged_division_of_labor_large'}
 
 
 def load_human_results_from_teams(path: str) -> bool:
-    """Replace HUMAN_RESULTS by the condition means of the per-team human file."""
+    """Fill HUMAN_RESULTS with the condition means of the per-team human file."""
     if not path or not os.path.exists(path):
         return False
+    HUMAN_RESULTS.clear()
     teams = pd.read_csv(path)
     for (mp, w, c), g in teams.groupby(['map', 'walk', 'cut']):
         key = _HUMAN_MAP_OF.get(mp)
@@ -163,7 +149,13 @@ def _resolve_human_map_key(map_name: str) -> Optional[str]:
 
 
 class AbilityGridAnalyzer:
-    """Load and filter a single-map training set over a 2D ability sweep."""
+    """Load and filter the simulated games of a single map over the 2D ability sweep.
+
+    Data: every simulation_* of every Training_* in
+      .../<game_type>/simulations/<init_type>/map_<map>/synergy_<s>/specialized_<l>/
+          abilities_<walk1>_<cut2>/Training_*/checkpoint_<checkpoint>/
+    (walk1 = walking speed of ai_rl_1, cut2 = cutting speed of ai_rl_2, other speeds 1.0),
+    one row per simulated game (see marl_simulations.py)."""
 
     def __init__(self, map_name: str, walk1_start: float, walk1_end: float, walk1_step: float,
                  cut2_start: float, cut2_end: float, cut2_step: float,
@@ -171,7 +163,8 @@ class AbilityGridAnalyzer:
                  synergy_provided: bool = False, specialization: Optional[float] = None,
                  game_type: str = 'classic', cluster: str = 'cuenca',
                  study_name: Optional[str] = None, fixed_cut1: float = 1.0,
-                 fixed_walk2: float = 1.0, demo: bool = False):
+                 fixed_walk2: float = 1.0, demo: bool = False,
+                 checkpoint: str = ms.DEFAULT_CHECKPOINT, verbose: bool = False):
         self.map_name = map_name
         self.init_type = init_type
         self.synergy = synergy
@@ -183,53 +176,25 @@ class AbilityGridAnalyzer:
         self.fixed_cut1 = fixed_cut1
         self.fixed_walk2 = fixed_walk2
         self.demo = demo
+        self.checkpoint = str(checkpoint)
+        self.verbose = verbose
 
         self.walk1_values = _inclusive_float_range(walk1_start, walk1_end, walk1_step)
         self.cut2_values = _inclusive_float_range(cut2_start, cut2_end, cut2_step)
 
         if demo:
             return
+        if abs(fixed_cut1 - ms.FIXED_CUT1) > 1e-9 or abs(fixed_walk2 - ms.FIXED_WALK2) > 1e-9:
+            print(f'Warning: the simulation tree only holds cut1 = {ms.FIXED_CUT1} and walk2 = {ms.FIXED_WALK2}; '
+                  f'--fixed_cut1 {fixed_cut1} / --fixed_walk2 {fixed_walk2} will match no simulation.')
+        self.local_path = ms.cluster_base_dir(cluster)
+        self.raw_dir = str(self._build_raw_dir())
 
-        DataProcessor, AnalysisConfig, self._generate_save_directory = _project_imports()
-        self.config = AnalysisConfig()
-        self.data_processor = DataProcessor(self.config)
-        if cluster not in self.config.cluster_paths:
-            raise ValueError(f"Invalid cluster '{cluster}'. Choose from {list(self.config.cluster_paths.keys())}")
-        self.local_path = self.config.cluster_paths[cluster]
-        self.raw_dir = self._build_raw_dir()
-
-    def _build_raw_dir(self) -> str:
-        synergy_folder = 'synergy_0' if self.synergy == 0.0 else f'synergy_{self.synergy:.2f}'
-        if self.specialization is None or self.specialization == 0:
-            spec_folder = 'specialized_0'
-        else:
-            spec_folder = f'specialized_{self.specialization:.2f}'
-
-        if self.study_name:
-            base_path = self.local_path if self.local_path else '/'
-            return os.path.join(
-                base_path,
-                'data', 'samuel_lozano', 'cooked', self.study_name,
-                self.game_type, self.init_type, f'map_{self.map_name}',
-                synergy_folder, spec_folder,
-            )
-
-        if self.local_path:
-            return self._generate_save_directory(
-                self.local_path,
-                self.game_type,
-                2,
-                self.map_name,
-                self.init_type,
-                self.synergy,
-                0.0 if self.specialization is None else self.specialization,
-            )
-
-        return os.path.join(
-            '/',
-            'data', 'samuel_lozano', 'cooked', self.game_type, self.init_type,
-            f'map_{self.map_name}', synergy_folder, spec_folder,
-        )
+    def _build_raw_dir(self) -> Path:
+        """Folder holding the abilities_* folders of this map."""
+        spec = 0 if self.specialization is None else self.specialization
+        return ms.map_root(self.local_path, self.game_type, self.map_name, self.synergy, spec,
+                           init_type=self.init_type, study_name=self.study_name)
 
     def _resolve_training_id_column(self, df: pd.DataFrame) -> Optional[str]:
         for col in ('training_id', 'timestamp', 'run_id'):
@@ -238,18 +203,15 @@ class AbilityGridAnalyzer:
         return None
 
     def load_experimental_data(self) -> pd.DataFrame:
-        paths = {
-            'raw_dir': self.raw_dir,
-            'output_path': f'{self.raw_dir}/training_results.csv',
-            'figures_dir': f'{self.raw_dir}/training_figures/',
-            'smoothed_figures_dir': f'{self.raw_dir}/training_figures/smoothed_{self.config.smoothing_factor}/',
-            'study_name': self.study_name,
-        }
-
-        for dir_path in [paths['raw_dir'], paths['figures_dir'], paths['smoothed_figures_dir']]:
-            os.makedirs(dir_path, exist_ok=True)
-
-        return self.data_processor.load_experiment_data(paths, num_agents=2)
+        """One row per simulated game of every ability pair of the grid."""
+        root = Path(self.raw_dir)
+        print(ms.describe_root(root, self.checkpoint))
+        pairs = [(w, c) for w in self.walk1_values for c in self.cut2_values]
+        df = ms.collect_records(root, pairs=pairs, checkpoint=self.checkpoint, verbose=self.verbose,
+                                extra={'map_name': self.map_name})
+        n_tr = df['training_id'].nunique() if len(df) else 0
+        print(f'Loaded {len(df)} simulated games from {n_tr} trainings ({self.map_name})')
+        return df
 
     def _filter_speed_configuration(self, df: pd.DataFrame, walk1: float, cut2: float) -> pd.DataFrame:
         required_cols = ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
@@ -265,6 +227,8 @@ class AbilityGridAnalyzer:
         return df[condition].copy()
 
     def _create_combined_metrics(self, df: pd.DataFrame):
+        if 'total_deliveries' in df.columns:      # team deliveries of each simulated game (as Fig. 2)
+            return
         if 'deliver_ai_rl_1' in df.columns and 'deliver_ai_rl_2' in df.columns:
             df['total_deliveries'] = df['deliver_ai_rl_1'] + df['deliver_ai_rl_2']
         elif 'deliver_ai_rl_1' in df.columns:
@@ -281,46 +245,6 @@ class AbilityGridAnalyzer:
         if metric_name in df.columns:
             return float(df[metric_name].mean())
         return np.nan
-
-    def prepare_episode_data(self, df: pd.DataFrame, episode_selection: str = 'all',
-                             num_episodes: int = 100, target_episode: Optional[int] = None) -> pd.DataFrame:
-        if episode_selection == 'all':
-            return df.copy()
-
-        if 'timestamp' not in df.columns or 'episode' not in df.columns:
-            return df.copy()
-
-        prepared_frames = []
-        for timestamp in df['timestamp'].unique():
-            training_df = df[df['timestamp'] == timestamp].copy().sort_values('episode')
-            if len(training_df) == 0:
-                continue
-
-            if episode_selection == 'final':
-                prepared_frames.append(training_df.tail(num_episodes))
-            elif episode_selection == 'average':
-                numeric_cols = training_df.select_dtypes(include=[np.number]).columns.tolist()
-                averaged_row = training_df[numeric_cols].mean().to_dict()
-                averaged_row['timestamp'] = timestamp
-                prepared_frames.append(pd.DataFrame([averaged_row]))
-            elif episode_selection == 'specific':
-                if target_episode is None:
-                    raise ValueError("target_episode must be provided when episode_selection='specific'")
-                if target_episode > len(training_df):
-                    continue
-                half_window = num_episodes // 2
-                target_episode_actual = training_df.iloc[target_episode - 1]['episode']
-                start_episode = target_episode_actual - half_window
-                end_episode = target_episode_actual + half_window
-                prepared_frames.append(training_df[(training_df['episode'] >= start_episode) &
-                                                   (training_df['episode'] <= end_episode)])
-            else:
-                raise ValueError(f"Invalid episode_selection: {episode_selection}")
-
-        if not prepared_frames:
-            return df.iloc[0:0].copy()
-
-        return pd.concat(prepared_frames, ignore_index=True)
 
     def build_metric_grid(self, df: pd.DataFrame, metric_name: str,
                           difference_to_baseline: bool = True,
@@ -418,8 +342,7 @@ TEXTS = {
     'xlabel_a':  ('cmr10', 36, r'Walking speed of player 1 (\%)', (123.52 + 589.43) / 2, 615.15, 0, 'center'),
     'xlabel_b':  ('cmr10', 36, r'Walking speed of player 1 (\%)', (672.33 + 1138.13) / 2, 615.06, 0, 'center'),
     'ylabel_a':  ('cmr10', 36, r'Cutting speed of player 2 (\%)', 41.84, (68.10 + 534.12) / 2, 90, 'center'),
-    'cbar_lab1': ('cmr10', 34.1, 'Score difference with respect', 1274.91, (63.04 + 545.61) / 2, 90, 'center'),
-    'cbar_lab2': ('cmr10', 34.1, r'to full speeds (100\%, 100\%)', 1315.78, (63.04 + 545.61) / 2, 90, 'center'),
+    'cbar_lab':  ('cmr10', 36, 'Relative advantage over HA', 1282.0, (63.04 + 545.61) / 2, 90, 'center'),
     'cbar_+4':   ('cmr10', 30, '+4', 1194.91, 73.32, 0),
     'cbar_+2':   ('cmr10', 30, '+2', 1196.03, 189.22, 0),
     'cbar_0':    ('cmr10', 30, '0', 1204.03, 315.95, 0),
@@ -434,6 +357,31 @@ LEGEND_BOX = dict(x0=433.41, x1=887.82, top=648.555, bottom=725.41,
 LEGEND_SQUARE = dict(cx=473.58, cy=686.07, side=32.4, lw=4.0)
 LEGEND_DIAMOND = dict(cx=695.07, cy=685.98, tip=34.96, lw=3.14)
 
+# ---- gap between panels a and b ------------------------------------------
+# Panel b has no y tick labels, so the original 83-pt gap is reduced to PANEL_GAP:
+# panel b, its letter/title/x label, the colour bar and its labels move left by
+# _B_DX, the page shrinks by the same amount and the legend is re-centred.
+PANEL_GAP = 52.0
+_B_DX = PANEL_GAP - (AXES_RECT['b'][0] - AXES_RECT['a'][1])
+_LETTER_B_OFFSET = 46.0          # letter b: this far left of panel b's frame
+_shift_x = lambda r: (r[0] + _B_DX, r[1] + _B_DX, r[2], r[3])
+AXES_RECT['b'] = _shift_x(AXES_RECT['b'])
+CBAR_RECT = _shift_x(CBAR_RECT)
+for _k in ('title_b', 'xlabel_b', 'cbar_lab', 'cbar_+4', 'cbar_+2', 'cbar_0', 'cbar_-2', 'cbar_-4'):
+    _t = list(TEXTS[_k])
+    _t[3] += _B_DX
+    TEXTS[_k] = tuple(_t)
+_t = list(TEXTS['letter_b'])
+_t[3] = AXES_RECT['b'][0] - _LETTER_B_OFFSET
+TEXTS['letter_b'] = tuple(_t)
+PAGE_W = PAGE_W + _B_DX
+for _k in ('legend_marl', 'legend_human'):
+    _t = list(TEXTS[_k])
+    _t[3] += _B_DX / 2
+    TEXTS[_k] = tuple(_t)
+LEGEND_BOX.update(x0=LEGEND_BOX['x0'] + _B_DX / 2, x1=LEGEND_BOX['x1'] + _B_DX / 2)
+LEGEND_SQUARE['cx'] += _B_DX / 2
+LEGEND_DIAMOND['cx'] += _B_DX / 2
 
 def configure_style(use_latex: bool = True) -> bool:
     plt.style.use('default')
@@ -674,6 +622,75 @@ class Figure4Plotter:
         return fig
 
 
+def write_coverage_files(records: List[pd.DataFrame], map_names: Dict[str, str],
+                         walk1_values: List[float], cut2_values: List[float], stem: Path,
+                         info: str = ''):
+    """Seeds and simulated games per grid cell.
+
+    <stem>_coverage.txt : per map, one line per (walk1, cut2) cell with the number of seeds
+                          (Training_* folders with at least one usable simulation), the number
+                          of simulated games and the games per seed (min..max), plus a
+                          seeds grid and a simulations grid (rows = cut2, columns = walk1).
+    <stem>_per_training.csv : one row per map x abilities x training, with columns
+                          abilities, map, training_id, num_simulations, mean_score."""
+    df = pd.concat([r for r in records if r is not None and len(r)], ignore_index=True) \
+        if any(r is not None and len(r) for r in records) else pd.DataFrame()
+
+    def ab_name(w, c):
+        return f'abilities_{_format_speed_label(w)}_{_format_speed_label(c)}'
+
+    # ---- per-training CSV ----
+    cols = ['abilities', 'map', 'training_id', 'num_simulations', 'mean_score']
+    if len(df):
+        g = (df.groupby(['map_name', 'walk', 'cut', 'training_id'])['total_deliveries']
+               .agg(num_simulations='size', mean_score='mean').reset_index())
+        g['abilities'] = [ab_name(w, c) for w, c in zip(g['walk'], g['cut'])]
+        per_tr = (g.rename(columns={'map_name': 'map'})
+                   .sort_values(['map', 'walk', 'cut', 'training_id'])[cols])
+    else:
+        per_tr = pd.DataFrame(columns=cols)
+    csv_path = Path(f'{stem}_per_training.csv')
+    per_tr.to_csv(csv_path, index=False)
+
+    # ---- coverage TXT ----
+    lines = ['=' * 92, 'FIGURE 4 -- MARL simulations per grid cell (seeds = Training_* folders with data)', '=' * 92]
+    if info:
+        lines.append(info)
+    for key, map_name in map_names.items():
+        sub = df[df['map_name'] == map_name] if len(df) else df
+        lines += ['', f'Panel {key}: {map_name}',
+                  f'  total: {len(sub)} simulated games, '
+                  f'{sub["training_id"].nunique() if len(sub) else 0} distinct training ids', '',
+                  f'  {"abilities (walk1, cut2)":<26}{"seeds":>6}{"simulations":>13}   games per seed']
+        seeds = np.zeros((len(cut2_values), len(walk1_values)), int)
+        sims = np.zeros_like(seeds)
+        empty = []
+        for i, c in enumerate(cut2_values):
+            for j, w in enumerate(walk1_values):
+                cell = sub[np.isclose(sub['walk'], w) & np.isclose(sub['cut'], c)] if len(sub) else sub
+                per = cell.groupby('training_id').size() if len(cell) else pd.Series(dtype=int)
+                seeds[i, j], sims[i, j] = len(per), len(cell)
+                rng = f'{per.min()}..{per.max()}' if len(per) else '--'
+                lines.append(f'  {ab_name(w, c):<26}{len(per):>6}{len(cell):>13}   {rng}')
+                if not len(cell):
+                    empty.append(ab_name(w, c))
+        for title, grid in (('Seeds', seeds), ('Simulations', sims)):
+            lines += ['', f'  {title} grid (rows: cut2 = cutting speed of player 2, high to low; '
+                          f'columns: walk1 = walking speed of player 1, low to high)',
+                      '  cut2 \\ walk1 ' + ''.join(f'{_format_speed_label(w):>6}' for w in walk1_values)]
+            for i in reversed(range(len(cut2_values))):
+                lines.append(f'  {_format_speed_label(cut2_values[i]):>12} '
+                             + ''.join(f'{v:>6d}' for v in grid[i]))
+        nz = seeds[seeds > 0]
+        lines += ['', f'  cells with data: {int((sims > 0).sum())} / {sims.size}'
+                  + (f'; seeds per cell {nz.min()}..{nz.max()}' if nz.size else ''),
+                  f'  empty cells: {", ".join(empty) if empty else "none"}']
+    txt_path = Path(f'{stem}_coverage.txt')
+    txt_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    print('\n'.join(lines))
+    print(f'\nCoverage report -> {txt_path}\nPer-training table -> {csv_path}')
+
+
 def setup_argument_parser() -> argparse.ArgumentParser:
     """Set up command line argument parser for the 2D ability sweep."""
     parser = argparse.ArgumentParser(
@@ -681,9 +698,11 @@ def setup_argument_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
-    parser.add_argument('--episode_range', choices=['all', 'final', 'average', 'specific'], default='final')
-    parser.add_argument('--num_episodes', type=int, default=100)
-    parser.add_argument('--target_episode', type=int, default=None)
+    parser.add_argument('--checkpoint', type=str, default=ms.DEFAULT_CHECKPOINT,
+                        help="checkpoint_<n> folder of the simulated games (default 753), 'latest' or 'all'")
+    parser.add_argument('--records_csv', type=str, default=None,
+                        help='Re-use the per-game records cached by a previous run (skips crawling the tree)')
+    parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--output_dir', type=str, default=None)
     parser.add_argument('--filename_suffix', type=str, default='')
     parser.add_argument('--study_name', type=str, default=None)
@@ -691,11 +710,12 @@ def setup_argument_parser() -> argparse.ArgumentParser:
                         help='Map shown in panel a ("Open Map")')
     parser.add_argument('--map_blocked', type=str, default='encouraged_division_of_labor_large',
                         help='Map shown in panel b ("Partially-Blocked Map")')
-    parser.add_argument('--game_type', type=str, choices=['classic', 'classic_collision'], default='classic_collision')
+    parser.add_argument('--game_type', type=str, choices=['classic', 'classic_collision', 'competition', 'competition_collision'],
+                        default='classic_collision')
     parser.add_argument('--init_type', type=str, choices=['random_init', 'empty_init'], default='empty_init')
     parser.add_argument('--synergy', type=float, default=0.0)
     parser.add_argument('--specialization', type=float, default=None)
-    parser.add_argument('--cluster', type=str, default=None)
+    parser.add_argument('--cluster', type=str, default=None, help=f'{list(ms.CLUSTER_DIRS)} or a literal base folder (default cuenca)')
 
     parser.add_argument('--walk1_min', type=float, default=0.1, help='Minimum value for agent 1 walking speed')
     parser.add_argument('--walk1_max', type=float, default=1.0, help='Maximum value for agent 1 walking speed')
@@ -706,8 +726,8 @@ def setup_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--fixed_cut1', type=float, default=1.0, help='Fixed cutting speed for agent 1')
     parser.add_argument('--fixed_walk2', type=float, default=1.0, help='Fixed walking speed for agent 2')
     parser.add_argument('--human_teams_csv', type=str, default=_HUMAN_TEAMS_DEFAULT,
-                        help='Per-team human data from fig_sm_ability_pairs_humans_rl.py; if it exists, '
-                             'the human diamonds are its condition means (else HUMAN_RESULTS is used)')
+                        help='Per-team human data from fig_sm_ability_pairs_humans_rl.py (required, except '
+                             'with --demo); the human diamonds are its condition means')
     parser.add_argument('--no_latex', action='store_true', help='Do not use LaTeX for text')
     parser.add_argument('--demo', action='store_true',
                         help='Use synthetic MARL grids (layout test, no project data needed)')
@@ -724,7 +744,11 @@ def main():
     try:
         LATEX_OK = configure_style(not args.no_latex)
         if not load_human_results_from_teams(args.human_teams_csv):
-            print(f'Per-team human file not found ({args.human_teams_csv}); using HUMAN_RESULTS.')
+            msg = (f'Per-team human file not found: {args.human_teams_csv}. Run '
+                   f'fig_sm_ability_pairs_humans_rl.py first (it writes <output>_human_teams.csv) or pass --human_teams_csv.')
+            if not args.demo:
+                raise FileNotFoundError(msg)
+            print(f'[demo] {msg} No human markers drawn.')
         cluster = args.cluster if args.cluster else 'cuenca'
 
         if args.output_dir is not None:
@@ -740,7 +764,10 @@ def main():
             synergy_provided='--synergy' in sys.argv, specialization=args.specialization,
             game_type=args.game_type, cluster=cluster, study_name=args.study_name,
             fixed_cut1=args.fixed_cut1, fixed_walk2=args.fixed_walk2, demo=args.demo,
+            checkpoint=args.checkpoint, verbose=args.verbose,
         )
+        cached = pd.read_csv(args.records_csv) if args.records_csv else None
+        records = []
 
         print('=' * 60)
         print('FIGURE 4 - WALKING SPEED 1 vs CUTTING SPEED 2 (MARL vs HUMAN)')
@@ -758,10 +785,13 @@ def main():
             if args.demo:
                 grids[key] = analyzer.demo_grid(seed=i)
                 continue
-            df = analyzer.load_experimental_data()
-            prepared = analyzer.prepare_episode_data(
-                df, episode_selection=args.episode_range,
-                num_episodes=args.num_episodes, target_episode=args.target_episode)
+            print(f'\nSimulations root ({map_name}): {analyzer.raw_dir}  [checkpoint_{args.checkpoint}]')
+            if cached is not None:
+                prepared = cached[cached['map_name'] == map_name].copy()
+                print(f'{len(prepared)} simulated games read from {args.records_csv}')
+            else:
+                prepared = analyzer.load_experimental_data()
+            records.append(prepared)
             grids[key] = analyzer.build_metric_grid(prepared, 'total_deliveries', difference_to_baseline=True)
 
             summary, id_col = analyzer.summarize_training_ids_by_speed(prepared)
@@ -779,12 +809,8 @@ def main():
         output_dir.mkdir(parents=True, exist_ok=True)
 
         filename_parts = ['figure4_human_vs_rl_gridmap']
-        if args.episode_range != 'final':
-            filename_parts.append(args.episode_range)
-        if args.num_episodes != 100:
-            filename_parts.append(f'{args.num_episodes}ep')
-        if args.target_episode is not None:
-            filename_parts.append(f'target{args.target_episode}')
+        if str(args.checkpoint) != ms.DEFAULT_CHECKPOINT:
+            filename_parts.append(f'checkpoint{args.checkpoint}')
         if args.init_type != 'empty_init':
             filename_parts.append(args.init_type)
         if args.synergy != 0.0:
@@ -796,6 +822,17 @@ def main():
         if args.filename_suffix:
             filename_parts.append(args.filename_suffix)
         out_path = output_dir / ('_'.join(filename_parts) + '.pdf')
+        if not args.demo:
+            write_coverage_files(
+                records, map_names, analyzers['a'].walk1_values, analyzers['a'].cut2_values,
+                output_dir / '_'.join(filename_parts),
+                info=(f'cached records: {args.records_csv}' if args.records_csv else
+                      f'checkpoint_{args.checkpoint}, synergy {args.synergy}, specialization '
+                      f'{args.specialization}, {args.init_type}, {args.game_type}'))
+        if not args.demo and cached is None and records:
+            cache = output_dir / ('_'.join(filename_parts) + '_sim_records.csv')
+            pd.concat(records, ignore_index=True).to_csv(cache, index=False)
+            print(f'\nPer-game MARL records cached -> {cache}  (re-use with --records_csv)')
 
         print('\n=== Creating Figure 4 ===\n')
         plotter = Figure4Plotter(analyzers['a'].walk1_values, analyzers['a'].cut2_values)

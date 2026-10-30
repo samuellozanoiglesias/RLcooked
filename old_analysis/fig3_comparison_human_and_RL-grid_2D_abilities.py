@@ -36,8 +36,14 @@ Color coding:
 Usage:
     python comparison_human-grid_2D_abilities_cooperative_analysis.py [options]
 
+MARL data: simulated games of the simulation tree (marl_simulations.py, same folder)
+    <base>/data/samuel_lozano/cooked/<game_type>/simulations/<init_type>/map_<map>/
+        synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+walk1 = walking speed of agent 1 (ai_rl_1), cut2 = cutting speed of agent 2 (ai_rl_2), the
+other two speeds 1.0. Every Training_* and every simulation_* folder is used.
+
 Examples:
-nohup python Fig3_comparison_human_and_RL-grid_2D_abilities.py --episode_range specific --init_type empty_init --num_episodes 20 --cluster brigit --specialization 0.25 --synergy 1.35 --target_episode 750 > 2D_abilities_grid.log 2>&1 & 
+nohup python fig3_comparison_human_and_RL-grid_2D_abilities.py --init_type empty_init --cluster brigit --specialization 0.25 --synergy 1.35 --checkpoint 753 > 2D_abilities_grid.log 2>&1 & 
 """
 
 import sys
@@ -56,11 +62,11 @@ from typing import Dict, List, Tuple, Optional, Union
 import warnings
 warnings.filterwarnings('ignore')
 
-# Add the project root to the path
+# This folder (marl_simulations.py) and the project root on the path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from spoiled_broth.analysis.utils import DataProcessor, AnalysisConfig
-from training_configuration.path_utils import generate_save_directory
+import marl_simulations as ms  # noqa: E402  (same folder)
 
 
 def _inclusive_float_range(start: float, end: float, step: float) -> List[float]:
@@ -136,7 +142,13 @@ def _resolve_human_map_key(map_name: str) -> Optional[str]:
 
 
 class AbilityGridAnalyzer:
-    """Load and filter a single-map training set over a 2D ability sweep."""
+    """Load and filter the simulated games of a single map over a 2D ability sweep.
+
+    Data: every simulation_* of every Training_* in
+      .../<game_type>/simulations/<init_type>/map_<map>/synergy_<s>/specialized_<l>/
+          abilities_<walk1>_<cut2>/Training_*/checkpoint_<checkpoint>/
+    (walk1 = walking speed of ai_rl_1, cut2 = cutting speed of ai_rl_2, other speeds 1.0),
+    one row per simulated game (see marl_simulations.py)."""
 
     def __init__(self, map_name: str, walk1_start: float, walk1_end: float, walk1_step: float,
                  cut2_start: float, cut2_end: float, cut2_step: float,
@@ -144,9 +156,8 @@ class AbilityGridAnalyzer:
                  synergy_provided: bool = False, specialization: Optional[float] = None,
                  game_type: str = 'classic', cluster: str = 'cuenca',
                  study_name: Optional[str] = None, fixed_cut1: float = 1.0,
-                 fixed_walk2: float = 1.0):
-        self.config = AnalysisConfig()
-        self.data_processor = DataProcessor(self.config)
+                 fixed_walk2: float = 1.0, checkpoint: str = ms.DEFAULT_CHECKPOINT,
+                 verbose: bool = False):
         self.map_name = map_name
         self.init_type = init_type
         self.synergy = synergy
@@ -157,50 +168,24 @@ class AbilityGridAnalyzer:
         self.study_name = study_name
         self.fixed_cut1 = fixed_cut1
         self.fixed_walk2 = fixed_walk2
+        self.checkpoint = str(checkpoint)
+        self.verbose = verbose
+        if abs(fixed_cut1 - ms.FIXED_CUT1) > 1e-9 or abs(fixed_walk2 - ms.FIXED_WALK2) > 1e-9:
+            print(f'Warning: the simulation tree only holds cut1 = {ms.FIXED_CUT1} and walk2 = {ms.FIXED_WALK2}; '
+                  f'--fixed_cut1 {fixed_cut1} / --fixed_walk2 {fixed_walk2} will match no simulation.')
 
-        if cluster not in self.config.cluster_paths:
-            raise ValueError(f"Invalid cluster '{cluster}'. Choose from {list(self.config.cluster_paths.keys())}")
-        self.local_path = self.config.cluster_paths[cluster]
+        self.local_path = ms.cluster_base_dir(cluster)
 
         self.walk1_values = _inclusive_float_range(walk1_start, walk1_end, walk1_step)
         self.cut2_values = _inclusive_float_range(cut2_start, cut2_end, cut2_step)
 
-        self.raw_dir = self._build_raw_dir()
+        self.raw_dir = str(self._build_raw_dir())
 
-    def _build_raw_dir(self) -> str:
-        synergy_folder = 'synergy_0' if self.synergy == 0.0 else f'synergy_{self.synergy:.2f}'
-        if self.specialization is None:
-            spec_folder = 'specialized_0'
-        elif self.specialization == 0:
-            spec_folder = 'specialized_0'
-        else:
-            spec_folder = f'specialized_{self.specialization:.2f}'
-
-        if self.study_name:
-            base_path = self.local_path if self.local_path else '/'
-            return os.path.join(
-                base_path,
-                'data', 'samuel_lozano', 'cooked', self.study_name,
-                self.game_type, self.init_type, f'map_{self.map_name}',
-                synergy_folder, spec_folder,
-            )
-
-        if self.local_path:
-            return generate_save_directory(
-                self.local_path,
-                self.game_type,
-                2,
-                self.map_name,
-                self.init_type,
-                self.synergy,
-                0.0 if self.specialization is None else self.specialization,
-            )
-
-        return os.path.join(
-            '/',
-            'data', 'samuel_lozano', 'cooked', self.game_type, self.init_type,
-            f'map_{self.map_name}', synergy_folder, spec_folder,
-        )
+    def _build_raw_dir(self) -> Path:
+        """Folder holding the abilities_* folders of this map."""
+        spec = 0 if self.specialization is None else self.specialization
+        return ms.map_root(self.local_path, self.game_type, self.map_name, self.synergy, spec,
+                           init_type=self.init_type, study_name=self.study_name)
 
     def _resolve_training_id_column(self, df: pd.DataFrame) -> Optional[str]:
         if 'training_id' in df.columns:
@@ -212,18 +197,15 @@ class AbilityGridAnalyzer:
         return None
 
     def load_experimental_data(self) -> pd.DataFrame:
-        paths = {
-            'raw_dir': self.raw_dir,
-            'output_path': f'{self.raw_dir}/training_results.csv',
-            'figures_dir': f'{self.raw_dir}/training_figures/',
-            'smoothed_figures_dir': f'{self.raw_dir}/training_figures/smoothed_{self.config.smoothing_factor}/',
-            'study_name': self.study_name,
-        }
-
-        for dir_path in [paths['raw_dir'], paths['figures_dir'], paths['smoothed_figures_dir']]:
-            os.makedirs(dir_path, exist_ok=True)
-
-        return self.data_processor.load_experiment_data(paths, num_agents=2)
+        """One row per simulated game of every ability pair of the grid."""
+        root = Path(self.raw_dir)
+        print(ms.describe_root(root, self.checkpoint))
+        pairs = [(w, c) for w in self.walk1_values for c in self.cut2_values]
+        df = ms.collect_records(root, pairs=pairs, checkpoint=self.checkpoint, verbose=self.verbose,
+                                extra={'map_name': self.map_name})
+        n_tr = df['training_id'].nunique() if len(df) else 0
+        print(f'Loaded {len(df)} simulated games from {n_tr} trainings ({self.map_name})')
+        return df
 
     def _filter_speed_configuration(self, df: pd.DataFrame, walk1: float, cut2: float) -> pd.DataFrame:
         required_cols = ['walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2']
@@ -239,7 +221,9 @@ class AbilityGridAnalyzer:
         return df[condition].copy()
 
     def _create_combined_metrics(self, df: pd.DataFrame):
-        if 'deliver_ai_rl_1' in df.columns and 'deliver_ai_rl_2' in df.columns:
+        if 'total_deliveries' in df.columns:      # team deliveries of each simulated game (as Fig. 2)
+            pass
+        elif 'deliver_ai_rl_1' in df.columns and 'deliver_ai_rl_2' in df.columns:
             df['total_deliveries'] = df['deliver_ai_rl_1'] + df['deliver_ai_rl_2']
         elif 'deliver_ai_rl_1' in df.columns:
             df['total_deliveries'] = df['deliver_ai_rl_1']
@@ -307,45 +291,6 @@ class AbilityGridAnalyzer:
         if metric_name in df.columns:
             return float(df[metric_name].mean())
         return np.nan
-
-    def prepare_episode_data(self, df: pd.DataFrame, episode_selection: str = 'all',
-                             num_episodes: int = 100, target_episode: Optional[int] = None) -> pd.DataFrame:
-        if episode_selection == 'all':
-            return df.copy()
-
-        if 'timestamp' not in df.columns or 'episode' not in df.columns:
-            return df.copy()
-
-        prepared_frames = []
-        for timestamp in df['timestamp'].unique():
-            training_df = df[df['timestamp'] == timestamp].copy().sort_values('episode')
-            if len(training_df) == 0:
-                continue
-
-            if episode_selection == 'final':
-                prepared_frames.append(training_df.tail(num_episodes))
-            elif episode_selection == 'average':
-                numeric_cols = training_df.select_dtypes(include=[np.number]).columns.tolist()
-                averaged_row = training_df[numeric_cols].mean().to_dict()
-                averaged_row['timestamp'] = timestamp
-                prepared_frames.append(pd.DataFrame([averaged_row]))
-            elif episode_selection == 'specific':
-                if target_episode is None:
-                    raise ValueError("target_episode must be provided when episode_selection='specific'")
-                if target_episode > len(training_df):
-                    continue
-                half_window = num_episodes // 2
-                target_episode_actual = training_df.iloc[target_episode - 1]['episode']
-                start_episode = target_episode_actual - half_window
-                end_episode = target_episode_actual + half_window
-                prepared_frames.append(training_df[(training_df['episode'] >= start_episode) & (training_df['episode'] <= end_episode)])
-            else:
-                raise ValueError(f"Invalid episode_selection: {episode_selection}")
-
-        if not prepared_frames:
-            return df.iloc[0:0].copy()
-
-        return pd.concat(prepared_frames, ignore_index=True)
 
     def build_metric_grid(self, df: pd.DataFrame, metric_name: str,
                           difference_to_baseline: bool = True,
@@ -669,20 +614,23 @@ def setup_argument_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
-    parser.add_argument('--episode_range', choices=['all', 'final', 'average', 'specific'], default='final')
-    parser.add_argument('--num_episodes', type=int, default=100)
-    parser.add_argument('--target_episode', type=int, default=None)
+    parser.add_argument('--checkpoint', type=str, default=ms.DEFAULT_CHECKPOINT,
+                        help="checkpoint_<n> folder of the simulated games (default 753), 'latest' or 'all'")
+    parser.add_argument('--records_csv', type=str, default=None,
+                        help='Re-use the per-game records cached by a previous run (skips crawling the tree)')
+    parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--output_dir', type=str, default=None)
     parser.add_argument('--filename_suffix', type=str, default='')
     parser.add_argument('--study_name', type=str, default=None)
     parser.add_argument('--map_name', '--map_name_1', dest='map_name', type=str,
                         default='encouraged_division_of_labor_large',
                         help='Map to analyze')
-    parser.add_argument('--game_type', type=str, choices=['classic', 'classic_collision'], default='classic_collision')
+    parser.add_argument('--game_type', type=str, choices=['classic', 'classic_collision', 'competition', 'competition_collision'],
+                        default='classic_collision')
     parser.add_argument('--init_type', type=str, choices=['random_init', 'empty_init'], default='empty_init')
     parser.add_argument('--synergy', type=float, default=0.0)
     parser.add_argument('--specialization', type=float, default=None)
-    parser.add_argument('--cluster', type=str, default=None)
+    parser.add_argument('--cluster', type=str, default=None, help=f'{list(ms.CLUSTER_DIRS)} or a literal base folder (default cuenca)')
 
     parser.add_argument('--walk1_min', type=float, default=0.1, help='Minimum value for agent 1 walking speed')
     parser.add_argument('--walk1_max', type=float, default=1.0, help='Maximum value for agent 1 walking speed')
@@ -703,8 +651,6 @@ def main():
 
     try:
         cluster = args.cluster if args.cluster else 'cuenca'
-        config = AnalysisConfig()
-        local_path = config.cluster_paths[cluster]
 
         if args.output_dir is None:
             output_dir_base = "./figures/"
@@ -728,6 +674,8 @@ def main():
             study_name=args.study_name,
             fixed_cut1=args.fixed_cut1,
             fixed_walk2=args.fixed_walk2,
+            checkpoint=args.checkpoint,
+            verbose=args.verbose,
         )
 
         print('=' * 60)
@@ -745,13 +693,12 @@ def main():
         if args.study_name:
             print(f'Study: {args.study_name}')
 
-        df = analyzer.load_experimental_data()
-        prepared_data = analyzer.prepare_episode_data(
-            df,
-            episode_selection=args.episode_range,
-            num_episodes=args.num_episodes,
-            target_episode=args.target_episode,
-        )
+        print(f'Simulations root: {analyzer.raw_dir}  [checkpoint_{args.checkpoint}]')
+        if args.records_csv:
+            prepared_data = pd.read_csv(args.records_csv)
+            print(f'{len(prepared_data)} simulated games read from {args.records_csv}')
+        else:
+            prepared_data = analyzer.load_experimental_data()
 
         plotter = AbilityGridPlotter(analyzer)
 
@@ -769,12 +716,8 @@ def main():
             filename_parts.append(f'cut1_{_format_speed_token(args.fixed_cut1)}')
         if args.fixed_walk2 != 1.0:
             filename_parts.append(f'walk2_{_format_speed_token(args.fixed_walk2)}')
-        if args.episode_range != 'final':
-            filename_parts.append(args.episode_range)
-        if args.num_episodes != 100:
-            filename_parts.append(f'{args.num_episodes}ep')
-        if args.target_episode is not None:
-            filename_parts.append(f'target{args.target_episode}')
+        if str(args.checkpoint) != ms.DEFAULT_CHECKPOINT:
+            filename_parts.append(f'checkpoint{args.checkpoint}')
         if args.init_type != 'empty_init':
             filename_parts.append(args.init_type)
         if args.synergy != 0.0:
@@ -787,6 +730,10 @@ def main():
             filename_parts.append(args.filename_suffix)
 
         base_filename = '_'.join(filename_parts)
+        if not args.records_csv:
+            cache = output_dir / f'{base_filename}_sim_records.csv'
+            prepared_data.to_csv(cache, index=False)
+            print(f'Per-game MARL records cached -> {cache}  (re-use with --records_csv)')
         blurred_path = output_dir / f'blurred_{base_filename}.png'
         softer_path = output_dir / f'softer_{base_filename}.png'
 

@@ -1,106 +1,91 @@
 #!/bin/bash
 
 # =============================================================================
-# Parallel Experimental Simulation Launcher (Custom Checkpoint Files Only)
+# Parallel Experimental Simulation Launcher (sweeps a whole trainings tree)
 # =============================================================================
-# This script only runs simulations using --custom_checkpoints.
+# Finds every Training_* folder under ROOT (ROOT can be the whole empty_init tree,
+# one map_*/synergy_*/specialized_* folder, or a single Training_* folder)
+# and launches NUM_SIMULATIONS independent simulations per (training, checkpoint),
+# with at most MAX_PARALLEL jobs at once.
 #
-# For each hardcoded configuration, it auto-generates checkpoint files in:
-#   cuenca/experimental_checkpoints/checkpoint_<config_name>_<checkpoint>.txt
-#
-# Then it launches each configuration/checkpoint combination NUM_SIMULATIONS times,
-# with a maximum of MAX_PARALLEL jobs running concurrently.
+# The map name passed to experimental_simulation.py is taken from the folder
+# (map_<MAP_NR>). Each simulation ends up in
+#     <SIMULATIONS_ROOT>/<init>/map_*/synergy_*/specialized_*/abilities_<W>_<C>/Training_*/simulation_<timestamp>/
+# (handled by experimental_simulation.py, abilities read from each config.txt).
 #
 # Usage:
-#   ./launch_simulations_parallel.sh MAP_NR GAME_VERSION NUM_SIMULATIONS [MAX_PARALLEL] [--checkpoint_mode MODE] [OPTIONAL_SIM_ARGS]
-#
-# Arguments:
-#   MAP_NR            Map name used by experimental_simulation.py
-#   GAME_VERSION      Game version (classic, classic_collision, competition, competition_collision)
-#   NUM_SIMULATIONS   Number of runs per (configuration, checkpoint)
-#   MAX_PARALLEL      Optional max parallel jobs (default: 5)
+#   ./launch_simulations_parallel.sh NUM_SIMULATIONS [MAX_PARALLEL] [options] [OPTIONAL_SIM_ARGS]
 #
 # Options:
-#   --checkpoint_mode found|hardcoded
-#       found:      discover every checkpoint_* folder inside each Training path
-#       hardcoded:  use HARDCODED_CHECKPOINTS array from this script
+#   --root DIR                 Where to look for Training_* folders (default: $DEFAULT_ROOT).
+#                              Any level works: empty_init, a map/synergy/specialized folder,
+#                              or one Training_* folder.
+#   --game_version V           classic | classic_collision | competition | competition_collision
+#                              (default: $DEFAULT_GAME_VERSION)
+#   --simulations_root DIR     Output root (default: <parent of ROOT>/simulations)
+#   --checkpoint_mode MODE     hardcoded: use HARDCODED_CHECKPOINTS (default, "final")
+#                              found:     every checkpoint_* folder inside each training
+#   --map_filter GLOB          Only maps whose folder name matches GLOB (e.g. 'map_a1_*')
+#   --abilities W_C            Only trainings whose config.txt has WALKING_SPEEDS['ai_rl_1'] = W
+#                              and CUTTING_SPEEDS['ai_rl_2'] = C (e.g. 0.4_0.2)
+#   --trainings FILE           Only the Training_* folders named in FILE, one name per line.
+#                              A line [GLOB] starts a section: the names below it only match
+#                              trainings whose map folder matches GLOB (e.g. [*encouraged*],
+#                              [map_a1_baseline_division_of_labor_large]). If GLOB contains '/',
+#                              it is matched against map_*/synergy_*/specialized_* instead.
+#                              Blank lines, # comments and other text are ignored.
+#                              Aborts if an entry is not found or matches more than one folder.
+#   --override_abilities W_C[,W_C...]
+#                              Load the agents from each training, but SIMULATE them with
+#                              walking speed W for ai_rl_1 and cutting speed C for ai_rl_2,
+#                              whatever they were trained with. Several values separated by commas
+#                              run NUM_SIMULATIONS for each. Results go to abilities_<W>_<C>/,
+#                              and each simulation gets a speed_override.txt with the trained values.
+#   --checkpoint N             Use only checkpoint_N (e.g. 753 or final); same as editing
+#                              HARDCODED_CHECKPOINTS. Non-final checkpoints add checkpoint_N/ to the output.
+#   --output_subfolder NAME    Extra folder after the init folder in the output, e.g. with_pretraining:
+#                              simulations/empty_init/with_pretraining/map_*/...
+#   --dry_run                  Print the job list without launching anything
+#   -h | --help
+#
+# Every other argument is forwarded to experimental_simulation.py.
 #
 # Examples:
-#   nohup ./launch_simulations_parallel.sh encouraged_division_of_labor_large classic_collision 20 5 --checkpoint_mode hardcoded --enable_video false > log_simulation_parallel.out 2>&1 &
-#
-#   nohup ./launch_simulations_parallel.sh encouraged_division_of_labor_large classic_collision 20 --checkpoint_mode found --enable_video false --duration 300 > log_simulation_parallel_found.out 2>&1 &
+#   nohup ./launch_simulations_parallel.sh 20 5 --enable_video false > log_simulation_parallel.out 2>&1 &
+#   ./launch_simulations_parallel.sh 20 5 --map_filter 'map_a1_*' --dry_run
+#   ./launch_simulations_parallel.sh 20 5 --override_abilities 0.4_0.2 \
+#       --root /data/samuel_lozano/cooked/classic_collision/empty_init/map_a1_encouraged_division_of_labor_large/synergy_1.35/specialized_0.25/Training_2026-05-24_11-37-03 --dry_run
+#   ./launch_simulations_parallel.sh 20 5 --abilities 0.4_0.2 \
+#       --root /data/samuel_lozano/cooked/classic_collision/empty_init/map_a1_encouraged_division_of_labor_large/synergy_1.35/specialized_0.25 --dry_run
+#   nohup ./launch_simulations_parallel.sh 10 8 --checkpoint_mode found --duration 300 > log_found.out 2>&1 &
 # =============================================================================
 
+DEFAULT_ROOT="/data/samuel_lozano/cooked/classic_collision/empty_init"
+DEFAULT_GAME_VERSION="classic_collision"
 DEFAULT_MAX_PARALLEL=5
-DEFAULT_CHECKPOINT_MODE="found"
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SIMULATION_SCRIPT="${SCRIPT_DIR}/../experimental_simulation.py"
-CHECKPOINT_CONFIG_DIR="${SCRIPT_DIR}/experimental_checkpoints"
-LOG_DIR="${SCRIPT_DIR}/simulation_logs"
-
-# -----------------------------------------------------------------------------
-# Hardcoded configurations
-# -----------------------------------------------------------------------------
-# Format per row:
-#   CONFIG_NAME|FULL_PATH_TO_TRAINING_DIRECTORY
-#
-# Example training path:
-#   /data/.../map_<MAP_NR>/synergy_X.XX/specialized_Y.YY/Training_<TRAINING_ID>
-CONFIGURATIONS=(
-    "encouraged_collision_w0p4_1|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-10_08-49-11/"
-    "encouraged_collision_w0p4_2|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-11_08-09-21/"
-    "encouraged_collision_w0p4_3|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-12_06-59-30/"
-    "encouraged_collision_w0p4_4|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-13_06-10-00/"
-    "encouraged_collision_w0p5_1|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-10_09-10-03/"
-    "encouraged_collision_w0p5_2|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-11_08-59-08/"
-    "encouraged_collision_w0p5_3|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-12_08-32-52/"
-    "encouraged_collision_w0p5_4|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-13_07-13-29/"
-    "encouraged_collision_w0p6_1|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-10_09-44-37/"
-    "encouraged_collision_w0p6_2|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-11_09-51-32/"
-    "encouraged_collision_w0p6_3|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-12_08-59-08/"
-    "encouraged_collision_w0p6_4|/data/samuel_lozano/cooked/classic_collision/empty_init/map_encouraged_division_of_labor_large/synergy_1.70/specialized_0.05/Training_2026-04-13_07-32-58/"
-)
+DEFAULT_CHECKPOINT_MODE="hardcoded"
 
 # Used only when --checkpoint_mode hardcoded
 HARDCODED_CHECKPOINTS=(
     "final"
 )
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SIMULATION_SCRIPT="${SCRIPT_DIR}/../experimental_simulation.py"
+CHECKPOINT_CONFIG_DIR="${SCRIPT_DIR}/experimental_checkpoints"
+LOG_DIR="${SCRIPT_DIR}/simulation_logs"
+
 print_usage() {
-    echo "Usage: $0 MAP_NR GAME_VERSION NUM_SIMULATIONS [MAX_PARALLEL] [--checkpoint_mode MODE] [OPTIONAL_SIM_ARGS]"
-    echo ""
-    echo "Arguments:"
-    echo "  MAP_NR            Map name"
-    echo "  GAME_VERSION      classic | classic_collision | competition | competition_collision"
-    echo "  NUM_SIMULATIONS   Positive integer"
-    echo "  MAX_PARALLEL      Optional positive integer (default: $DEFAULT_MAX_PARALLEL)"
-    echo ""
-    echo "Options:"
-    echo "  --checkpoint_mode found|hardcoded  (default: $DEFAULT_CHECKPOINT_MODE)"
-    echo ""
-    echo "All remaining arguments are forwarded to experimental_simulation.py."
+    sed -n '/^# Usage:/,/^# =====/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' | sed '$d'
 }
 
 is_positive_integer() {
     [[ "$1" =~ ^[0-9]+$ ]] && [[ "$1" -ge 1 ]]
 }
 
-extract_training_id() {
-    local training_path="$1"
-    local base_name
-    base_name="$(basename "$training_path")"
-
-    if [[ "$base_name" == Training_* ]]; then
-        echo "${base_name#Training_}"
-    else
-        echo "$base_name"
-    fi
-}
-
 sanitize_for_filename() {
     local value="$1"
-    value="${value//\//_}"
+    value="${value//\//__}"
     value="${value// /_}"
     echo "$value"
 }
@@ -110,24 +95,82 @@ create_custom_checkpoint_file() {
     local checkpoint_number="$2"
     local training_path="$3"
 
-    if [[ "$training_path" != */ ]]; then
-        training_path="${training_path}/"
-    fi
+    [[ "$training_path" != */ ]] && training_path="${training_path}/"
 
-    cat > "$checkpoint_file" <<EOF
+    cat > "$checkpoint_file" <<CKPT
 policy_ai_rl_1
 ${checkpoint_number}
 ${training_path}
 policy_ai_rl_2
 ${checkpoint_number}
 ${training_path}
-EOF
+CKPT
+}
+
+# Prints "W_C" (walking speed of ai_rl_1, cutting speed of ai_rl_2) from a config.txt,
+# formatted exactly like the abilities_<W>_<C> output folder.
+read_abilities() {
+    python3 - "$1" <<'PY'
+import ast, sys
+speeds = {}
+with open(sys.argv[1], encoding='utf-8') as f:
+    for line in f:
+        line = line.strip()
+        for key in ('WALKING_SPEEDS', 'CUTTING_SPEEDS'):
+            if line.startswith(key + ':'):
+                speeds[key] = ast.literal_eval(line.split(':', 1)[1].strip())
+print(f"{float(speeds['WALKING_SPEEDS']['ai_rl_1'])!r}_{float(speeds['CUTTING_SPEEDS']['ai_rl_2'])!r}")
+PY
+}
+
+# Normalizes a user-given "W_C" (e.g. 0.40_0.20 -> 0.4_0.2)
+normalize_abilities() {
+    python3 -c "import sys; w, c = sys.argv[1].split('_'); print(f'{float(w)!r}_{float(c)!r}')" "$1"
+}
+
+# Prints the last map_* component of a path
+find_map_dir() {
+    local part map_dir=""
+    IFS='/' read -ra _parts <<< "$1"
+    for part in "${_parts[@]}"; do
+        [[ "$part" == map_* ]] && map_dir="$part"
+    done
+    echo "$map_dir"
+}
+
+# Builds a training folder that symlinks everything from the real one except config.txt,
+# which is copied with WALKING_SPEEDS['ai_rl_1'] and CUTTING_SPEEDS['ai_rl_2'] replaced.
+create_override_training() {
+    local src="$1" dst="$2" walk="$3" cut="$4"
+    rm -rf "$dst"
+    mkdir -p "$dst"
+    find "$src" -mindepth 1 -maxdepth 1 ! -name config.txt -exec ln -s {} "$dst"/ \;
+    python3 - "$src/config.txt" "$dst/config.txt" "$walk" "$cut" <<'PY'
+import ast, sys
+src, dst, walk, cut = sys.argv[1], sys.argv[2], float(sys.argv[3]), float(sys.argv[4])
+targets = {'WALKING_SPEEDS': ('ai_rl_1', walk), 'CUTTING_SPEEDS': ('ai_rl_2', cut)}
+done = set()
+out = []
+with open(src, encoding='utf-8') as f:
+    for line in f:
+        key = line.strip().split(':', 1)[0]
+        if key in targets and line.strip().startswith(key + ':'):
+            speeds = ast.literal_eval(line.split(':', 1)[1].strip())
+            agent, value = targets[key]
+            speeds[agent] = value
+            line = f"{key}: {speeds!r}\n"
+            done.add(key)
+        out.append(line)
+missing = set(targets) - done
+if missing:
+    sys.exit(f"missing {missing} in {src}")
+with open(dst, 'w', encoding='utf-8') as f:
+    f.writelines(out)
+PY
 }
 
 discover_checkpoints_in_training() {
-    local training_path="$1"
-
-    find "$training_path" -maxdepth 1 -mindepth 1 -type d -name "checkpoint_*" -printf "%f\n" \
+    find "$1" -maxdepth 1 -mindepth 1 -type d -name "checkpoint_*" -printf "%f\n" \
         | sed 's/^checkpoint_//' \
         | sort -V
 }
@@ -135,16 +178,13 @@ discover_checkpoints_in_training() {
 # -----------------------------------------------------------------------------
 # Parse arguments
 # -----------------------------------------------------------------------------
-if [[ $# -lt 3 ]]; then
+if [[ $# -lt 1 || "$1" == "-h" || "$1" == "--help" ]]; then
     print_usage
-    exit 1
+    [[ $# -lt 1 ]] && exit 1 || exit 0
 fi
 
-MAP_NR="$1"
-GAME_VERSION="$2"
-NUM_SIMULATIONS="$3"
-shift 3
-
+NUM_SIMULATIONS="$1"
+shift
 if ! is_positive_integer "$NUM_SIMULATIONS"; then
     echo "Error: NUM_SIMULATIONS must be a positive integer"
     exit 1
@@ -156,149 +196,351 @@ if [[ $# -gt 0 ]] && is_positive_integer "$1"; then
     shift
 fi
 
+ROOT="$DEFAULT_ROOT"
+GAME_VERSION="$DEFAULT_GAME_VERSION"
+SIMULATIONS_ROOT=""
 CHECKPOINT_MODE="$DEFAULT_CHECKPOINT_MODE"
+MAP_FILTER="map_*"
+ABILITIES_FILTER=""
+OVERRIDE_ABILITIES=""
+TRAININGS_FILE=""
+DRY_RUN=false
 SIMULATION_ARGS=()
+
+require_value() {
+    if [[ $2 -lt 2 ]]; then
+        echo "Error: $1 requires a value"
+        exit 1
+    fi
+}
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --checkpoint_mode)
-            if [[ $# -lt 2 ]]; then
-                echo "Error: --checkpoint_mode requires a value (found|hardcoded)"
-                exit 1
-            fi
-            CHECKPOINT_MODE="$2"
-            shift 2
-            ;;
-        -h|--help)
-            print_usage
-            exit 0
-            ;;
-        *)
-            SIMULATION_ARGS+=("$1")
-            shift
-            ;;
+        --root)             require_value "$1" $#; ROOT="$2"; shift 2 ;;
+        --game_version)     require_value "$1" $#; GAME_VERSION="$2"; shift 2 ;;
+        --simulations_root) require_value "$1" $#; SIMULATIONS_ROOT="$2"; shift 2 ;;
+        --checkpoint_mode)  require_value "$1" $#; CHECKPOINT_MODE="$2"; shift 2 ;;
+        --map_filter)       require_value "$1" $#; MAP_FILTER="$2"; shift 2 ;;
+        --abilities)        require_value "$1" $#; ABILITIES_FILTER="$2"; shift 2 ;;
+        --trainings)        require_value "$1" $#; TRAININGS_FILE="$2"; shift 2 ;;
+        --checkpoint)       require_value "$1" $#; CHECKPOINT_MODE="hardcoded"; HARDCODED_CHECKPOINTS=("$2"); shift 2 ;;
+        --override_abilities) require_value "$1" $#; OVERRIDE_ABILITIES="$2"; shift 2 ;;
+        --dry_run)          DRY_RUN=true; shift ;;
+        -h|--help)          print_usage; exit 0 ;;
+        *)                  SIMULATION_ARGS+=("$1"); shift ;;
     esac
 done
+
+ROOT="${ROOT%/}"
+if [[ -z "$SIMULATIONS_ROOT" ]]; then
+    # Default: <folder above the init folder>/simulations, e.g. .../classic_collision/simulations
+    INIT_DIR="$ROOT"
+    while [[ "$INIT_DIR" == */* && "$(basename "$INIT_DIR")" != *_init && "$INIT_DIR" != "/" ]]; do
+        INIT_DIR="$(dirname "$INIT_DIR")"
+    done
+    if [[ "$(basename "$INIT_DIR")" == *_init ]]; then
+        SIMULATIONS_ROOT="$(dirname "$INIT_DIR")/simulations"
+    else
+        SIMULATIONS_ROOT="$(dirname "$ROOT")/simulations"
+    fi
+fi
 
 if [[ "$CHECKPOINT_MODE" != "found" && "$CHECKPOINT_MODE" != "hardcoded" ]]; then
     echo "Error: invalid --checkpoint_mode '$CHECKPOINT_MODE'. Use 'found' or 'hardcoded'."
     exit 1
 fi
-
+if [[ -n "$ABILITIES_FILTER" ]]; then
+    if ! ABILITIES_FILTER="$(normalize_abilities "$ABILITIES_FILTER" 2>/dev/null)"; then
+        echo "Error: --abilities must look like W_C, e.g. 0.4_0.2"
+        exit 1
+    fi
+fi
+OVERRIDE_LIST=()
+if [[ -n "$OVERRIDE_ABILITIES" ]]; then
+    IFS=',' read -ra _overrides <<< "$OVERRIDE_ABILITIES"
+    for value in "${_overrides[@]}"; do
+        if ! value="$(normalize_abilities "$value" 2>/dev/null)"; then
+            echo "Error: --override_abilities must look like W_C or W_C,W_C,... e.g. 0.1_0.1,0.2_1.0"
+            exit 1
+        fi
+        OVERRIDE_LIST+=("$value")
+    done
+    OVERRIDE_ABILITIES="$(IFS=','; echo "${OVERRIDE_LIST[*]}")"
+    # Shadow trainings for this launch only (symlinks + edited config.txt)
+    OVERRIDE_DIR="${SCRIPT_DIR}/speed_override_trainings/launch_$(date +%Y%m%d_%H%M%S)_$$"
+fi
+# Selected trainings: one entry per (map glob, training name)
+SEL_GLOBS=()
+SEL_NAMES=()
+SEL_FOUND=()     # newline-separated folders matched by each entry
+if [[ -n "$TRAININGS_FILE" ]]; then
+    if [[ ! -f "$TRAININGS_FILE" ]]; then
+        echo "Error: trainings file not found: $TRAININGS_FILE"
+        exit 1
+    fi
+    current_glob="*"
+    while IFS= read -r line; do
+        line="${line%%#*}"
+        line="$(echo "$line" | tr -d '[:space:]')"
+        if [[ "$line" =~ ^\[(.+)\]$ ]]; then
+            current_glob="${BASH_REMATCH[1]}"
+        elif [[ "$line" == Training_* ]]; then
+            SEL_GLOBS+=("$current_glob")
+            SEL_NAMES+=("$line")
+            SEL_FOUND+=("")
+        fi
+    done < "$TRAININGS_FILE"
+    if [[ ${#SEL_NAMES[@]} -eq 0 ]]; then
+        echo "Error: no Training_* names in $TRAININGS_FILE"
+        exit 1
+    fi
+fi
+if [[ ! -d "$ROOT" ]]; then
+    echo "Error: root folder does not exist: $ROOT"
+    exit 1
+fi
 if [[ ! -f "$SIMULATION_SCRIPT" ]]; then
     echo "Error: simulation script not found: $SIMULATION_SCRIPT"
     exit 1
 fi
 
-mkdir -p "$CHECKPOINT_CONFIG_DIR"
-mkdir -p "$LOG_DIR"
+mkdir -p "$CHECKPOINT_CONFIG_DIR" "$LOG_DIR"
+
+# -----------------------------------------------------------------------------
+# Build the job list
+# -----------------------------------------------------------------------------
+JOB_MAPS=()          # MAP_NR per job
+JOB_CKPT_FILES=()    # checkpoint file per job
+JOB_LOGS=()          # log file per job
+JOB_DESC=()          # human-readable description per job
+JOB_ORIGINALS=()     # real training folder per job (used with --override_abilities)
+NUM_TRAININGS=0
+NUM_SKIPPED=0
+
+while IFS= read -r -d '' TRAINING_PATH; do
+    TRAINING_PATH="${TRAINING_PATH%/}"
+    MAP_DIR="$(find_map_dir "$TRAINING_PATH")"
+    if [[ -z "$MAP_DIR" ]]; then
+        echo "Warning: skipping (no map_* folder in path): $TRAINING_PATH"
+        NUM_SKIPPED=$((NUM_SKIPPED + 1))
+        continue
+    fi
+    MAP_NR="${MAP_DIR#map_}"
+    REL_PATH="${MAP_DIR}${TRAINING_PATH##*/"$MAP_DIR"}"   # map_*/.../Training_*
+    LABEL="$(sanitize_for_filename "$REL_PATH")"
+
+    # shellcheck disable=SC2053
+    if [[ "$MAP_DIR" != $MAP_FILTER ]]; then
+        continue
+    fi
+
+    if [[ ${#SEL_NAMES[@]} -gt 0 ]]; then
+        TRAINING_NAME="${REL_PATH##*/}"
+        REL_DIR="${REL_PATH%/*}"
+        SELECTED=false
+        for k in "${!SEL_NAMES[@]}"; do
+            [[ "${SEL_NAMES[$k]}" != "$TRAINING_NAME" ]] && continue
+            glob="${SEL_GLOBS[$k]}"
+            if [[ "$glob" == */* ]]; then match_target="$REL_DIR"; else match_target="$MAP_DIR"; fi
+            # shellcheck disable=SC2053
+            if [[ "$match_target" == $glob ]]; then
+                SEL_FOUND[$k]+="${TRAINING_PATH}"$'\n'
+                SELECTED=true
+            fi
+        done
+        [[ "$SELECTED" == false ]] && continue
+    fi
+
+    if [[ ! -f "$TRAINING_PATH/config.txt" ]]; then
+        echo "Warning: skipping (no config.txt): $TRAINING_PATH"
+        NUM_SKIPPED=$((NUM_SKIPPED + 1))
+        continue
+    fi
+
+    if ! ABILITIES="$(read_abilities "$TRAINING_PATH/config.txt" 2>/dev/null)"; then
+        echo "Warning: skipping (could not read WALKING_SPEEDS/CUTTING_SPEEDS): $TRAINING_PATH"
+        NUM_SKIPPED=$((NUM_SKIPPED + 1))
+        continue
+    fi
+    if [[ -n "$ABILITIES_FILTER" && "$ABILITIES" != "$ABILITIES_FILTER" ]]; then
+        continue
+    fi
+
+    CHECKPOINTS=()
+    if [[ "$CHECKPOINT_MODE" == "found" ]]; then
+        while IFS= read -r checkpoint_value; do
+            [[ -n "$checkpoint_value" ]] && CHECKPOINTS+=("$checkpoint_value")
+        done < <(discover_checkpoints_in_training "$TRAINING_PATH")
+    else
+        for checkpoint_value in "${HARDCODED_CHECKPOINTS[@]}"; do
+            if [[ -d "$TRAINING_PATH/checkpoint_${checkpoint_value}" ]]; then
+                CHECKPOINTS+=("$checkpoint_value")
+            else
+                echo "Warning: checkpoint_${checkpoint_value} missing in $TRAINING_PATH (skipped)"
+            fi
+        done
+    fi
+
+    if [[ ${#CHECKPOINTS[@]} -eq 0 ]]; then
+        echo "Warning: skipping (no usable checkpoints): $TRAINING_PATH"
+        NUM_SKIPPED=$((NUM_SKIPPED + 1))
+        continue
+    fi
+
+    NUM_TRAININGS=$((NUM_TRAININGS + 1))
+
+    # One pass per simulated abilities value ("" = the training's own speeds)
+    if [[ ${#OVERRIDE_LIST[@]} -gt 0 ]]; then
+        PASSES=("${OVERRIDE_LIST[@]}")
+    else
+        PASSES=("")
+    fi
+
+    for OVERRIDE in "${PASSES[@]}"; do
+        # Folder the simulation loads the agents from (a shadow copy when overriding speeds)
+        SIM_TRAINING_PATH="$TRAINING_PATH"
+        SIM_ABILITIES="$ABILITIES"
+        LABEL_SUFFIX=""
+        if [[ -n "$OVERRIDE" ]]; then
+            INIT_NAME="$(basename "${TRAINING_PATH%/"$REL_PATH"}")"
+            SIM_TRAINING_PATH="${OVERRIDE_DIR}/abilities_${OVERRIDE}/${INIT_NAME}/${REL_PATH}"
+            SIM_ABILITIES="$OVERRIDE"
+            LABEL_SUFFIX="_sim${OVERRIDE}"
+            if [[ "$DRY_RUN" == false ]]; then
+                if ! create_override_training "$TRAINING_PATH" "$SIM_TRAINING_PATH" \
+                        "${OVERRIDE%_*}" "${OVERRIDE#*_}"; then
+                    echo "Warning: skipping abilities ${OVERRIDE} (could not build speed override): $TRAINING_PATH"
+                    NUM_SKIPPED=$((NUM_SKIPPED + 1))
+                    continue
+                fi
+            fi
+        fi
+
+        for checkpoint in "${CHECKPOINTS[@]}"; do
+            SAFE_CHECKPOINT="$(sanitize_for_filename "$checkpoint")"
+            CHECKPOINT_FILE="${CHECKPOINT_CONFIG_DIR}/checkpoint_${LABEL}_${SAFE_CHECKPOINT}${LABEL_SUFFIX}.txt"
+            if [[ "$DRY_RUN" == false ]]; then
+                create_custom_checkpoint_file "$CHECKPOINT_FILE" "$checkpoint" "$SIM_TRAINING_PATH"
+            fi
+
+            for run_idx in $(seq 1 "$NUM_SIMULATIONS"); do
+                JOB_MAPS+=("$MAP_NR")
+                JOB_CKPT_FILES+=("$CHECKPOINT_FILE")
+                JOB_LOGS+=("${LOG_DIR}/sim_${LABEL}_${SAFE_CHECKPOINT}${LABEL_SUFFIX}_${run_idx}.log")
+                JOB_ORIGINALS+=("$([[ -n "$OVERRIDE" ]] && echo "$TRAINING_PATH")")
+                if [[ -n "$OVERRIDE" ]]; then
+                    JOB_DESC+=("${REL_PATH} | trained ${ABILITIES} -> simulated ${SIM_ABILITIES} | checkpoint ${checkpoint} | run ${run_idx}/${NUM_SIMULATIONS}")
+                else
+                    JOB_DESC+=("${REL_PATH} | abilities ${ABILITIES} | checkpoint ${checkpoint} | run ${run_idx}/${NUM_SIMULATIONS}")
+                fi
+            done
+        done
+    done
+done < <(find "$ROOT" -type d -name 'simulations' -prune -o \
+              -type d -name 'Training_*' -prune -print0 | sort -z -V)
+
+TOTAL_JOBS=${#JOB_MAPS[@]}
+
+if [[ ${#SEL_NAMES[@]} -gt 0 ]]; then
+    SELECTION_OK=true
+    for k in "${!SEL_NAMES[@]}"; do
+        n_found="$(printf '%s' "${SEL_FOUND[$k]}" | grep -c .)"
+        if [[ "$n_found" -eq 0 ]]; then
+            echo "Error: [${SEL_GLOBS[$k]}] ${SEL_NAMES[$k]} not found under $ROOT"
+            SELECTION_OK=false
+        elif [[ "$n_found" -gt 1 ]]; then
+            echo "Error: [${SEL_GLOBS[$k]}] ${SEL_NAMES[$k]} matches $n_found folders:"
+            printf '%s' "${SEL_FOUND[$k]}" | sed 's/^/    /'
+            SELECTION_OK=false
+        fi
+    done
+    if [[ "$SELECTION_OK" == false ]]; then
+        echo "Aborting: fix the trainings list (or --root / --map_filter) first."
+        exit 1
+    fi
+fi
 
 echo "=================================================="
-echo "Custom-checkpoint parallel launcher"
-echo "Map: $MAP_NR"
+echo "Trainings-tree parallel launcher"
+echo "Root: $ROOT"
+echo "Map filter: $MAP_FILTER"
+echo "Trainings list: ${TRAININGS_FILE:-all} (${#SEL_NAMES[@]} entries)"
+echo "Abilities filter (trained): ${ABILITIES_FILTER:-none}"
+echo "Simulated abilities: ${OVERRIDE_ABILITIES:-same as training}"
 echo "Game version: $GAME_VERSION"
-echo "Simulations per configuration/checkpoint: $NUM_SIMULATIONS"
+echo "Simulations root: $SIMULATIONS_ROOT"
+if [[ "$CHECKPOINT_MODE" == "hardcoded" ]]; then
+    echo "Checkpoints: ${HARDCODED_CHECKPOINTS[*]}"
+else
+    echo "Checkpoint mode: found (every checkpoint_* folder)"
+fi
+echo "Simulations per training/checkpoint: $NUM_SIMULATIONS"
 echo "Max parallel: $MAX_PARALLEL"
-echo "Checkpoint mode: $CHECKPOINT_MODE"
+echo "Trainings used: $NUM_TRAININGS (skipped: $NUM_SKIPPED)"
+echo "Total jobs: $TOTAL_JOBS"
 echo "Checkpoint files dir: $CHECKPOINT_CONFIG_DIR"
 echo "Log dir: $LOG_DIR"
 echo "Forwarded simulation args: ${SIMULATION_ARGS[*]}"
 echo "=================================================="
 
-PIDS=()
-RUNNING_COUNT=0
-TOTAL_LAUNCHED=0
-
-for config_row in "${CONFIGURATIONS[@]}"; do
-    IFS='|' read -r CONFIG_NAME TRAINING_PATH <<< "$config_row"
-
-    if [[ -z "$CONFIG_NAME" || -z "$TRAINING_PATH" ]]; then
-        echo "Error: invalid CONFIGURATIONS row: '$config_row'"
-        exit 1
-    fi
-
-    if [[ ! -d "$TRAINING_PATH" ]]; then
-        echo "Error: training path does not exist for config '$CONFIG_NAME': $TRAINING_PATH"
-        exit 1
-    fi
-
-    TRAINING_ID="$(extract_training_id "$TRAINING_PATH")"
-    CHECKPOINTS=()
-
-    if [[ "$CHECKPOINT_MODE" == "found" ]]; then
-        while IFS= read -r checkpoint_value; do
-            if [[ -n "$checkpoint_value" ]]; then
-                CHECKPOINTS+=("$checkpoint_value")
-            fi
-        done < <(discover_checkpoints_in_training "$TRAINING_PATH")
-    else
-        CHECKPOINTS=("${HARDCODED_CHECKPOINTS[@]}")
-    fi
-
-    if [[ ${#CHECKPOINTS[@]} -eq 0 ]]; then
-        echo "Warning: no checkpoints found for config '$CONFIG_NAME' in $TRAINING_PATH"
-        continue
-    fi
-
-    echo ""
-    echo "Configuration: $CONFIG_NAME"
-    echo "Training path: $TRAINING_PATH"
-    echo "Training ID: $TRAINING_ID"
-    echo "Checkpoints: ${CHECKPOINTS[*]}"
-    echo "--------------------------------------------------"
-
-    for checkpoint in "${CHECKPOINTS[@]}"; do
-        SAFE_CHECKPOINT="$(sanitize_for_filename "$checkpoint")"
-        CHECKPOINT_FILE="${CHECKPOINT_CONFIG_DIR}/checkpoint_${CONFIG_NAME}_${SAFE_CHECKPOINT}.txt"
-        create_custom_checkpoint_file "$CHECKPOINT_FILE" "$checkpoint" "$TRAINING_PATH"
-
-        for run_idx in $(seq 1 "$NUM_SIMULATIONS"); do
-            while [[ "$RUNNING_COUNT" -ge "$MAX_PARALLEL" ]]; do
-                echo "Max parallel limit ($MAX_PARALLEL) reached. Waiting for a job to finish..."
-                wait -n
-                RUNNING_COUNT="$(jobs -p | wc -l)"
-                echo "A job completed. $RUNNING_COUNT jobs still running."
-            done
-
-            LOG_FILE="${LOG_DIR}/sim_${CONFIG_NAME}_${TRAINING_ID}_${SAFE_CHECKPOINT}_${run_idx}.log"
-            CMD=(python3 "$SIMULATION_SCRIPT" "$MAP_NR" "$GAME_VERSION" --custom_checkpoints "$CHECKPOINT_FILE")
-
-            if [[ ${#SIMULATION_ARGS[@]} -gt 0 ]]; then
-                CMD+=("${SIMULATION_ARGS[@]}")
-            fi
-
-            nohup "${CMD[@]}" > "$LOG_FILE" 2>&1 &
-            PID=$!
-            PIDS+=("$PID")
-            TOTAL_LAUNCHED=$((TOTAL_LAUNCHED + 1))
-
-            echo "Launched run $run_idx/$NUM_SIMULATIONS for config '$CONFIG_NAME' checkpoint '$checkpoint' (PID: $PID)"
-            echo "  checkpoint_file: $CHECKPOINT_FILE"
-            echo "  log_file: $LOG_FILE"
-
-            RUNNING_COUNT="$(jobs -p | wc -l)"
-            sleep 2
-        done
-    done
-done
-
-if [[ "$TOTAL_LAUNCHED" -eq 0 ]]; then
-    echo "Error: no simulations were launched."
+if [[ "$TOTAL_JOBS" -eq 0 ]]; then
+    echo "Error: no simulations to launch."
     exit 1
 fi
 
-echo ""
-echo "=================================================="
-echo "All simulations launched. Total jobs: $TOTAL_LAUNCHED"
-echo "Waiting for remaining jobs to finish..."
-echo "=================================================="
+if [[ "$DRY_RUN" == true ]]; then
+    for i in "${!JOB_DESC[@]}"; do
+        echo "[dry run] map_nr=${JOB_MAPS[$i]} | ${JOB_DESC[$i]}"
+    done
+    exit 0
+fi
 
+# -----------------------------------------------------------------------------
+# Launch
+# -----------------------------------------------------------------------------
+PIDS=()
+for i in "${!JOB_MAPS[@]}"; do
+    while [[ "$(jobs -rp | wc -l)" -ge "$MAX_PARALLEL" ]]; do
+        wait -n
+    done
+
+    CMD=(python3 "$SIMULATION_SCRIPT" "${JOB_MAPS[$i]}" "$GAME_VERSION"
+         --custom_checkpoints "${JOB_CKPT_FILES[$i]}"
+         --simulations_root "$SIMULATIONS_ROOT")
+    [[ -n "${JOB_ORIGINALS[$i]}" ]] && CMD+=(--original_training_path "${JOB_ORIGINALS[$i]}")
+    [[ ${#SIMULATION_ARGS[@]} -gt 0 ]] && CMD+=("${SIMULATION_ARGS[@]}")
+
+    nohup "${CMD[@]}" > "${JOB_LOGS[$i]}" 2>&1 &
+    PID=$!
+    PIDS+=("$PID")
+
+    echo "[$((i + 1))/$TOTAL_JOBS] Launched ${JOB_DESC[$i]} (PID: $PID)"
+    echo "  log_file: ${JOB_LOGS[$i]}"
+
+    # Small gap so runs of the same training don't get the same timestamp
+    sleep 2
+done
+
+echo ""
+echo "All $TOTAL_JOBS simulations launched. Waiting for remaining jobs to finish..."
 wait
 
 echo ""
 echo "=================================================="
 echo "All simulations completed."
-echo "Process IDs: ${PIDS[*]}"
-echo "Checkpoint files: $CHECKPOINT_CONFIG_DIR"
+echo "Simulations: $SIMULATIONS_ROOT"
+
+# Remove the shadow trainings (only symlinks + config.txt) unless a simulation got stuck there
+if [[ -n "$OVERRIDE_ABILITIES" && -d "$OVERRIDE_DIR" ]]; then
+    if [[ -z "$(find "$OVERRIDE_DIR" -type d -name 'simulation_*' -print -quit)" ]]; then
+        rm -rf "$OVERRIDE_DIR"
+        rmdir "$(dirname "$OVERRIDE_DIR")" 2>/dev/null
+        echo "Removed temporary speed-override trainings."
+    else
+        echo "Some simulations were not relocated; kept $OVERRIDE_DIR"
+    fi
+fi
 echo "Logs: $LOG_DIR"
+echo "Failed runs (logs containing 'Error during simulation'):"
+grep -l "Error during simulation" "${JOB_LOGS[@]}" 2>/dev/null || echo "  none"
 echo "=================================================="

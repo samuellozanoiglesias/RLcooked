@@ -37,7 +37,7 @@ warnings.filterwarnings('ignore')
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from spoiled_broth.analysis.utils import DataProcessor, AnalysisConfig
-from figure_cooperative_analysis import CooperativeAnalyzer
+from old_analysis.figure_cooperative_analysis import CooperativeAnalyzer
 
 
 class TemporalPlotter:

@@ -20,25 +20,16 @@ ablation figures):
 Each panel shows condition means +- SEM (humans: across teams; RL: across
 trainings); lines join the open and PB means of the same ability pair.
 
-MARL data (--rl_source):
-  'sims' = SIMULATED GAMES of the episode-750 policies (checkpoint_750 folders), crawled with
-         the same loader and folder tree (synergy_1.35/specialized_0.25/simulations) as
-         Fig. 2e-f, Fig. 3d-f and the SI ablation, so that the (100%,100%) and (40%,20%) cells
-         equal Fig. 2e-f wherever the same trainings are simulated. Requires simulations at
-         every ability pair.
-  'fig4' = the TRAINING data of main-text Fig. 4 (episodes 740-760), described below.
-Training data of main-text Fig. 4 ('fig4'), loaded THROUGH
-fig4_human_vs_rl_gridmap.py (imported with --fig4_script, default: next to this
-file), exactly as fig_sm_marl_ablation.py does: same AbilityGridAnalyzer, same
-raw dir, same DataProcessor.load_experiment_data call, same episode window
-(prepare_episode_data; default = the Fig. 4 command line: --episode_range
-specific --target_episode 750 --num_episodes 20 --synergy 1.35
---specialization 0.25 --init_type empty_init), same speed filter (agent 1 walking
-= walk, agent 2 cutting = cut, the other two speeds 1.0) and same
-total_deliveries. The specialization index is computed per episode from the
-per-agent cut and delivery counters (same function as fig_sm_marl_ablation.py),
-then averaged per training: ONE VALUE PER TRAINING is the unit of every RL test
-and of the RL means +- SEM, because episodes of one training are not independent.
+MARL data (--rl_source sims, default): SIMULATED GAMES read from the simulation tree
+(marl_simulations.py, same loaders as Fig. 2e-f and the SI ablation):
+    <base>/data/samuel_lozano/cooked/<game_type>/simulations/<init_type>/map_<map>/
+        synergy_1.35/specialized_0.25/abilities_<walk>_<cut>/Training_*/checkpoint_753/simulation_*/
+where abilities_<walk>_<cut> holds the walking speed of ai_rl_1 (walk) and the cutting
+speed of ai_rl_2 (cut); the other two speeds are 1.0. Every Training_* and every
+simulation_* folder of checkpoint_753 is used, for each of the five pairs. The
+specialization index is computed per simulated game from the per-agent cut and delivery
+counts, then averaged per training: ONE VALUE PER TRAINING is the unit of every RL test
+and of the RL means +- SEM, because games of one training are not independent.
 
 Statistics (written to <output>_stats.txt and <output>_stats.csv), with the
 reporting conventions of paper_stats.py (higher group first, |t|, Welch df,
@@ -62,23 +53,24 @@ Human data selection
     sessions without collision are an earlier game version and are excluded, as are
     the small v2 maps and stray ability pairs),
   * maps baseline_division_of_labor_large (Open), encouraged_division_of_labor_large (PB),
-  * the first --n_teams teams (default 70) of each ability pair x map, ordered by
-    game_start_time; games present in several files are counted once.
+  * the first --n_teams teams (default 70) of each ability pair x map, in the order in which
+    the games appear in the (pre-ordered) CSV files -- no re-ordering; files are read in the
+    order given in --human_data; games present in several files are counted once,
+  * game score and specialization index from the TEST phase only (phase == 'test'),
+  * <o>_selected_games.csv: one column per condition with the game_id of the selected games
+    in selection order (row 'team' = 1..70); the check that every game_id is unique is
+    written to <o>_stats.txt.
   Required files in human_data/: combined_actions_with_demographics_csv.zip and
   oct2026_new_condition_encouraged.zip (+ any later batch).
 
 Usage
-    # humans + RL simulated games (episode-750 policies, as Fig. 2e-f)
-    nohup python3 fig_sm_ability_pairs_humans_rl.py --human_data ./data/human_data/*.zip --rl_source sims > log_fig_sm_pairs.out 2>&1 &
-
-    # humans + RL training episodes 740-760 (as Fig. 4; run where fig4_human_vs_rl_gridmap.py runs)
-    nohup python3 fig_sm_ability_pairs_humans_rl.py --human_data ./human_data/*.zip \\
-        --rl_source fig4 > log_fig_sm_pairs.out 2>&1 &
+    # humans + RL simulated games (checkpoint_753, every Training_* / simulation_*)
+    nohup python3 fig_sm_ability_pairs_humans_rl.py --human_data ./data/human_data/*.zip --rl_source sims --synergy 1.35 --specialization 0.25 --init_type empty_init --rl_checkpoint 753 > log_fig_sm_pairs.out 2>&1 &
 
     # re-plot from the caches written by a previous run
     python3 fig_sm_ability_pairs_humans_rl.py \\
         --human_csv ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv \\
-        --rl_csv ./figures/fig_sm_ability_pairs_humans_rl_rl_records.csv
+        --rl_csv ./figures/fig_sm_ability_pairs_humans_rl_rl_records_sims.csv
 
 The per-team human CSV written here (<output>_human_teams.csv) is also the human
 input of fig_sm_marl_ablation.py (pretraining) and fig4_human_vs_rl_gridmap.py
@@ -88,7 +80,6 @@ Author: Samuel Lozano
 """
 
 import argparse
-import importlib.util
 import io
 import re
 import sys
@@ -109,6 +100,7 @@ from scipy import stats
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import paper_stats as ps                                   # noqa: E402
+import marl_simulations as ms                              # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Global Style Configuration (PNAS requirements) -- identical to Fig. 2
@@ -137,7 +129,6 @@ PAIRS = [(1.0, 1.0), (0.7, 0.4), (0.4, 0.2), (0.2, 1.0), (0.1, 0.1)]
 HA = (1.0, 1.0)
 MAIN_MA = (0.4, 0.2)
 MA_PAIRS = [p for p in PAIRS if p != HA]
-SIM_PAIRS = (HA, MAIN_MA)      # pairs with simulated games of the episode-750 policies
 MAPS = ["Open", "PB"]
 MAP_NAMES = {"baseline_division_of_labor_large": "Open",
              "encouraged_division_of_labor_large": "PB"}
@@ -251,8 +242,11 @@ def load_human_teams(paths, n_teams=70, cut_def="start_cutting", spec_undefined=
     audit.append(f"  -> {raw['game_id'].nunique()} unique games in total")
 
     # ---- classify every game -------------------------------------------------
-    g0 = raw.groupby("game_id").agg(condition=("condition", "first"), map_name=("map_name", "first"),
-                                    start=("game_start_time", "first"))
+    # sort=False keeps the games in the order of the CSV files (files in the order given in
+    # --human_data, then row order); the files are pre-ordered, so no re-ordering is done here.
+    g0 = raw.groupby("game_id", sort=False).agg(condition=("condition", "first"), map_name=("map_name", "first"),
+                                                start=("game_start_time", "first"))
+    g0["order"] = np.arange(len(g0))
     parsed = g0["condition"].map(parse_condition)
     g0["pair"] = parsed.map(lambda x: x[0])
     g0["suffix"] = parsed.map(lambda x: x[1])
@@ -265,9 +259,7 @@ def load_human_teams(paths, n_teams=70, cut_def="start_cutting", spec_undefined=
     for (cond, mp, used), n in tab.items():
         audit.append(f"  {'[USED]' if used else '      '} {n:>4}  {mp:<36} {cond}")
 
-    sel = g0[ok].copy()
-    sel["start"] = sel["start"].fillna("9999")   # games without a start time go last
-    sel = sel.sort_values("start")
+    sel = g0[ok].copy()                         # already in CSV order: no sorting
     sel["rank"] = sel.groupby(["pair_key", "map"]).cumcount()
     kept = sel[sel["rank"] < n_teams]
 
@@ -283,13 +275,17 @@ def load_human_teams(paths, n_teams=70, cut_def="start_cutting", spec_undefined=
     test = test.assign(_del=test["action"].eq("deliver"))
     cnt = test.groupby(["game_id", "player_id"])[["_del", "_cut"]].sum()
 
+    # only the TEST phase is used for the game score and the specialization index
+    no_test = sorted(set(kept.index) - set(test["game_id"].unique()))
+
     rows = []
     for gid, r in kept.iterrows():
         pl = sorted(players[gid])
         D = [int(cnt["_del"].get((gid, p), 0)) for p in pl] + [0, 0]
         C = [int(cnt["_cut"].get((gid, p), 0)) for p in pl] + [0, 0]
         rows.append({
-            "game_id": gid, "walk": r["pair_key"][0], "cut": r["pair_key"][1], "map": r["map"],
+            "game_id": gid, "walk": r["pair_key"][0], "cut": r["pair_key"][1],
+            "map": r["map"], "rank": int(r["rank"]) + 1, "order": int(r["order"]),
             "game_start_time": r["start"], "n_players": len(pl),
             "prolific_ids": ";".join(str(pid_of.get(p)) for p in pl),
             "total_deliveries": sum(D[:2]),
@@ -299,7 +295,11 @@ def load_human_teams(paths, n_teams=70, cut_def="start_cutting", spec_undefined=
         })
     teams = pd.DataFrame(rows)
 
-    audit.append(f"\nSelection: first {n_teams} teams per ability pair x map (by game_start_time):")
+    audit.append(f"\nTest phase only: deliveries and cuts are counted in phase == 'test'; "
+                 f"selected games without any test-phase row: {len(no_test)}"
+                 + (f" -> {', '.join(map(str, no_test))}" if no_test else ""))
+    audit.append(f"\nSelection: first {n_teams} teams per ability pair x map, in the order of the CSV files "
+                 f"(no re-ordering):")
     avail = sel.groupby(["pair_key", "map"]).size()
     for p in PAIRS:
         for mp in MAPS:
@@ -310,6 +310,26 @@ def load_human_teams(paths, n_teams=70, cut_def="start_cutting", spec_undefined=
             span = f"{str(sub['start'].min())[:10]} .. {str(sub['start'].max())[:10]}" if len(sub) else ""
             audit.append(f"  {pair_label(p):<12} {mp:<4}  available={a:>4}  used={k:>3}  dates {span}{flag}")
     return teams
+
+
+def write_selected_games(teams: pd.DataFrame, path: Path) -> list[str]:
+    """CSV table of the selected games: one column per condition (map x ability pair), one row
+    per selected game in selection order (column 'team' = 1..70); each cell = game_id.
+    Returns the check that every selected game_id is unique."""
+    table = {}
+    for mp in MAPS:
+        for p in PAIRS:
+            g = teams[(teams["walk"] == p[0]) & (teams["cut"] == p[1]) & (teams["map"] == mp)].sort_values("rank")
+            table[f"{mp} {pair_label(p)}"] = pd.Series(g["game_id"].to_list(), dtype=object)
+    df = pd.DataFrame(table)
+    df.index = pd.RangeIndex(1, len(df) + 1, name="team")
+    df.to_csv(path)
+    dup = teams["game_id"][teams["game_id"].duplicated()].unique()
+    check = [f"  game_id: all {len(teams)} selected games unique  OK" if not len(dup) else
+             f"  game_id: {len(dup)} game_id(s) selected more than once  <-- NOT UNIQUE: {', '.join(map(str, dup))}"]
+    print(f"Selected games table -> {path}")
+    print(check[0])
+    return check
 
 
 def load_demographics(paths, teams):
@@ -328,351 +348,55 @@ def load_demographics(paths, teams):
 
 
 # ===========================================================================
-# 2. RL DATA -- the Fig. 4 training data, through fig4_human_vs_rl_gridmap.py
-#    (identical to fig_sm_marl_ablation.py)
+# 2. RL DATA -- simulated games of the simulation tree (marl_simulations.py)
+#    .../simulations/<init_type>/map_<map>/synergy_<s>/specialized_<l>/
+#        abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+#    walk1 = walking speed of ai_rl_1, cut2 = cutting speed of ai_rl_2 (other speeds 1.0),
+#    i.e. exactly the (walk, cut) pairs of PAIRS.
 # ===========================================================================
-_FIG4_DEFAULT = Path(__file__).resolve().with_name("fig4_human_vs_rl_gridmap.py")
-_GRID_VALUES = dict(walk1_start=0.1, walk1_end=1.0, walk1_step=0.1,
-                    cut2_start=0.1, cut2_end=1.0, cut2_step=0.1)
-
-
-def load_fig4_module(path):
-    """Import fig4_human_vs_rl_gridmap.py (this also puts the project root on sys.path,
-    exactly as when Fig. 4 is run)."""
-    path = Path(path) if path else _FIG4_DEFAULT
-    if not path.exists():
-        raise FileNotFoundError(f"Fig. 4 script not found: {path} (pass --fig4_script)")
-    spec = importlib.util.spec_from_file_location("fig4_human_vs_rl_gridmap", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def find_cut_cols(df: pd.DataFrame, override=None):
-    """Per-agent cut counters (e.g. cut_ai_rl_1); 'cutting_speed_*' columns are ignored."""
-    if override:
-        return tuple(override)
-    for a1, a2 in (("cut_ai_rl_1", "cut_ai_rl_2"), ("cuts_ai_rl_1", "cuts_ai_rl_2"),
-                   ("cut_count_ai_rl_1", "cut_count_ai_rl_2")):
-        if a1 in df.columns and a2 in df.columns:
-            return a1, a2
-    for c in df.columns:
-        lc = c.lower()
-        if lc.startswith("cut") and "speed" not in lc and c.endswith("ai_rl_1") and c[:-1] + "2" in df.columns:
-            return c, c[:-1] + "2"
-    return None
-
-
-def add_specialization(df: pd.DataFrame, cut_cols) -> pd.DataFrame:
-    """Per-episode specialization index (Fig. 2 formula), as in fig_sm_marl_ablation.py."""
-    df = df.copy()
-    if cut_cols is None:
-        df["specialization_index"] = np.nan
-        return df
-    d1 = pd.to_numeric(df.get("deliver_ai_rl_1", 0), errors="coerce").fillna(0)
-    d2 = pd.to_numeric(df.get("deliver_ai_rl_2", 0), errors="coerce").fillna(0)
-    c1 = pd.to_numeric(df[cut_cols[0]], errors="coerce").fillna(0)
-    c2 = pd.to_numeric(df[cut_cols[1]], errors="coerce").fillna(0)
-    tc, td = c1 + c2, d1 + d2
-    ok = (tc > 0) & (td > 0)
-    spec = ((c1 - c2) / tc.where(tc > 0) + (d2 - d1) / td.where(td > 0)).abs() * 100 / 2
-    df["specialization_index"] = spec.where(ok, 0.0)
-    return df
-
-
-def collect_rl_fig4(args, log: list) -> pd.DataFrame:
-    """One row per training EPISODE of the Fig. 4 window, for every pair of PAIRS."""
-    fig4 = load_fig4_module(args.fig4_script)
-    rows = []
-    for mp, map_name in (("Open", args.map_baseline), ("PB", args.map_encouraged)):
-        an = fig4.AbilityGridAnalyzer(
-            map_name=map_name, **_GRID_VALUES, init_type=args.init_type, synergy=args.synergy,
-            synergy_provided=True, specialization=args.specialization, game_type=args.game_type,
-            cluster=args.cluster, study_name=args.study_name, fixed_cut1=1.0, fixed_walk2=1.0, demo=False)
-        msg = (f"[RL] {map_name} ({mp}): raw dir {an.raw_dir}; window {args.episode_range}, "
-               f"{args.num_episodes} ep" + (f", target {args.target_episode}" if args.episode_range == "specific" else ""))
-        print(msg)
-        log.append(msg)
-        df = an.load_experimental_data()
-        if df is None or len(df) == 0:
-            log.append("    [WARN] DataProcessor returned no data")
-            continue
-        df = an.prepare_episode_data(df, episode_selection=args.episode_range,
-                                     num_episodes=args.num_episodes, target_episode=args.target_episode)
-        an._create_combined_metrics(df)                       # total_deliveries, as in Fig. 4
-        cut_cols = find_cut_cols(df, args.cut_cols)
-        if cut_cols is None:
-            log.append(f"    [WARN] no per-agent cut columns -> specialization index unavailable "
-                       f"(pass --cut_cols). Columns: {sorted(df.columns)}")
-        df = add_specialization(df, cut_cols)
-        tcol = an._resolve_training_id_column(df)
-        for pair in PAIRS:
-            sub = an._filter_speed_configuration(df, pair[0], pair[1])
-            for _, r in sub.iterrows():
-                rows.append({"walk": pair[0], "cut": pair[1], "map": mp,
-                             "training_id": str(r[tcol]) if tcol else "unknown",
-                             "episode": r.get("episode", np.nan),
-                             "total_deliveries": r["total_deliveries"],
-                             "specialization_index": r["specialization_index"]})
-    return pd.DataFrame(rows, columns=["walk", "cut", "map", "training_id", "episode",
-                                       "total_deliveries", "specialization_index"])
-
-
-CLUSTER_DIRS = {
-    "cuenca": "",  # same base folders as fig2_human_marl_comparison.py
-    "brigit": "/mnt/lustre/home/samuloza/",
-    "local": "C:/OneDrive - Universidad Complutense de Madrid (UCM)/Doctorado",
-}
-
-
-def _parse_speed_dict(raw: str) -> dict:
-    result = {}
-    for m in re.finditer(r"['\"]?(ai_rl_\d+)['\"]?\s*:\s*([\d.]+)", raw.strip()):
-        result[m.group(1)] = float(m.group(2))
-    return result
-
-
-def classify_config_pair(config_path: Path):
-    """Return ((walk, cut) pair | None, checkpoint) from a simulation config.txt.
-    A valid team has one agent slowed only in walking and the other only in cutting
-    (either may be ai_rl_1); the HA team has every speed at 1.0."""
-    if not config_path.exists():
-        return None, None
-    text = config_path.read_text(errors="replace")
-    m_walk = re.search(r"WALKING_SPEEDS\s*:\s*(\{[^}]+\})", text)
-    m_cut = re.search(r"CUTTING_SPEEDS\s*:\s*(\{[^}]+\})", text)
-    m_ck = re.search(r"CHECKPOINT_NUMBER\s*:\s*(\S+)", text)
-    ck = m_ck.group(1) if m_ck else None
-    if not m_walk or not m_cut:
-        return None, ck
-    walking, cutting = _parse_speed_dict(m_walk.group(1)), _parse_speed_dict(m_cut.group(1))
-    agents = sorted(walking)
-    if len(agents) != 2 or set(agents) != set(cutting):
-        return None, ck
-    if any(walking[a] < 1.0 and cutting[a] < 1.0 for a in agents):
-        return None, ck      # one agent slowed in both abilities: not one of our pairs
-    return _pair_key(min(walking.values()), min(cutting.values())), ck
-
-
-def _extract_agent_id_from_filename(file_path: Path, prefixes: list[str]) -> str:
-    stem = file_path.stem
-    for prefix in prefixes:
-        if stem.startswith(prefix):
-            return stem[len(prefix):]
-    return stem
-
-
-def load_positions(simulation_path: Path) -> pd.DataFrame | None:
-    sim_csv = simulation_path / "simulation.csv"
-    if sim_csv.exists():
-        df = pd.read_csv(sim_csv)
-        for old, new in [("tile_x", "x"), ("tile_y", "y"), ("tick", "frame")]:
-            if new not in df.columns and old in df.columns:
-                df[new] = df[old]
-        return df
-    pos_files = sorted(simulation_path.glob("positions_*.csv")) or \
-        sorted(simulation_path.glob("human_like_positions_*.csv"))
-    if not pos_files:
-        return None
-    frames = []
-    for pf in pos_files:
-        try:
-            d = pd.read_csv(pf)
-        except Exception:
-            continue
-        if "agent_id" not in d.columns:
-            d["agent_id"] = _extract_agent_id_from_filename(pf, ["positions_", "human_like_positions_"])
-        for old, new in [("tile_x", "x"), ("tile_y", "y"), ("tick", "frame")]:
-            if new not in d.columns and old in d.columns:
-                d[new] = d[old]
-        frames.append(d)
-    return pd.concat(frames, ignore_index=True, sort=False) if frames else None
-
-
-def _normalize_actions(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    if "agent_id" not in df.columns:
-        df["agent_id"] = df["player_id"] if "player_id" in df.columns else "unknown"
-    if "action_category_name" not in df.columns:
-        df["action_category_name"] = np.nan
-    for col in ["action_long", "action_name", "action_type", "action"]:
-        if col in df.columns:
-            df["action_category_name"] = df["action_category_name"].fillna(df[col])
-    df["action_category_name"] = df["action_category_name"].fillna("unknown")
-    return df
-
-
-def load_actions(simulation_path: Path) -> pd.DataFrame:
-    meaningful = simulation_path / "meaningful_actions.csv"
-    if meaningful.exists():
-        try:
-            return _normalize_actions(pd.read_csv(meaningful))
-        except Exception:
-            pass
-    hl_files = sorted(simulation_path.glob("human_like_actions_*.csv"))
-    if hl_files:
-        frames = []
-        for af in hl_files:
-            try:
-                d = pd.read_csv(af)
-            except Exception:
-                continue
-            if "agent_id" not in d.columns:
-                d["agent_id"] = d["player_id"] if "player_id" in d.columns else \
-                    _extract_agent_id_from_filename(af, ["human_like_actions_"])
-            frames.append(d)
-        if frames:
-            return _normalize_actions(pd.concat(frames, ignore_index=True, sort=False))
-    actions_csv = simulation_path / "actions.csv"
-    if actions_csv.exists():
-        try:
-            return _normalize_actions(pd.read_csv(actions_csv))
-        except Exception:
-            pass
-    return pd.DataFrame(columns=["agent_id", "action_category_name"])
-
-
-def extract_metrics(simulation_path: Path, initialization_period: float = 0.0) -> dict | None:
-    pos = load_positions(simulation_path)
-    if pos is None or pos.empty or "score" not in pos.columns or "agent_id" not in pos.columns:
-        return None
-    pos = pos.copy()
-    pos["agent_id"] = pos["agent_id"].astype(str)
-    for _col in ("second", "frame", "score"):
-        if _col in pos.columns:
-            pos[_col] = pd.to_numeric(pos[_col], errors="coerce")
-    if "second" in pos.columns:
-        pos = pos.dropna(subset=["second"])
-    elif "frame" in pos.columns:
-        pos = pos.dropna(subset=["frame"])
-    pos = pos.dropna(subset=["score"])
-    if pos.empty:
-        return None
-    if "second" in pos.columns:
-        pos["adj_sec"] = (pos["second"] - initialization_period).clip(lower=0)
-    elif "frame" in pos.columns:
-        pos["adj_sec"] = (pos["frame"] / 30.0 - initialization_period).clip(lower=0)
-    else:
-        pos["adj_sec"] = 0.0
-
-    score_ts = pos.groupby("adj_sec")["score"].max().sort_index()
-    team_deliveries = int((score_ts.diff().fillna(0) > 0).sum())
-
-    deliveries_per_agent: dict[str, int] = {}
-    for agent_id, grp in pos.groupby("agent_id"):
-        diffs = grp.sort_values("adj_sec")["score"].diff().fillna(0)
-        deliveries_per_agent[agent_id] = int((diffs > 0).sum())
-    if sum(deliveries_per_agent.values()) == 0 and team_deliveries > 0:
-        agents = sorted(pos["agent_id"].unique())
-        deliveries_per_agent = {a: team_deliveries // len(agents) for a in agents}
-
-    actions = load_actions(simulation_path)
-    cuts_per_agent: dict[str, int] = {}
-    if not actions.empty and "action_category_name" in actions.columns:
-        actions["agent_id"] = actions["agent_id"].astype(str)
-        cut_mask = actions["action_category_name"].astype(str).str.contains("cut", case=False, na=False)
-        for agent_id, grp in actions.groupby("agent_id"):
-            cuts_per_agent[agent_id] = int(cut_mask[grp.index].sum())
-
-    return {"total_deliveries": team_deliveries,
-            "deliveries_per_agent": deliveries_per_agent,
-            "cuts_per_agent": cuts_per_agent}
-
-
-def read_init_period(config_path: Path) -> float:
-    if not config_path.exists():
-        return 0.0
-    m = re.search(r"AGENT_INITIALIZATION_PERIOD\s*:\s*([\d.]+)", config_path.read_text(errors="replace"))
-    return float(m.group(1)) if m else 0.0
-
-
-def specialization_index(metrics: dict) -> float | None:
-    """|(cuts_a1 - cuts_a2)/total_cuts + (del_a2 - del_a1)/total_del| * 100 / 2  (as in Fig. 2)"""
-    per_agent_cuts = metrics.get("cuts_per_agent", {})
-    per_agent_del = metrics.get("deliveries_per_agent", {})
-    if len(per_agent_cuts) < 2 or len(per_agent_del) < 2:
-        return None
-    agents = sorted(set(per_agent_cuts) & set(per_agent_del))[:2]
-    if len(agents) < 2:
-        return None
-    vals_cuts = [per_agent_cuts[a] for a in agents]
-    vals_del = [per_agent_del[a] for a in agents]
-    total_cuts, total_del = sum(vals_cuts), sum(vals_del)
-    if total_cuts == 0 or total_del == 0:
-        return 0.0
-    cuts_term = (vals_cuts[0] - vals_cuts[1]) / total_cuts
-    del_term = (vals_del[1] - vals_del[0]) / total_del
-    return abs(del_term + cuts_term) * 100 / 2
-
-
-def _latest_numbered_checkpoint(ck_dirs: list[Path]) -> list[Path]:
-    numbered = [p for p in ck_dirs if p.name.replace("checkpoint_", "").isdigit()]
-    return [max(numbered, key=lambda p: int(p.name.replace("checkpoint_", "")))] if numbered else []
+CLUSTER_DIRS = ms.CLUSTER_DIRS
 
 
 def resolve_rl_root(base_cluster_dir: str, map_nr: str, game_version: str, synergy, specialization,
-                    study_name: str = "", path_template: str | None = None) -> Path:
-    if path_template:
-        root = Path(path_template.replace("{map}", map_nr))
-        return root / study_name if study_name else root
-    nest = Path()
-    if str(synergy).lower() not in ("", "none", "0"):
-        nest = nest / f"synergy_{synergy}"
-    if str(specialization).lower() not in ("", "none", "0"):
-        nest = nest / f"specialized_{specialization}"
-    candidates = [
-        Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/{game_version}/map_{map_nr}") / nest,
-        Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/map_{map_nr}") / nest,
-    ]
-    found = next((c for c in candidates if c.exists()), candidates[0])
-    sims_root = found / "simulations"
-    return sims_root / study_name if study_name else sims_root
+                    study_name: str = "", path_template: str | None = None,
+                    init_type: str = ms.DEFAULT_INIT_TYPE) -> Path:
+    """Folder holding the abilities_* folders of one map."""
+    return ms.map_root(base_cluster_dir, game_version, map_nr, synergy, specialization,
+                       init_type=init_type, study_name=study_name or None, path_template=path_template)
 
 
 def collect_rl_sims(args, log: list) -> pd.DataFrame:
-    """SIMULATED GAMES (same loader and folder tree as Fig. 2e-f and the SI ablation):
-    one row per simulated game of the episode-750 policies, for every pair of PAIRS found."""
-    base = CLUSTER_DIRS[args.cluster]
-    rows = []
+    """SIMULATED GAMES (same loaders and folder tree as Fig. 2e-f and the SI ablation):
+    one row per simulated game, for every pair of PAIRS found (every Training_* and
+    simulation_* of checkpoint_<rl_checkpoint> inside abilities_<walk>_<cut>)."""
+    base = ms.cluster_base_dir(args.cluster)
+    frames = []
     for mp, map_nr in (("Open", args.map_baseline), ("PB", args.map_encouraged)):
-        root = resolve_rl_root(base, map_nr, args.game_type, args.synergy,
-                               args.specialization, args.study_name or "", args.rl_path_template)
-        msg = f"[RL sims] {map_nr} ({mp}): root {root}; checkpoint folder {args.rl_checkpoint}"
+        root = resolve_rl_root(base, map_nr, args.game_type, args.synergy, args.specialization,
+                               args.study_name or "", args.rl_path_template, args.init_type)
+        msg = f"[RL sims] {map_nr} ({mp}): root {root}; checkpoint folder checkpoint_{args.rl_checkpoint}"
         print(msg)
         log.append(msg)
         if not root.exists():
             log.append(f"    [WARN] simulations root not found: {root}")
             continue
-        for training_dir in sorted(root.glob("Training_*")):
-            ck_dirs = sorted(training_dir.glob("checkpoint_*"))
-            if str(args.rl_checkpoint).lower() == "latest":
-                ck_dirs = _latest_numbered_checkpoint(ck_dirs)
-            elif str(args.rl_checkpoint).lower() != "all":
-                ck_dirs = [c for c in ck_dirs if c.name.replace("checkpoint_", "") == str(args.rl_checkpoint)]
-            for ck_dir in ck_dirs:
-                for sim_dir in sorted(ck_dir.glob("simulation_*")):
-                    cfg = sim_dir / "config.txt"
-                    pair, _ = classify_config_pair(cfg)
-                    if pair is None:
-                        continue
-                    met = extract_metrics(sim_dir, initialization_period=read_init_period(cfg))
-                    if met is None:
-                        if args.verbose:
-                            print(f"  [SKIP] no usable data in {sim_dir}")
-                        continue
-                    rows.append({"walk": pair[0], "cut": pair[1], "map": mp, "episode": np.nan,
-                                 "training_id": training_dir.name,
-                                 "checkpoint": ck_dir.name.replace("checkpoint_", ""),
-                                 "simulation": sim_dir.name,
-                                 "total_deliveries": met["total_deliveries"],
-                                 "specialization_index": specialization_index(met)})
-        sub = [r for r in rows if r["map"] == mp]
+        df = ms.collect_records(root, pairs=PAIRS, checkpoint=args.rl_checkpoint,
+                                verbose=args.verbose, extra={"map": mp})
         for p in PAIRS:
-            k = [r for r in sub if (r["walk"], r["cut"]) == p]
+            if ms.find_ability_dir(root, *p) is None:
+                log.append(f"    {pair_label(p):<12} [WARN] no abilities_{p[0]:g}_{p[1]:g} folder")
+                continue
+            k = df[np.isclose(df["walk"], p[0]) & np.isclose(df["cut"], p[1])] if not df.empty else df
             log.append(f"    {pair_label(p):<12} {len(k):>4} simulations from "
-                       f"{len({r['training_id'] for r in k})} trainings")
-    return pd.DataFrame(rows, columns=["walk", "cut", "map", "training_id", "checkpoint", "simulation", "episode",
-                                       "total_deliveries", "specialization_index"])
+                       f"{k['training_id'].nunique() if len(k) else 0} trainings")
+        if not df.empty:
+            keys = [_pair_key(w, c) for w, c in zip(df["walk"], df["cut"])]
+            df["walk"], df["cut"] = [k[0] for k in keys], [k[1] for k in keys]
+            df["episode"] = np.nan
+            frames.append(df)
+    cols = ["walk", "cut", "map", "training_id", "checkpoint", "simulation", "episode",
+            "total_deliveries", "specialization_index"]
+    return pd.concat(frames, ignore_index=True)[cols] if frames else pd.DataFrame(columns=cols)
 
 
 def normalize_rl_csv(df: pd.DataFrame) -> pd.DataFrame:
@@ -1004,41 +728,32 @@ def main():
     ap.add_argument("--human_data", nargs="*", default=[],
                     help="Human zips / CSVs (duplicate games are counted once)")
     ap.add_argument("--human_csv", default=None, help="Per-team CSV written by a previous run")
-    ap.add_argument("--n_teams", type=int, default=70, help="Teams per ability pair x map (first by start time)")
+    ap.add_argument("--n_teams", type=int, default=70, help="Teams per ability pair x map (first ones in the order of the CSV files)")
     ap.add_argument("--cut_def", default="start_cutting", choices=["start_cutting", "contains_cut"],
                     help="Human cut count C: 'start cutting' actions (default) or any action containing 'cut'")
     ap.add_argument("--spec_undefined", default="zero", choices=["zero", "nan"],
                     help="Spec. index of teams with no deliveries or no cuts (MARL scripts use 0)")
     ap.add_argument("--exclude_repeat_participants", action="store_true",
                     help="Drop teams with a participant who already played in an earlier selected team")
-    # --- RL: exactly the Fig. 4 arguments ---
-    ap.add_argument("--rl_source", choices=["hybrid", "sims", "fig4", "none"], default="hybrid",
-                    help="'hybrid' (default): simulated games of the episode-750 policies for (100%%,100%%) and "
-                         "(40%%,20%%) (as Fig. 2e-f) and training episodes 740-760 (as Fig. 4) for the other "
-                         "pairs, which have no simulated games; 'sims' / 'fig4': one data type for every pair")
-    ap.add_argument("--rl_csv_training", default=None,
-                    help="hybrid: cached training-episode records (with --rl_csv = cached simulation records)")
-    ap.add_argument("--rl_checkpoint", default="753",
-                    help="sims: checkpoint_<n> folder of the simulated games (episode 750, as everywhere)")
+    # --- RL: simulated games of the simulation tree ---
+    ap.add_argument("--rl_source", choices=["sims", "none"], default="sims",
+                    help="'sims' (default): simulated games of every ability pair, read from the "
+                         "abilities_<walk>_<cut> folders of the simulation tree; 'none': humans only")
+    ap.add_argument("--rl_checkpoint", default=ms.DEFAULT_CHECKPOINT,
+                    help="checkpoint_<n> folder of the simulated games (default 753), 'latest' or 'all'")
     ap.add_argument("--rl_path_template", default=None,
-                    help="sims: explicit simulations root ('{map}' substituted)")
+                    help="Explicit folder that contains the abilities_* folders ('{map}' substituted)")
     ap.add_argument("--verbose", action="store_true")
-    ap.add_argument("--rl_csv", default=None, help="Cached RL episode records (skips loading the trainings)")
-    ap.add_argument("--fig4_script", default=None,
-                    help="Path to fig4_human_vs_rl_gridmap.py (default: next to this script)")
+    ap.add_argument("--rl_csv", default=None, help="Cached RL simulation records (skips crawling the tree)")
     ap.add_argument("--map_baseline", default="baseline_division_of_labor_large")
     ap.add_argument("--map_encouraged", default="encouraged_division_of_labor_large")
-    ap.add_argument("--game_type", default="classic_collision", choices=["classic", "classic_collision"])
-    ap.add_argument("--init_type", default="empty_init", choices=["random_init", "empty_init"])
+    ap.add_argument("--game_type", default="classic_collision",
+                    choices=["classic", "classic_collision", "competition", "competition_collision"])
+    ap.add_argument("--init_type", default=ms.DEFAULT_INIT_TYPE, choices=["random_init", "empty_init"])
     ap.add_argument("--synergy", type=float, default=1.35)
     ap.add_argument("--specialization", type=float, default=0.25)
     ap.add_argument("--study_name", default=None)
-    ap.add_argument("--cluster", default="cuenca")
-    ap.add_argument("--episode_range", choices=["all", "final", "average", "specific"], default="specific")
-    ap.add_argument("--num_episodes", type=int, default=20)
-    ap.add_argument("--target_episode", type=int, default=753)
-    ap.add_argument("--cut_cols", nargs=2, default=None, metavar=("AGENT1", "AGENT2"),
-                    help="Per-agent cut-count columns (auto-detected)")
+    ap.add_argument("--cluster", default="cuenca", help=f"{list(CLUSTER_DIRS)} or a literal base folder")
     # --- output ---
     ap.add_argument("--titles", nargs=2, default=["Human Experiments", "MARL Simulations"])
     ap.add_argument("--output_dir", default="./figures")
@@ -1062,13 +777,13 @@ def main():
         "  Two-way between-subjects ANOVAs: effect coding, Type III SS, partial eta^2.\n"
         "  p = .059 / p < .001.\n"
         "Definitions\n"
-        "  Game score = deliveries in the 180-s test game (humans) / in a 180-s simulated game ('sims') or\n"
-        "    training episode ('fig4') of the MARL agents.\n"
+        "  Game score = deliveries in the 180-s test game (humans) / in a 180-s simulated game of the\n"
+        f"    MARL agents (checkpoint_{args.rl_checkpoint}, abilities_<walk>_<cut> folders).\n"
         f"  RL source: {args.rl_source if not args.rl_csv else 'cached CSV ' + args.rl_csv}.\n"
         "  Specialization index = 100 * |(D1 - D2)/(D1 + D2) + (C2 - C1)/(C1 + C2)| / 2 (D deliveries,\n"
         f"    C cuts per player); no deliveries or no cuts -> {'0' if args.spec_undefined == 'zero' else 'excluded'}.\n"
-        f"    Human cuts: {args.cut_def!r}. RL cuts: per-agent cut counters of the training data.\n"
-        "  Units: humans = team; RL = training (mean over its episode window), as in the SI pretraining section.")
+        f"    Human cuts: {args.cut_def!r}. RL cuts: per-agent cut actions of each simulated game.\n"
+        "  Units: humans = team; RL = training (mean over its simulated games), as in the SI pretraining section.")
 
     # ---------------- humans ---------------------------------------------------
     human = None
@@ -1081,7 +796,10 @@ def main():
         report.append("\n" + "=" * 100 + "\nDATA AUDIT (humans)\n" + "=" * 100)
         report += audit
 
-        human = human.sort_values("game_start_time").reset_index(drop=True)
+        report.append(f"\nSelected games -> {Path(stem).name}_selected_games.csv:")
+        report += write_selected_games(human, Path(f"{stem}_selected_games.csv"))
+
+        human = human.sort_values("order").reset_index(drop=True)       # selection (CSV) order
         seen, rep = set(), []
         unknown = {"undefined", "nan", "none", ""}
         n_unknown = 0
@@ -1149,40 +867,23 @@ def main():
         report.append("\\bottomrule\n\\end{tabular}")
 
     # ---------------- RL -------------------------------------------------------
-    # ------------------------------------------------------------------
-    # RL data. 'hybrid': simulated games for SIM_PAIRS, training episodes for the rest.
-    # Every test compares MARL groups of the SAME data type.
-    # ------------------------------------------------------------------
-    rl_sims_ep = rl_train_ep = None
-    if args.rl_source in ("hybrid", "sims"):
+    # Simulated games for every ability pair (one abilities_<walk>_<cut> folder per pair).
+    rl_sims_ep = None
+    if args.rl_source == "sims":
         if args.rl_csv:
             rl_sims_ep = normalize_rl_csv(pd.read_csv(args.rl_csv))
             report.append(f"\nRL simulated-game records read from {args.rl_csv}")
         else:
             log = []
             rl_sims_ep = collect_rl_sims(args, log)
-            report.append("\n" + "=" * 100 + "\nRL DATA: MARL simulations (simulated games of the episode-750 policies, as Fig. 2e-f)\n"
-                          + "=" * 100)
+            report.append("\n" + "=" * 100 + f"\nRL DATA: MARL simulations (simulated games, "
+                          f"checkpoint_{args.rl_checkpoint}, every Training_* / simulation_*)\n" + "=" * 100)
             report += log
             rl_sims_ep.to_csv(f"{stem}_rl_records_sims.csv", index=False)
             report.append(f"Cached -> {stem}_rl_records_sims.csv (re-use with --rl_csv)")
-    if args.rl_source in ("hybrid", "fig4"):
-        cached = args.rl_csv_training if args.rl_source == "hybrid" else args.rl_csv
-        if cached:
-            rl_train_ep = normalize_rl_csv(pd.read_csv(cached))
-            report.append(f"\nRL training-episode records read from {cached}")
-        else:
-            log = []
-            rl_train_ep = collect_rl_fig4(args, log)
-            report.append("\n" + "=" * 100 + "\nRL DATA: training episodes 740-760 (as Fig. 4)\n" + "=" * 100)
-            report += log
-            rl_train_ep.to_csv(f"{stem}_rl_records_training.csv", index=False)
-            report.append(f"Cached -> {stem}_rl_records_training.csv (re-use with --rl_csv_training)")
-    if args.rl_source == "hybrid" and rl_sims_ep is not None:
-        rl_sims_ep = rl_sims_ep[[(w, c) in SIM_PAIRS for w, c in zip(rl_sims_ep["walk"], rl_sims_ep["cut"])]]
 
     def _coverage(ep_df, kind):
-        report.append(f"\nRL coverage, {kind} (trainings; games or episodes per training; episode numbers):")
+        report.append(f"\nRL coverage, {kind} (trainings; games per training):")
         for p in PAIRS:
             for mp in MAPS:
                 g = ep_df[(ep_df["walk"] == p[0]) & (ep_df["cut"] == p[1]) & (ep_df["map"] == mp)]
@@ -1190,42 +891,19 @@ def main():
                     report.append(f"    {pair_label(p):<12} {mp:<4} --")
                     continue
                 per = g.groupby("training_id").size()
-                ep = pd.to_numeric(g["episode"], errors="coerce") if "episode" in g.columns else pd.Series(dtype=float)
-                rng = f"{int(ep.min())}..{int(ep.max())}" if ep.notna().any() else "n/a"
                 report.append(f"    {pair_label(p):<12} {mp:<4} trainings={len(per):>3}  per training="
-                              f"{per.min()}..{per.max()}  episode numbers {rng}")
+                              f"{per.min()}..{per.max()}")
 
-    rl_sims = rl_train = None
+    rl_plot = None
     if rl_sims_ep is not None and not rl_sims_ep.empty:
         _coverage(rl_sims_ep, "simulated games")
-        rl_sims = training_means(rl_sims_ep)
+        rl_plot = training_means(rl_sims_ep)
         report.append("\n" + "=" * 100 + "\nMARL SIMULATIONS (unit = training; mean of its simulated games)\n" + "=" * 100)
-        analyse(rl_sims, "MARL simulations", "training", report, csv_rows)
-    if rl_train_ep is not None and not rl_train_ep.empty:
-        _coverage(rl_train_ep, "training episodes")
-        rl_train = training_means(rl_train_ep)
-        report.append("\n" + "=" * 100 + "\nRL, TRAINING EPISODES 740-760 (unit = training; all pairs; the contrasts of "
-                      "(70%,40%), (20%,100%) and (10%,10%) with (100%,100%) use these data)\n" + "=" * 100)
-        analyse(rl_train, "RL training episodes", "training", report, csv_rows)
-
-    # data plotted in panels c-d, and the per-pair data used for the human-vs-RL comparison
-    rl_plot, train_pairs, ha_ref = None, (), None
-    if args.rl_source == "hybrid" and rl_sims is not None and rl_train is not None:
-        is_sim_pair = [(w, c) in SIM_PAIRS for w, c in zip(rl_train["walk"], rl_train["cut"])]
-        rl_plot = pd.concat([rl_sims, rl_train[[not x for x in is_sim_pair]]], ignore_index=True)
-        train_pairs = tuple(p for p in PAIRS if p not in SIM_PAIRS)
-        ha_ref = rl_train[(rl_train["walk"] == HA[0]) & (rl_train["cut"] == HA[1])]
-        by_pair = {p: (rl_sims if p in SIM_PAIRS else rl_train) for p in MA_PAIRS}
-    else:
-        rl_plot = rl_sims if rl_sims is not None else rl_train
-        by_pair = {p: rl_plot for p in MA_PAIRS} if rl_plot is not None else None
+        analyse(rl_plot, "MARL simulations", "training", report, csv_rows)
 
     if rl_plot is not None and human is not None:
         report.append("\n" + "=" * 100 + "\nHUMANS vs RL\n" + "=" * 100)
-        if args.rl_source == "hybrid":
-            report.append("  MA - HA differences of the agents are taken within one data type: simulated games for "
-                          f"{pair_label(MAIN_MA)}, training episodes for the other pairs.")
-        agreement(human, rl_plot, report, csv_rows, by_pair=by_pair)
+        agreement(human, rl_plot, report, csv_rows, by_pair={p: rl_plot for p in MA_PAIRS})
     elif rl_plot is None:
         report.append("\n" + "=" * 100 + "\nRL: no data loaded\n" + "=" * 100)
 

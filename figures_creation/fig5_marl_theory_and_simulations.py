@@ -24,15 +24,22 @@ Original 3-panel layout (all elements keep these sizes/fonts in every version):
   c  "MARL Simulations": map x ability grid of the score difference with respect
      to rho = 1 of each map (the 'row' comparison of
      BLUR-grid_full_cooperative_analysis.py, nearest interpolation), computed
-     from the training data, with the map thumbnails ./figures/map_thumb_{1..6}.png.
+     from the simulated games of the simulation tree, with the map thumbnails
+     ./figures/map_thumb_{1..6}.png.
+
+MARL-simulations grid data (marl_simulations.py, same folder):
+  <base>/data/samuel_lozano/cooked/<game_type>/simulations/<init_type>/map_<map>/
+      synergy_<s>/specialized_<l>/abilities_<rho>_<rho>/Training_*/checkpoint_753/simulation_*/
+  (abilities_<walk1>_<cut2>: walking speed of ai_rl_1, cutting speed of ai_rl_2; the other two
+  speeds are 1.0). Every Training_* and every simulation_* folder is used.
 
 The panel PDFs are merged into the page as VECTOR graphics (requires `pypdf`);
 everything else (axes, colour bars, text) is drawn with matplotlib. All
 positions/sizes were measured from Fig5.pdf (page 3174.96 x 637.80 pt).
 
 Usage:
-nohup python fig5_marl_theory_and_simulations.py --sm --episode_range specific --init_type empty_init --num_episodes 20 --specialization 0.25 --synergy 1.35 --target_episode 750 > fig5.log 2>&1 &
-    # main figure only (needs no training data)
+nohup python fig5_marl_theory_and_simulations.py --sm --init_type empty_init --specialization 0.25 --synergy 1.35 --checkpoint 753 > fig5.log 2>&1 &
+    # main figure only (needs no MARL data)
     python fig5_marl_theory_and_simulations.py
     # re-plot the SM figure from the cached MARL-simulations grid
     python fig5_marl_theory_and_simulations.py --sm --grid_csv ./figures/fig5c_grid.csv
@@ -56,8 +63,11 @@ from typing import Dict, List, Tuple, Optional, Union
 import warnings
 warnings.filterwarnings('ignore')
 
-# Add the project root to the path
+# This folder (marl_simulations.py) and the project root on the path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import marl_simulations as ms  # noqa: E402  (same folder)
 
 
 # ===========================================================================
@@ -74,10 +84,11 @@ class CooperativeAnalyzer:
                  synergy_provided: bool = False,
                  specialization: Optional[float] = None,
                  game_type: str = 'classic',
-                 cluster: str = 'cuenca'):
-        from spoiled_broth.analysis.utils import DataProcessor, AnalysisConfig  # project modules
-        self.config = AnalysisConfig()
-        self.data_processor = DataProcessor(self.config)
+                 cluster: str = 'cuenca',
+                 checkpoint: str = ms.DEFAULT_CHECKPOINT,
+                 verbose: bool = False):
+        self.checkpoint = str(checkpoint)
+        self.verbose = verbose
         self.study_name = study_name
         self.map_name_1 = map_name_1
         self.map_name_2 = map_name_2
@@ -90,9 +101,7 @@ class CooperativeAnalyzer:
         self.detected_specializations = []  # Track which specializations were found
         
         # Set up cluster path prefix
-        if cluster not in self.config.cluster_paths:
-            raise ValueError(f"Invalid cluster '{cluster}'. Choose from {list(self.config.cluster_paths.keys())}")
-        self.local_path = self.config.cluster_paths[cluster]
+        self.local_path = ms.cluster_base_dir(cluster)
         
         # Define hardcoded map list for 2D grid analysis (Y-axis)
         self.map_names = [
@@ -210,284 +219,119 @@ class CooperativeAnalyzer:
         """Format an ability config for logging and labels."""
         return self.ability_config_labels.get(ability_config, str(ability_config))
     
-    def _build_data_path(self, *path_parts) -> str:
-        """Build a data path handling empty local_path (cuenca cluster).
-        
-        Args:
-            *path_parts: Path components to join
-            
-        Returns:
-            Properly constructed path
-        """
-        if self.local_path:
-            return os.path.join(self.local_path, *path_parts)
-        else:
-            # For cuenca cluster (empty local_path), use absolute path
-            return os.path.join('/', *path_parts)
-    
+    def _maps_base(self) -> Path:
+        """.../<game_type>/simulations/<init_type> (the folder holding the map_* folders)."""
+        return ms.simulations_base(self.local_path, self.game_type, self.init_type, self.study_name)
+
+    def _map_root(self, map_name: str, synergy_val, spec_val) -> Path:
+        """Folder holding the abilities_* folders of one map / synergy / specialization."""
+        return ms.map_root(self.local_path, self.game_type, map_name, synergy_val, spec_val,
+                           init_type=self.init_type, study_name=self.study_name)
+
     def _detect_available_synergy_values(self) -> List[float]:
-        """Detect available synergy values from directory structure.
-        
-        Returns:
-            List of synergy values found in the directory structure
-        """
-        synergy_values = []
-        
-        # Build path to check for synergy directories
-        base_path = self._build_data_path('data', 'samuel_lozano', 'cooked', self.game_type, self.init_type, f'map_{self.map_name_1}')
-        
-        if os.path.exists(base_path):
-            try:
-                # List all directories in the base path
-                subdirs = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
-                
-                for subdir in subdirs:
-                    if subdir.startswith('synergy_'):
-                        try:
-                            # Extract synergy value from directory name
-                            synergy_str = subdir.replace('synergy_', '')
-                            if synergy_str == '0':
-                                synergy_val = 0.0
-                            else:
-                                synergy_val = float(synergy_str)
-                            synergy_values.append(synergy_val)
-                        except ValueError:
-                            print(f"    Warning: Could not parse synergy value from directory {subdir}")
-                            continue
-                            
-                if synergy_values:
-                    synergy_values.sort()
-                    print(f"    Found synergy values: {synergy_values}")
-                else:
-                    print(f"    No synergy directories found, using default synergy=0.0")
-                    synergy_values = [0.0]
-                    
-            except Exception as e:
-                print(f"    Warning: Error detecting synergy values: {e}")
-                synergy_values = [0.0]
+        """synergy_* folders of map_name_1 in the simulation tree."""
+        base_path = self._maps_base() / f'map_{self.map_name_1}'
+        synergy_values = ms.list_values(base_path, 'synergy_')
+        if synergy_values:
+            print(f"    Found synergy values: {synergy_values}")
         else:
-            print(f"    Warning: Base path {base_path} not found, using default synergy=0.0")
+            print(f"    Warning: no synergy_* folders in {base_path}, using default synergy=0.0")
             synergy_values = [0.0]
-            
         return synergy_values
-    
-    def _detect_available_specialization_values(self, synergy_val: float) -> List[str]:
-        """Detect available specialization values for a given synergy value.
-        
-        Args:
-            synergy_val: Synergy value to check
-            
-        Returns:
-            List of specialization folder names found
-        """
-        specialization_values = []
-        
-        # Build path to check for specialization directories
-        # Use 2 decimal places to match actual folder names on disk
-        synergy_str = 'synergy_0' if synergy_val == 0.0 else f'synergy_{synergy_val:.2f}'
-        base_path = self._build_data_path('data', 'samuel_lozano', 'cooked', self.game_type, self.init_type, f'map_{self.map_name_1}', synergy_str)
-        
-        if os.path.exists(base_path):
-            try:
-                # List all directories in the synergy path
-                subdirs = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
-                
-                for subdir in subdirs:
-                    if subdir.startswith('specialized_'):
-                        specialization_values.append(subdir)
-                        
-                if specialization_values:
-                    specialization_values.sort()
-                    print(f"    Found specialization values for synergy {synergy_val}: {specialization_values}")
-                else:
-                    print(f"    No specialization directories found for synergy {synergy_val}")
-                    
-            except Exception as e:
-                print(f"    Warning: Error detecting specialization values for synergy {synergy_val}: {e}")
+
+    def _detect_available_specialization_values(self, synergy_val: float) -> List[float]:
+        """specialized_* folders of map_name_1 / synergy_val in the simulation tree."""
+        base_path = self._map_root(self.map_name_1, synergy_val, None)
+        values = ms.list_values(base_path, 'specialized_')
+        if values:
+            print(f"    Found specialization values for synergy {synergy_val}: {values}")
         else:
-            print(f"    Warning: Synergy path {base_path} not found")
-            
-        return specialization_values
-    
+            print(f"    No specialized_* folders in {base_path}")
+        return values
+
     def load_experimental_data(self) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
-        """Load and combine data from all experimental conditions.
-        
+        """Simulated games of every (map, ability) condition: one row per simulation_* of every
+        Training_* in .../map_<map>/synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/
+        Training_*/checkpoint_<checkpoint>/ (walk1 = walking speed of ai_rl_1, cut2 = cutting
+        speed of ai_rl_2; the other two speeds are always 1.0 in this tree).
+
         Returns:
             If analyzing single synergy/specialization: pd.DataFrame
-            If analyzing multiple combinations: Dict[str, pd.DataFrame] with keys like:
-                - 'synergy_0.50__specialized_0.25': Data for that specific combination
-                - 'synergy_1.00__specialized_5.00': Data for that specific combination
-                - etc.
+            If analyzing multiple combinations: Dict[str, pd.DataFrame] keyed
+                'synergy_<s>__specialized_<l>'
         """
-        print("Loading experimental data from all conditions...")
+        print("Loading simulated games from all conditions...")
+        print(f"Simulation tree: {self._maps_base()}  [checkpoint_{self.checkpoint}]")
         if self.study_name:
             print(f"Using study name: {self.study_name}")
-        if self.specialization is None:
-            print("Specialization lambda: Auto-detecting all available lambda values")
-        else:
-            print(f"Specialization lambda: {self.specialization}")
-        
-        # Auto-detect synergy values if not explicitly specified
-        synergy_values_to_analyze = []
+
         if not self.synergy_provided:
             print("Synergy: Auto-detecting all available synergy values")
             synergy_values_to_analyze = self._detect_available_synergy_values()
         else:
             synergy_values_to_analyze = [self.synergy]
             print(f"Synergy: Using specified value {self.synergy}")
-        
-        # Store data separately for each synergy/specialization combination
+
         all_combinations = {}
-        
-        # Iterate over all synergy values
         for synergy_val in synergy_values_to_analyze:
             print(f"\nProcessing synergy value: {synergy_val}")
-            
-            # Determine which specialization lambdas to try for this synergy value
             if self.specialization is None:
-                # Auto-detect available specialization values for this synergy
-                spec_modes_to_analyze = self._detect_available_specialization_values(synergy_val)
-                if not spec_modes_to_analyze:
-                    # Fallback to common values
-                    spec_modes_to_analyze = ['specialized_0', 'specialized_5']
-                    print(f"    Using fallback specialization values: {spec_modes_to_analyze}")
+                spec_values = self._detect_available_specialization_values(synergy_val) or [0.0]
             else:
-                # Use specified lambda - format with 2 decimal places to match folder names
-                if self.specialization == 0:
-                    spec_folder_name = 'specialized_0'
-                else:
-                    spec_folder_name = f'specialized_{self.specialization:.2f}'
-                spec_modes_to_analyze = [spec_folder_name]
-            
-            # Load data for each specialization mode for this synergy value
-            for spec_mode in spec_modes_to_analyze:
+                spec_values = [self.specialization]
+
+            for spec_val in spec_values:
+                spec_mode = f'specialized_{spec_val:g}'
                 print(f"  Processing specialization: {spec_mode}")
-                
-                # Temporarily update synergy for this iteration
-                original_synergy = self.synergy
-                self.synergy = synergy_val
-                condition_data = []  # Reset for each specialization mode
-                
-                # Load all conditions for this specialization mode
+                condition_data = []
                 for (map_name, game_type, ability_config), condition_name in self.base_condition_mapping.items():
-                    # Keep original condition name (no suffix)
-                    print(f"Processing condition: {condition_name} (map={map_name}, ability={self._format_ability_config(ability_config)})")
-                    
-                    try:
-                        # Set up paths for this condition with init_type and synergy in the correct order
-                        # Always use synergy folder when we have a specific synergy value (either provided or auto-detected)
-                        
-                        # Build path with synergy folder
-                        if self.synergy == 0.0:
-                            synergy_folder = "synergy_0"
-                        else:
-                            synergy_folder = f"synergy_{self.synergy:.2f}"
-                        
-                        # Use the specific specialization mode
-                        if spec_mode:
-                            spec_folder = spec_mode
-                        else:
-                            spec_folder = ""  # No specialization folder
-                        
-                        # Build directory path
-                        if self.study_name:
-                            # Use study_name folder structure
-                            if spec_folder:
-                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', self.study_name, game_type, self.init_type, f'map_{map_name}', synergy_folder, spec_folder)
-                            else:
-                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', self.study_name, game_type, self.init_type, f'map_{map_name}', synergy_folder)
-                        else:
-                            # Default structure
-                            if spec_folder:
-                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', game_type, self.init_type, f'map_{map_name}', synergy_folder, spec_folder)
-                            else:
-                                raw_dir = self._build_data_path('data', 'samuel_lozano', 'cooked', game_type, self.init_type, f'map_{map_name}', synergy_folder)
-                        
-                        print(f"  Loading from: {raw_dir}")
-                    
-                    except Exception as e:
-                        print(f"  Error loading condition {condition_name}: {e}")
+                    walk1, cut1, walk2, cut2 = self.ability_config_speeds[ability_config]
+                    if abs(cut1 - ms.FIXED_CUT1) > 1e-9 or abs(walk2 - ms.FIXED_WALK2) > 1e-9:
+                        print(f"  Warning: {condition_name}: the simulation tree only holds cut1 = walk2 = 1.0; skipped")
                         continue
-                    
-                    paths = {
-                        'raw_dir': raw_dir,
-                        'output_path': f"{raw_dir}/training_results.csv",
-                        'figures_dir': f"{raw_dir}/training_figures/",
-                        'smoothed_figures_dir': f"{raw_dir}/training_figures/smoothed_{self.config.smoothing_factor}/",
-                        'study_name': self.study_name
-                    }
-                    
-                    # Create the directories if they don't exist
-                    for dir_path in [paths['raw_dir'], paths['figures_dir'], paths['smoothed_figures_dir']]:
-                        os.makedirs(dir_path, exist_ok=True)
-                    
-                    # Load the data (using 2 agents since this is multi-agent cooperative data)
-                    df = self.data_processor.load_experiment_data(paths, num_agents=2)
-                    
-                    if df is not None and len(df) > 0:
-                        # Filter to the expected ability configuration for this ability config
-                        df_filtered = self._filter_by_ability_config(df, ability_config)
-                        
-                        if len(df_filtered) == 0:
-                            print(f"  Warning: No data matching ability {self._format_ability_config(ability_config)} in {condition_name}")
-                            continue
-                        
-                        # Create combined metrics and attach metadata
-                        self._create_combined_metrics(df_filtered)
-                        df_filtered['condition'] = condition_name
-                        df_filtered['map_name'] = map_name
-                        df_filtered['game_type_clean'] = game_type
-                        df_filtered['ability_config'] = [ability_config] * len(df_filtered)
-                        df_filtered['ability_label'] = self._format_ability_config(ability_config)
-                        df_filtered['x_value'] = [ability_config] * len(df_filtered)
-                        if spec_mode:
-                            df_filtered['specialization'] = spec_mode
-                        
-                        condition_data.append(df_filtered)
-                        print(f"  OK: {len(df_filtered)} episodes loaded for {condition_name}")
-                        
-                    else:
-                        print(f"  Warning: No data loaded for condition {condition_name}")
-                
-                # Store data for this combination if we have any
+                    root = self._map_root(map_name, synergy_val, spec_val)
+                    print(f"Processing condition: {condition_name} (map={map_name}, "
+                          f"ability={self._format_ability_config(ability_config)}) <- {root}")
+                    if ms.find_ability_dir(root, walk1, cut2) is None:
+                        print(f"  Warning: no abilities_{walk1:g}_{cut2:g} folder for {condition_name}")
+                        continue
+                    df = ms.collect_records(root, pairs=[(walk1, cut2)], checkpoint=self.checkpoint,
+                                            verbose=self.verbose)
+                    if df.empty:
+                        print(f"  Warning: No simulated games loaded for condition {condition_name}")
+                        continue
+                    df['condition'] = condition_name
+                    df['map_name'] = map_name
+                    df['game_type_clean'] = game_type
+                    df['ability_config'] = ability_config
+                    df['ability_label'] = self._format_ability_config(ability_config)
+                    df['x_value'] = ability_config
+                    df['specialization'] = spec_mode
+                    condition_data.append(df)
+                    print(f"  OK: {len(df)} simulated games from {df['training_id'].nunique()} trainings "
+                          f"for {condition_name}")
+
                 if condition_data:
                     combined_df = pd.concat(condition_data, ignore_index=True)
-                    
-                    # Add metadata about this combination
                     combined_df['synergy_value'] = synergy_val
                     combined_df['specialization_mode'] = spec_mode
-                    
-                    # Track this combination
                     combination_key = f"synergy_{synergy_val}__{spec_mode}"
-                    
-                    print(f"    Loaded {len(combined_df)} episodes for {combination_key}")
-                    print(f"    Conditions in this combination: {sorted(combined_df['condition'].unique())}")
-                    
+                    print(f"    Loaded {len(combined_df)} simulated games for {combination_key}")
                     all_combinations[combination_key] = combined_df
                 else:
                     print(f"    No data found for synergy {synergy_val}, specialization {spec_mode}")
-                
-                # Restore original synergy
-                self.synergy = original_synergy
-        
-        # Return based on how many combinations we found
+
         if not all_combinations:
             raise ValueError("No data could be loaded from any synergy/specialization combination")
-        
         if len(all_combinations) == 1:
-            # Single combination - return as DataFrame
             combination_key = list(all_combinations.keys())[0]
             print(f"\nReturning single combination: {combination_key}")
             return all_combinations[combination_key]
-        else:
-            # Multiple combinations - return as Dict
-            print(f"\nReturning {len(all_combinations)} combinations:")
-            for combination_key, df in all_combinations.items():
-                print(f"  {combination_key}: {len(df)} episodes")
-            return all_combinations
-        
-        return final_combined_df
-    
+        print(f"\nReturning {len(all_combinations)} combinations:")
+        for combination_key, df in all_combinations.items():
+            print(f"  {combination_key}: {len(df)} simulated games")
+        return all_combinations
+
     def prepare_episode_data(self, df: pd.DataFrame, episode_selection: str = 'all', 
                            num_episodes: int = 100, target_episode: Optional[int] = None) -> pd.DataFrame:
         """
@@ -503,7 +347,11 @@ class CooperativeAnalyzer:
             Processed dataframe ready for plotting
         """
         print(f"Preparing data with episode selection: {episode_selection}")
-        
+
+        if 'episode' not in df.columns:
+            # simulated games (one row per game): every game is a data point
+            return df.copy()
+
         if episode_selection == 'all':
             # Use all episodes as individual data points
             return df.copy()
@@ -638,8 +486,11 @@ class CooperativeAnalyzer:
     def _create_combined_metrics(self, df: pd.DataFrame):
         """Create combined metrics from individual agent metrics."""
         
+        # Simulated games already carry the team deliveries (as Fig. 2); keep them
+        if 'total_deliveries' in df.columns:
+            pass
         # Create total_deliveries from sum of both agents' deliveries
-        if 'deliver_ai_rl_1' in df.columns and 'deliver_ai_rl_2' in df.columns:
+        elif 'deliver_ai_rl_1' in df.columns and 'deliver_ai_rl_2' in df.columns:
             df['total_deliveries'] = df['deliver_ai_rl_1'] + df['deliver_ai_rl_2']
             print(f"    Created total_deliveries from deliver_ai_rl_1 + deliver_ai_rl_2")
         elif 'deliver_ai_rl_1' in df.columns:
@@ -902,9 +753,17 @@ GUIDE_HLINES = [   # (s value, label, label rho position)
     (0.05, 'Open map', 0.10),
     (0.50, 'PB map', 0.10),
 ]
-GUIDE_VLINES = [   # (rho value, label, label s position = bottom end of the rotated label)
-    (0.85, 'Mixed-abilities', 0.54),
+GUIDE_VLINES = [   # (rho value, label, label s position = bottom end of the rotated label); label '' = none
+    (0.85, '', 0.54),
 ]
+# Ability labels written ABOVE panel a (outside the heat map): MA over the dashed rho = 0.85 line,
+# HA over the right end of the axis (rho = 1), i.e. the two ability compositions studied.
+GUIDE_TOP_LABELS = [(0.85, r'\textbf{MA}'), (1.00, r'\textbf{HA}')]
+GUIDE_TOP_FONT_SIZE = 30
+GUIDE_TOP_OFFSET = 9                       # pt between the top of the axes and the label baseline
+# One-line colour-bar title of the score-difference maps (panel a, SI simulations grid, Fig. 4)
+ADVANTAGE_TITLE = 'Relative advantage over HA'
+ADVANTAGE_SIZE = 38                        # same size as the x-axis labels
 
 # ---- free text: key -> (LaTeX, size pt, x, y, rotation); (x, y) = left/baseline anchor
 RHO = r'$\boldsymbol{\rho}$'
@@ -924,18 +783,15 @@ TEXTS = {
     'cbt_a_+0.8': ('+0.8', 30, 653.12, 138.48, 0), 'cbt_a_+0.4': ('+0.4', 30, 653.00, 229.52, 0),
     'cbt_a_0': ('0', 30, 662.76, 325.56, 0), 'cbt_a_-0.4': ('-0.4', 30, 652.86, 412.39, 0),
     'cbt_a_-0.8': ('-0.8', 30, 653.10, 501.18, 0),
-    'cbl_a1': ('Score difference with respect', 38.25, 748.72, 576.84, 90),
-    'cbl_a2': (rf'to {RHO} $\boldsymbol{{=1}}$ of that switch cost', 38, 794.24, 569.28, 90),
+    'cbl_a1': (ADVANTAGE_TITLE, ADVANTAGE_SIZE, 760.0, (CB_A[2] + CB_A[3]) / 2, 90),   # centred (TEXT_HA)
     # panel b
     'b': (r'\textbf{b}', 60, 917.34, 64.09, 0),
     #'title_b': (r'\textbf{MARL Theoretical Solutions}', 46, 1292.06, 40.88, 0),
     'P1': (r'\textbf{P1}', 34, 1068.73, 89.70, 0), 'P2': (r'\textbf{P2}', 34, 1326.04, 89.70, 0),
     'P3': (r'\textbf{P3}', 34, 1591.75, 89.82, 0), 'P4': (r'\textbf{P4}', 34, 1857.37, 89.58, 0),
-    'row_MA1': (r'\textbf{Mixed}', 38, 921.88, 261.96, 90),
-    'row_MA2': (r'\textbf{abilities}', 38, 965.28, 275.04, 90),
+    'row_MA1': (r'\textbf{MA}', 38, 962.0, (VF_RECTS[('MA', 1)][2] + VF_RECTS[('MA', 1)][3]) / 2, 90),
     #'row_MA3': (r'\textbf{(}$\boldsymbol{\rho = 0.85}$\textbf{)}', 39.83, 970.24, 266.04, 90),
-    'row_HA1': (r'\textbf{High}', 38, 921.88, 486.60, 90),
-    'row_HA2': (r'\textbf{abilities}', 38, 965.28, 513.24, 90),
+    'row_HA1': (r'\textbf{HA}', 38, 962.0, (VF_RECTS[('HA', 1)][2] + VF_RECTS[('HA', 1)][3]) / 2, 90),
     #'row_HA3': (r'\textbf{(}$\boldsymbol{\rho = 1}$\textbf{)}', 39.83, 970.24, 504.12, 90),
     'sw_MA': (r'Switching ($a$)', 38.62, 1020.00, 311.52, 90),
     'sw_HA': (r'Switching ($a$)', 38.58, 1020.00, 549.48, 90),
@@ -954,7 +810,7 @@ TEXTS = {
     'xlab_b': (r'Specialization ($\boldsymbol{x}$)', 38, 1477.16, 622.08, 0),
     'local': ('Local reward', 38, 2179.24, 428.52, 90),
     'high': ('high', 34, 2145.33, 141.64, 0), 'low': ('low', 34, 2144.85, 548.21, 0),
-    'final': (r'Final specialization ($|x_{170}|$)', 38, 2329.16, 598.44, 90),
+    'final': (r'Final specialization', 38, 2329.16, 598.44, 90),
     'jt_0.0': ('0.0', 34, 2246.32, 544.92, 0), 'jt_1.0': ('1.0', 34, 2246.32, 442.38, 0),
     'jt_2.0': ('2.0', 34, 2246.43, 339.87, 0), 'jt_3.0': ('3.0', 34, 2246.32, 237.25, 0),
     'jt_4.0': ('4.0', 34, 2246.32, 134.61, 0),
@@ -968,9 +824,12 @@ TEXTS = {
     'cbt_c_+4': ('+4', 34, 3021.19, 194.08, 0), 'cbt_c_+2': ('+2', 34, 3022.57, 267.09, 0),
     'cbt_c_0': ('0', 34, 3030.39, 339.49, 0), 'cbt_c_-2': ('-2', 34, 3026.07, 405.75, 0),
     'cbt_c_-4': ('-4', 34, 3024.93, 476.58, 0),
-    'cbl_c1': ('Score difference with respect', 38.29, 3108.24, 578.04, 90),
-    'cbl_c2': (rf'to 100\% speed on the same map', 38, 3154.00, 584.04, 90),
+    'cbl_c1': (ADVANTAGE_TITLE, ADVANTAGE_SIZE, 3098.0, (CB_C[2] + CB_C[3]) / 2, 90),   # centred (TEXT_HA)
 }
+
+
+# texts anchored at their centre along the text direction (one-line, centred labels)
+TEXT_HA = {'cbl_a1': 'center', 'cbl_c1': 'center', 'row_MA1': 'center', 'row_HA1': 'center'}
 
 
 # ===========================================================================
@@ -1012,9 +871,9 @@ def configure_style():
 #   'v2'  previous main figure:   a = flow maps, b = grid map (panels flipped)
 #   'sm'  supplementary figure:   MARL-simulations grid (old panel c)
 #   'original'                    the 3-panel Fig5 as submitted
-GRID_KEYS = ['a', 'title_a', 'xlab_a', 'ylab_a', 'cbl_a1', 'cbl_a2']       # + xt_a_*, yt_a_*, cbt_a_*
+GRID_KEYS = ['a', 'title_a', 'xlab_a', 'ylab_a', 'cbl_a1']       # + xt_a_*, yt_a_*, cbt_a_*
 FLOW_CB_KEYS = ['local', 'high', 'low', 'final']                            # + jt_*
-SIM_KEYS = ['c', 'title_c', 'xlab_c', 'cbl_c1', 'cbl_c2']                   # + xt_c_*, cbt_c_*
+SIM_KEYS = ['c', 'title_c', 'xlab_c', 'cbl_c1']                   # + xt_c_*, cbt_c_*
 
 
 def _group_of(key):
@@ -1054,9 +913,12 @@ V2_OVERRIDES = {          # key -> (text or None, x or None[, ha]) ; x = new anc
 # learning landscape (why), so the landscape is now the last panel.
 V3_COLUMNS = V2_COLUMNS
 V3_DX_GRID = 0.0
-V3_GAP = 60.0                                # grid colour-bar label -> flow-map row labels (pt)
-_v3_grid_right = TEXTS['cbl_a2'][2] + 8.0    # right edge of the rotated colour-bar label
-_v3_flow_left = TEXTS['row_MA1'][2] - 27.0   # left edge of the rotated 'Mixed' row label
+V3_GAP = 25.0                                # panel-a colour-bar title -> letter b (white space, pt)
+# measured on the rendered figure: the one-line colour-bar title (rotated, baseline at
+# TEXTS['cbl_a1'] x) ends 7.3 pt right of its anchor (descender of 'g'); the leftmost
+# element of panel b is the letter b, starting 2.1 pt right of its anchor.
+_v3_grid_right = TEXTS['cbl_a1'][2] + 7.3
+_v3_flow_left = TEXTS['b'][2] + 2.1
 V3_DX_FLOW = _v3_grid_right + V3_GAP - _v3_flow_left
 V3_DX_FLOW_CB = V3_DX_FLOW - (VF_RECTS[('MA', 4)][0] - VF_RECTS[('MA', 2)][0])   # colour bars next to P2
 V3_PAGE_W = TEXTS['final'][2] + V3_DX_FLOW_CB + 8.0 + 20.0   # 20 pt right margin
@@ -1069,30 +931,56 @@ V3_OVERRIDES = {          # panel letters keep their original meaning: a = grid 
     'P2': (V2_COLUMN_TITLES[2], (VF_RECTS[('MA', 2)][0] + VF_RECTS[('MA', 2)][1]) / 2 + V3_DX_FLOW, 'center'),
 }
 
+# --- v3_stacked: panel a on top of panel b (bigger panels in a two-column paper) ---
+# Same elements as v3; the flow-map group moves under the grid map, both left-aligned on
+# their panel letter. Every element keeps its size, font and relative position.
+VS_DX_GRID = 0.0
+VS_DX_FLOW = TEXTS['a'][2] - TEXTS['b'][2]                     # letter b under letter a
+VS_DX_FLOW_CB = VS_DX_FLOW - (VF_RECTS[('MA', 4)][0] - VF_RECTS[('MA', 2)][0])
+VS_DY_FLOW = PAGE_H - 30.0                                     # second row
+VS_PAGE_W = max(TEXTS['final'][2] + VS_DX_FLOW_CB + 8.0, 802.24) + 20.0
+VS_PAGE_H = PAGE_H + VS_DY_FLOW
+_vs_axes_centre = (VF_RECTS[('MA', 1)][0] + VF_RECTS[('MA', 2)][1]) / 2 + VS_DX_FLOW
+VS_OVERRIDES = {
+    'xlab_b': (None, _vs_axes_centre, 'center'),
+    'final': (None, None, 'center', (CB_JET[2] + CB_JET[3]) / 2),
+    'P1': (V2_COLUMN_TITLES[1], (VF_RECTS[('MA', 1)][0] + VF_RECTS[('MA', 1)][1]) / 2 + VS_DX_FLOW, 'center'),
+    'P2': (V2_COLUMN_TITLES[2], (VF_RECTS[('MA', 2)][0] + VF_RECTS[('MA', 2)][1]) / 2 + VS_DX_FLOW, 'center'),
+}
+
 # --- sm -------------------------------------------------------------------
 SM_DX = -(THUMB_RECTS[0][0] - 20.0)
-SM_PAGE_W = 3161.76 + SM_DX + 20.0
+SM_PAGE_W = TEXTS['cbl_c1'][2] + 12.0 + SM_DX + 20.0          # right edge of the colour-bar title + margin
+SM_TITLE_GAP = 20.0                                             # title baseline -> top of the heat map (pt)
+SM_TITLE_Y = AX_C[2] - SM_TITLE_GAP
+SM_DY = -(SM_TITLE_Y - 34.0 - 20.0)                             # title cap height ~34 pt, 20 pt top margin
+SM_PAGE_H = PAGE_H + SM_DY
 
 
 # ===========================================================================
 # 6. FIGURE ASSEMBLY
 # ===========================================================================
-def _shift(rect, dx):
+CUR_PAGE_H = PAGE_H          # page height of the figure being built (set by build_figure)
+
+
+def _shift(rect, dx, dy=0.0):
     L, R, T, B = rect
-    return (L + dx, R + dx, T, B)
+    return (L + dx, R + dx, T + dy, B + dy)
 
 
 def _fig_rect(rect, page_w):
     L, R, T, B = rect
-    return [L / page_w, 1.0 - B / PAGE_H, (R - L) / page_w, (B - T) / PAGE_H]
+    return [L / page_w, 1.0 - B / CUR_PAGE_H, (R - L) / page_w, (B - T) / CUR_PAGE_H]
 
 
 def _page_transform(fig):
-    return Affine2D().scale(1.0, -1.0).translate(0.0, PAGE_H).scale(1.0 / 72.0) + fig.dpi_scale_trans
+    return Affine2D().scale(1.0, -1.0).translate(0.0, CUR_PAGE_H).scale(1.0 / 72.0) + fig.dpi_scale_trans
 
 
-def _banded_colorbar(fig, rect, page_w, bands, vmin, vmax, ticks, tick_len, tick_w=0.8, frame_lw=0.8):
-    """Colour bar made of the measured bands (top y, colour), mapped linearly y <-> value."""
+def _banded_colorbar(fig, rect, page_w, bands, vmin, vmax, ticks, tick_len, tick_w=0.8, frame_lw=0.8, dy=0.0):
+    """Colour bar made of the measured bands (top y, colour), mapped linearly y <-> value.
+    rect is already shifted; dy shifts the measured band positions by the same amount."""
+    bands = [(y + dy, c) for y, c in bands]
     L, R, T, B = rect
     y2v = lambda y: vmax - (y - T) / (B - T) * (vmax - vmin)
     bounds = [y2v(y) for y, _ in bands] + [vmin]          # descending
@@ -1130,18 +1018,23 @@ def _draw_guide_lines(ax):
                     bbox=GUIDE_BOX, annotation_clip=False)
     for rho_val, label, y_lab in GUIDE_VLINES:
         ax.axvline(rho_val, **GUIDE_LINE_STYLE)
-        ax.annotate(label, xy=(rho_val, y_lab), xytext=(8, 0), textcoords='offset points',
-                    fontsize=GUIDE_FONT_SIZE, rotation=90, ha='left', va='top',   # text right of the line
-                    rotation_mode='anchor', zorder=6, bbox=GUIDE_BOX, annotation_clip=False)
+        if label:
+            ax.annotate(label, xy=(rho_val, y_lab), xytext=(8, 0), textcoords='offset points',
+                        fontsize=GUIDE_FONT_SIZE, rotation=90, ha='left', va='top',
+                        rotation_mode='anchor', zorder=6, bbox=GUIDE_BOX, annotation_clip=False)
+    for rho_val, label in GUIDE_TOP_LABELS:            # MA / HA above the heat map
+        ax.annotate(label, xy=(rho_val, A_YLIM[1]), xytext=(0, GUIDE_TOP_OFFSET), textcoords='offset points',
+                    fontsize=GUIDE_TOP_FONT_SIZE, ha='center', va='baseline', zorder=6,
+                    annotation_clip=False)
 
 
-def _draw_grid_map(fig, page, page_w, dx, figures_dir, embeds, points, guide_lines=False):
+def _draw_grid_map(fig, page, page_w, dx, figures_dir, embeds, points, guide_lines=False, dy=0.0):
     """Theoretical score-difference grid map (heat-map PDF + axes, colour bar, guide lines)."""
-    ax = fig.add_axes(_fig_rect(_shift(AX_A, dx), page_w))
+    ax = fig.add_axes(_fig_rect(_shift(AX_A, dx, dy), page_w))
     ax.set_xlim(*A_XLIM)
     ax.set_ylim(*A_YLIM)
     _clean_axes(ax, A_XTICKS, A_YTICKS, frame_lw=A_FRAME_LW)
-    embeds.append((figures_dir / 'subfigures' / A_HEATMAP_FILE, _shift(A_HEATMAP_RECT, dx)))
+    embeds.append((figures_dir / 'subfigures' / A_HEATMAP_FILE, _shift(A_HEATMAP_RECT, dx, dy)))
     if guide_lines:
         _draw_guide_lines(ax)
     #for lab in points:
@@ -1151,35 +1044,35 @@ def _draw_grid_map(fig, page, page_w, dx, figures_dir, embeds, points, guide_lin
     #    fig.text(lx + dx, ly, rf'\textsf{{\textbf{{{lab}}}}}', transform=page, fontsize=52,
     #             ha='center', va='center', zorder=6,
     #             bbox=dict(boxstyle='round,pad=0.12', facecolor='white', edgecolor='none', alpha=0.8))
-    _banded_colorbar(fig, _shift(CB_A, dx), page_w, CB_A_BANDS, -CB_A_VMAX, CB_A_VMAX,
-                     CB_A_TICKS, tick_len=3.5)
+    _banded_colorbar(fig, _shift(CB_A, dx, dy), page_w, CB_A_BANDS, -CB_A_VMAX, CB_A_VMAX,
+                     CB_A_TICKS, tick_len=3.5, dy=dy)
 
 
-def _draw_flow_maps(fig, page_w, dx, dx_cb, figures_dir, embeds, columns):
+def _draw_flow_maps(fig, page_w, dx, dx_cb, figures_dir, embeds, columns, dy=0.0):
     """Vector-field flow maps (PDFs + axes) and their two colour bars."""
     for (row, p), rect in VF_RECTS.items():
         if p not in columns:
             continue
-        r = _shift(rect, dx)
+        r = _shift(rect, dx, dy)
         embeds.append((figures_dir / 'subfigures' / VF_FILE.format(row=row, p=p), r))
         ax = fig.add_axes(_fig_rect(r, page_w))
         ax.set_xlim(*VF_LIM)
         ax.set_ylim(*VF_LIM)
         _clean_axes(ax, VF_TICKS, VF_TICKS)
-    _banded_colorbar(fig, _shift(CB_GRAY, dx_cb), page_w, CB_GRAY_BANDS, 0.0, 1.0, [0.0, 1.0], tick_len=2.0)
-    _banded_colorbar(fig, _shift(CB_JET, dx_cb), page_w, CB_JET_BANDS, *CB_JET_RANGE,
-                     [0, 1, 2, 3, 4], tick_len=3.0)
+    _banded_colorbar(fig, _shift(CB_GRAY, dx_cb, dy), page_w, CB_GRAY_BANDS, 0.0, 1.0, [0.0, 1.0], tick_len=2.0, dy=dy)
+    _banded_colorbar(fig, _shift(CB_JET, dx_cb, dy), page_w, CB_JET_BANDS, *CB_JET_RANGE,
+                     [0, 1, 2, 3, 4], tick_len=3.0, dy=dy)
 
 
-def _draw_sim_grid(fig, page_w, dx, grid_c, figures_dir):
+def _draw_sim_grid(fig, page_w, dx, grid_c, figures_dir, dy=0.0):
     """MARL-simulations map x ability grid (old panel c) with map thumbnails."""
-    ax = fig.add_axes(_fig_rect(_shift(AX_C, dx), page_w))
+    ax = fig.add_axes(_fig_rect(_shift(AX_C, dx, dy), page_w))
     im = ax.imshow(grid_c, cmap=plt.cm.RdBu_r, vmin=-C_VMAX, vmax=C_VMAX,
                    interpolation='nearest', aspect='auto')
     ax.invert_xaxis()                      # rho = 0.1 on the left, 1.0 on the right
     _clean_axes(ax, range(grid_c.shape[1]), range(grid_c.shape[0]))
     ax.set_facecolor('white')
-    cax = fig.add_axes(_fig_rect(_shift(CB_C, dx), page_w))
+    cax = fig.add_axes(_fig_rect(_shift(CB_C, dx, dy), page_w))
     cb = fig.colorbar(im, cax=cax, ticks=C_CBAR_TICKS)
     cb.ax.set_yticklabels([])
     cb.ax.tick_params(length=3.5, width=0.8)
@@ -1187,40 +1080,107 @@ def _draw_sim_grid(fig, page_w, dx, grid_c, figures_dir):
     for rect, fn in zip(THUMB_RECTS, THUMB_FILES):
         p = figures_dir / 'subfigures' / fn
         if p.exists():
-            tax = fig.add_axes(_fig_rect(_shift(rect, dx), page_w))
+            tax = fig.add_axes(_fig_rect(_shift(rect, dx, dy), page_w))
             tax.imshow(plt.imread(str(p)), aspect='auto', interpolation='nearest')
             tax.set_axis_off()
         else:
             print(f'[fig5] map thumbnail not found: {p}')
 
 
-def _draw_texts(fig, page, keep, shifts, overrides=None):
-    """Free text: keep(key) -> bool, shifts[group] -> dx,
-    overrides[key] -> (text|None, x|None[, ha[, y]])."""
+def _draw_texts(fig, page, keep, shifts, overrides=None, dshifts=None):
+    """Free text: keep(key) -> bool, shifts[group] -> dx, dshifts[group] -> dy,
+    overrides[key] -> (text|None, x|None[, ha[, y]]) in un-shifted y (dy is added)."""
     overrides = overrides or {}
+    dshifts = dshifts or {}
     for key, (tex, size, x, y, rot) in TEXTS.items():
         if not keep(key):
             continue
         x = x + shifts[_group_of(key)]
         ov = overrides.get(key, (None, None))
         new_tex, new_x = ov[0], ov[1]
-        ha = ov[2] if len(ov) > 2 else 'left'
-        y = ov[3] if len(ov) > 3 else y
+        ha = ov[2] if len(ov) > 2 else TEXT_HA.get(key, 'left')
+        y = (ov[3] if len(ov) > 3 else y) + dshifts.get(_group_of(key), 0.0)
         tex = new_tex if new_tex is not None else tex
         x = new_x if new_x is not None else x
         fig.text(x, y, tex, transform=page, fontsize=size, ha=ha, va='baseline',
                  rotation=rot, rotation_mode='anchor', zorder=20)
 
 
+VS_MARGIN = 24.0          # stacked version: left/right page margin around the widest panel (pt)
+
+
+def _build_stacked(figures_dir, draw_points, dx_grid, dx_flow, page_w, letter_overrides):
+    """Panel a (grid map) on top of panel b (flow maps); dx_* = horizontal shift of each panel."""
+    embeds = []
+    dx_flow_cb = dx_flow - (VF_RECTS[('MA', 4)][0] - VF_RECTS[('MA', 2)][0])
+    fig = plt.figure(figsize=(page_w / 72.0, CUR_PAGE_H / 72.0))
+    page = _page_transform(fig)
+    _draw_grid_map(fig, page, page_w, dx_grid, figures_dir, embeds,
+                   V2_POINTS if draw_points else [], guide_lines=True)
+    _draw_flow_maps(fig, page_w, dx_flow, dx_flow_cb, figures_dir, embeds, V3_COLUMNS, dy=VS_DY_FLOW)
+    dropped = [f'P{p}' for p in (1, 2, 3, 4) if p not in V3_COLUMNS]
+
+    def keep(key):
+        if _group_of(key) == 'sim':
+            return False
+        return not any(key == d or key.startswith(f'xt_{d}_') for d in dropped)
+    centre = (VF_RECTS[('MA', 1)][0] + VF_RECTS[('MA', 2)][1]) / 2 + dx_flow
+    overrides = {
+        'xlab_b': (None, centre, 'center'),
+        'final': (None, None, 'center', (CB_JET[2] + CB_JET[3]) / 2),
+        'P1': (V2_COLUMN_TITLES[1], (VF_RECTS[('MA', 1)][0] + VF_RECTS[('MA', 1)][1]) / 2 + dx_flow, 'center'),
+        'P2': (V2_COLUMN_TITLES[2], (VF_RECTS[('MA', 2)][0] + VF_RECTS[('MA', 2)][1]) / 2 + dx_flow, 'center'),
+    }
+    overrides.update(letter_overrides)
+    _draw_texts(fig, page, keep, {'grid': dx_grid, 'flow': dx_flow, 'flow_cb': dx_flow_cb, 'sim': 0.0},
+                overrides, dshifts={'flow': VS_DY_FLOW, 'flow_cb': VS_DY_FLOW})
+    return fig, embeds
+
+
+def _stacked_extents(fig, page_w):
+    """Horizontal extent (page pt) of the content of the top and bottom panel, panel letters excluded."""
+    fig.canvas.draw()
+    r = fig.canvas.get_renderer()
+    to_pt = 72.0 / fig.dpi
+    split = (VS_DY_FLOW + 20.0)                     # page y (from top) between the two panels
+    ext = {'top': [np.inf, -np.inf], 'bottom': [np.inf, -np.inf]}
+    boxes = [ax.get_window_extent(r) for ax in fig.axes]
+    boxes += [t.get_window_extent(r) for t in fig.texts if t.get_text() not in (r'\textbf{a}', r'\textbf{b}')]
+    boxes += [t.get_window_extent(r) for ax in fig.axes for t in ax.texts]
+    for bb in boxes:
+        y_top = CUR_PAGE_H - (bb.y0 + bb.y1) / 2 * to_pt
+        e = ext['top' if y_top < split else 'bottom']
+        e[0] = min(e[0], bb.x0 * to_pt)
+        e[1] = max(e[1], bb.x1 * to_pt)
+    return tuple(ext['top']), tuple(ext['bottom'])
+
+
 def build_figure(version: str, figures_dir: Path, grid_c: Optional[np.ndarray] = None,
                  draw_points: bool = True):
-    """Returns (figure, list of (pdf path, page rect) to embed underneath, page width)."""
+    """Returns (figure, list of (pdf path, page rect) to embed underneath, page width, page height)."""
+    global CUR_PAGE_H
     configure_style()
     embeds = []
+    CUR_PAGE_H = VS_PAGE_H if version == 'v3_stacked' else (SM_PAGE_H if version == 'sm' else PAGE_H)
 
-    if version == 'v3':
+    if version == 'v3_stacked':
+        # pass 1: draw on a wide page to measure the content of each panel; pass 2: both
+        # panels centred on the page, with their letters aligned on the same left margin
+        fig, _ = _build_stacked(figures_dir, draw_points, VS_DX_GRID, VS_DX_FLOW, 3000.0, {})
+        (a0, a1), (b0, b1) = _stacked_extents(fig, 3000.0)
+        plt.close(fig)
+        width = max(a1 - a0, b1 - b0)
+        page_w = width + 2 * VS_MARGIN
+        dx_a = VS_DX_GRID + (page_w - (a1 - a0)) / 2 - a0
+        dx_b = VS_DX_FLOW + (page_w - (b1 - b0)) / 2 - b0
+        letter_x = min(VS_MARGIN, (page_w - width) / 2) - 2.0
+        fig, embeds = _build_stacked(figures_dir, draw_points, dx_a, dx_b, page_w,
+                                     {'a': (None, letter_x), 'b': (None, letter_x)})
+        print(f'[fig5] stacked: content widths a = {a1 - a0:.0f} pt, b = {b1 - b0:.0f} pt; page {page_w:.0f} pt')
+
+    elif version == 'v3':
         page_w = V3_PAGE_W
-        fig = plt.figure(figsize=(page_w / 72.0, PAGE_H / 72.0))
+        fig = plt.figure(figsize=(page_w / 72.0, CUR_PAGE_H / 72.0))
         page = _page_transform(fig)
         _draw_grid_map(fig, page, page_w, V3_DX_GRID, figures_dir, embeds,
                        V2_POINTS if draw_points else [], guide_lines=True)
@@ -1236,7 +1196,7 @@ def build_figure(version: str, figures_dir: Path, grid_c: Optional[np.ndarray] =
 
     elif version == 'v2':
         page_w = V2_PAGE_W
-        fig = plt.figure(figsize=(page_w / 72.0, PAGE_H / 72.0))
+        fig = plt.figure(figsize=(page_w / 72.0, CUR_PAGE_H / 72.0))
         page = _page_transform(fig)
         _draw_flow_maps(fig, page_w, V2_DX_FLOW, V2_DX_FLOW_CB, figures_dir, embeds, V2_COLUMNS)
         _draw_grid_map(fig, page, page_w, V2_DX_GRID, figures_dir, embeds,
@@ -1253,15 +1213,16 @@ def build_figure(version: str, figures_dir: Path, grid_c: Optional[np.ndarray] =
 
     elif version == 'sm':
         page_w = SM_PAGE_W
-        fig = plt.figure(figsize=(page_w / 72.0, PAGE_H / 72.0))
+        fig = plt.figure(figsize=(page_w / 72.0, CUR_PAGE_H / 72.0))
         page = _page_transform(fig)
-        _draw_sim_grid(fig, page_w, SM_DX, grid_c, figures_dir)
+        _draw_sim_grid(fig, page_w, SM_DX, grid_c, figures_dir, dy=SM_DY)
         _draw_texts(fig, page, lambda k: _group_of(k) == 'sim' and k != 'c',
-                    {'grid': 0.0, 'flow': 0.0, 'flow_cb': 0.0, 'sim': SM_DX})
+                    {'grid': 0.0, 'flow': 0.0, 'flow_cb': 0.0, 'sim': SM_DX},
+                    {'title_c': (None, (AX_C[0] + AX_C[1]) / 2 + SM_DX, 'center', SM_TITLE_Y)}, dshifts={'sim': SM_DY})
 
     elif version == 'original':
         page_w = PAGE_W
-        fig = plt.figure(figsize=(page_w / 72.0, PAGE_H / 72.0))
+        fig = plt.figure(figsize=(page_w / 72.0, CUR_PAGE_H / 72.0))
         page = _page_transform(fig)
         _draw_grid_map(fig, page, page_w, 0.0, figures_dir, embeds,
                        list(A_POINTS) if draw_points else [])
@@ -1270,10 +1231,10 @@ def build_figure(version: str, figures_dir: Path, grid_c: Optional[np.ndarray] =
         _draw_texts(fig, page, lambda k: True, {'grid': 0.0, 'flow': 0.0, 'flow_cb': 0.0, 'sim': 0.0})
     else:
         raise ValueError(f'unknown version {version!r}')
-    return fig, embeds, page_w
+    return fig, embeds, page_w, CUR_PAGE_H
 
 
-def save_figure(fig, embeds, output_pdf: Path, page_w: float, png_dpi: int = 300):
+def save_figure(fig, embeds, output_pdf: Path, page_w: float, png_dpi: int = 300, page_h: float = None):
     """Save the matplotlib layer and merge the vector panel PDFs underneath (keeps them vector)."""
     try:
         from pypdf import PdfReader, PdfWriter, PageObject, Transformation
@@ -1284,7 +1245,8 @@ def save_figure(fig, embeds, output_pdf: Path, page_w: float, png_dpi: int = 300
     fig.savefig(tmp, transparent=True)           # NB: no bbox_inches='tight'
     plt.close(fig)
 
-    base = PageObject.create_blank_page(width=page_w, height=PAGE_H)
+    page_h = page_h or PAGE_H
+    base = PageObject.create_blank_page(width=page_w, height=page_h)
     for path, (L, R, T, B) in embeds:
         if not Path(path).exists():
             print(f'[fig5] WARNING: panel PDF not found: {path}')
@@ -1294,7 +1256,7 @@ def save_figure(fig, embeds, output_pdf: Path, page_w: float, png_dpi: int = 300
         sx = (R - L) / float(mb.width)
         sy = (B - T) / float(mb.height)
         tx = L - float(mb.left) * sx
-        ty = (PAGE_H - B) - float(mb.bottom) * sy
+        ty = (page_h - B) - float(mb.bottom) * sy
         base.merge_transformed_page(src, Transformation().scale(sx, sy).translate(tx, ty))
     base.merge_page(PdfReader(str(tmp)).pages[0])
 
@@ -1328,51 +1290,81 @@ def setup_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description='Figure 5 (theoretical grid map + flow maps) and its SM figure (MARL simulations grid)',
         formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('--version', choices=['v3', 'v2', 'original'], default='v3',
+    parser.add_argument('--no_stacked', action='store_true',
+                        help="v3: do not also write the stacked version (<output_name>_stacked.pdf, a above b)")
+    parser.add_argument('--version', choices=['v3', 'v3_stacked', 'v2', 'original'], default='v3',
                         help="v3: a = grid map (phase diagram), b = flow maps (default);\n"
                              "v2: a = flow maps, b = grid map (previous layout); original: 3-panel Fig5")
     parser.add_argument('--sm', action='store_true',
-                        help='Also build the SM figure with the MARL-simulations grid (needs training data, '
-                             '--grid_csv or --demo)')
-    parser.add_argument('--episode_range', choices=['all', 'final', 'average', 'specific'], default='final')
-    parser.add_argument('--num_episodes', type=int, default=100)
-    parser.add_argument('--target_episode', type=int, default=None)
+                        help='Also build the SM figure with the MARL-simulations grid (needs the simulation '
+                             'tree, --grid_csv or --demo)')
+    parser.add_argument('--checkpoint', type=str, default=ms.DEFAULT_CHECKPOINT,
+                        help="checkpoint_<n> folder of the simulated games (default 753), 'latest' or 'all'")
+    parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--study_name', type=str, default=None)
     parser.add_argument('--map_name_1', type=str, default='baseline_division_of_labor_large')
     parser.add_argument('--map_name_2', type=str, default='encouraged_division_of_labor_large')
-    parser.add_argument('--game_type', type=str, choices=['classic', 'classic_collision'], default='classic_collision')
+    parser.add_argument('--game_type', type=str, choices=['classic', 'classic_collision', 'competition', 'competition_collision'],
+                        default='classic_collision')
     parser.add_argument('--init_type', type=str, choices=['random_init', 'empty_init'], default='empty_init')
     parser.add_argument('--synergy', type=float, default=0.0)
     parser.add_argument('--specialization', type=float, default=None)
-    parser.add_argument('--cluster', type=str, default=None)
+    parser.add_argument('--cluster', type=str, default=None, help=f'{list(ms.CLUSTER_DIRS)} or a literal base folder (default cuenca)')
     parser.add_argument('--figures_dir', type=str, default='./figures',
                         help='Folder with the panel PDFs (heat map, vector fields) and map thumbnails')
     parser.add_argument('--output_dir', type=str, default='./figures')
     parser.add_argument('--output_name', type=str, default='fig5_theory.pdf')
     parser.add_argument('--sm_output_name', type=str, default='figS_marl_simulations_grid.pdf')
     parser.add_argument('--grid_csv', type=str, default=None,
-                        help='Load the MARL-simulations grid from this CSV instead of the training data')
+                        help='Load the MARL-simulations grid from this CSV instead of the simulation tree')
     parser.add_argument('--no_points', action='store_true', help='Do not draw the numbered points on the grid map')
     parser.add_argument('--demo', action='store_true', help='Synthetic MARL-simulations grid (layout test)')
     return parser
 
 
-def write_seed_report(prepared: pd.DataFrame, args, path: Path):
-    """Seeds (trainings) and episodes per map x ability condition of the MARL-simulations grid.
+def _count_grids(df: pd.DataFrame, tcol: str, map_names, ability_configs, rho_of) -> list:
+    """Seeds grid and simulations grid: rows = maps (order of the figure), columns = rho."""
+    seeds = np.zeros((len(map_names), len(ability_configs)), int)
+    sims = np.zeros_like(seeds)
+    for i, mp in enumerate(map_names):
+        for j, ab in enumerate(ability_configs):
+            cell = df[(df['map_name'] == mp) & (df['ability_config'] == ab)]
+            seeds[i, j], sims[i, j] = cell[tcol].nunique(), len(cell)
+    hdr = 'map \\ rho'
+    w = max(len(hdr), max(len(m) for m in map_names))
+    out = []
+    for title, grid in (('Seeds', seeds), ('Simulations', sims)):
+        out += [f'  {title} grid (rows: maps, columns: rho, both in the order of the figure; rho = walking speed of '
+                f'player 1 = cutting speed of player 2, abilities_<rho>_<rho>)',
+                f'  {hdr:>{w}} ' + ''.join(f'{rho_of[ab]:>6g}' for ab in ability_configs)]
+        out += [f'  {mp:>{w}} ' + ''.join(f'{v:>6d}' for v in grid[i]) for i, mp in enumerate(map_names)]
+        out.append('')
+    nz = seeds[seeds > 0]
+    out.append(f'  cells with data: {int((sims > 0).sum())} / {sims.size}'
+               + (f'; seeds per cell {nz.min()}..{nz.max()}; simulations per cell '
+                  f'{sims[sims > 0].min()}..{sims[sims > 0].max()}' if nz.size else ''))
+    empty = [f'{mp} rho={rho_of[ab]:g}' for i, mp in enumerate(map_names)
+             for j, ab in enumerate(ability_configs) if sims[i, j] == 0]
+    out += [f'  empty cells: {", ".join(empty) if empty else "none"}', '']
+    return out
 
-    One training = one 'timestamp' (independent random seed). The episode window is the one
-    selected by --episode_range / --num_episodes / --target_episode, i.e. exactly the data
-    averaged in each cell of the grid."""
+
+def write_seed_report(prepared: pd.DataFrame, args, path: Path, map_names=None, ability_configs=None,
+                      rho_of=None):
+    """Seeds (trainings) and simulated games per map x ability condition of the MARL-simulations
+    grid, i.e. exactly the data averaged in each cell of the grid.
+
+    One training = one Training_<id> folder (independent random seed); its simulated games are
+    the simulation_* folders of checkpoint_<checkpoint>."""
     df = prepared.copy()
     tcol = next((c for c in ('timestamp', 'training_id', 'run_id') if c in df.columns), None)
     lines = ['=' * 90,
-             'MARL-SIMULATIONS GRID (SI map bank) -- seeds and episodes per condition',
+             'MARL-SIMULATIONS GRID (SI map bank) -- seeds and simulated games per condition',
              '=' * 90,
-             f'episode window: {args.episode_range}, num_episodes={args.num_episodes}, '
-             f'target_episode={args.target_episode}',
+             f'simulated games: checkpoint_{args.checkpoint}, every Training_* / simulation_* folder',
              f'synergy={args.synergy}, specialization={args.specialization}, init_type={args.init_type}, '
              f'game_type={args.game_type}',
-             '(one training = one independent random seed; episode numbers as stored in the data)', '']
+             '(one training = one independent random seed)', '']
     if tcol is None or 'condition' not in df.columns:
         lines.append(f'No training-id / condition column found; columns: {sorted(df.columns)}')
     else:
@@ -1386,10 +1378,11 @@ def write_seed_report(prepared: pd.DataFrame, args, path: Path):
                              last_ep=int(ep.max()) if ep.notna().any() else -1,
                              trainings=', '.join(sorted(map(str, per.index)))))
         tab = pd.DataFrame(rows).sort_values(['map', 'condition'])
-        lines.append(f'{"condition":<45} {"seeds":>5}  {"episodes/seed":>13}  episode numbers')
+        if map_names and ability_configs and rho_of and {'map_name', 'ability_config'} <= set(df.columns):
+            lines += _count_grids(df, tcol, map_names, ability_configs, rho_of)
+        lines.append(f'{"condition":<45} {"seeds":>5}  {"games/seed":>13}')
         for _, r in tab.iterrows():
-            lines.append(f'{r.condition:<45} {r.n_trainings:>5}  {r.ep_min:>6}..{r.ep_max:<6}  '
-                         f'{r.first_ep}..{r.last_ep}')
+            lines.append(f'{r.condition:<45} {r.n_trainings:>5}  {r.ep_min:>6}..{r.ep_max:<6}')
         counts = tab['n_trainings'].value_counts().sort_index()
         lines += ['', 'Summary: ' + '; '.join(f'{n} seed(s) in {k} condition(s)' for n, k in counts.items())
                   + f' (total {len(tab)} conditions, {int(tab.n_trainings.sum())} trainings)', '',
@@ -1402,7 +1395,7 @@ def write_seed_report(prepared: pd.DataFrame, args, path: Path):
 
 
 def load_sim_grid(args, output_dir: Path) -> np.ndarray:
-    """MARL-simulations grid: synthetic (--demo), cached CSV (--grid_csv) or from the training data."""
+    """MARL-simulations grid: synthetic (--demo), cached CSV (--grid_csv) or from the simulation tree."""
     if args.demo:
         rng = np.random.default_rng(0)
         grid = np.clip(rng.normal(0.5, 1.5, (12, 10)), -6, 6)
@@ -1411,14 +1404,15 @@ def load_sim_grid(args, output_dir: Path) -> np.ndarray:
         return grid
     if args.grid_csv:
         print('[fig5] grid read from --grid_csv: the seed report is only written when the grid is '
-              'computed from the training data')
+              'computed from the simulation tree')
         return np.loadtxt(args.grid_csv, delimiter=',')
 
     analyzer = CooperativeAnalyzer(
         study_name=args.study_name, map_name_1=args.map_name_1, map_name_2=args.map_name_2,
         init_type=args.init_type, synergy=args.synergy, synergy_provided='--synergy' in sys.argv,
         specialization=args.specialization, game_type=args.game_type,
-        cluster=args.cluster if args.cluster else 'cuenca')
+        cluster=args.cluster if args.cluster else 'cuenca', checkpoint=args.checkpoint,
+        verbose=args.verbose)
     df_or_dict = analyzer.load_experimental_data()
     if isinstance(df_or_dict, dict):
         key = sorted(df_or_dict)[0]
@@ -1427,10 +1421,10 @@ def load_sim_grid(args, output_dir: Path) -> np.ndarray:
         df = df_or_dict[key]
     else:
         df = df_or_dict
-    prepared = analyzer.prepare_episode_data(df, episode_selection=args.episode_range,
-                                             num_episodes=args.num_episodes,
-                                             target_episode=args.target_episode)
-    write_seed_report(prepared, args, output_dir / 'figS_marl_simulations_grid_seeds.txt')
+    prepared = df      # one row per simulated game; every game is used
+    write_seed_report(prepared, args, output_dir / 'figS_marl_simulations_grid_seeds.txt',
+                      analyzer.map_names, analyzer.ability_configs,
+                      {ab: analyzer.ability_config_speeds[ab][0] for ab in analyzer.ability_configs})
     grid = row_score_difference_grid(prepared, analyzer.map_names, analyzer.ability_configs,
                                      args.game_type)
     grid_csv = output_dir / 'fig5c_grid.csv'
@@ -1448,12 +1442,17 @@ def main():
     need_grid = args.version == 'original' or args.sm
     grid = load_sim_grid(args, output_dir) if need_grid else None
 
-    fig, embeds, page_w = build_figure(args.version, figures_dir, grid, draw_points=not args.no_points)
-    save_figure(fig, embeds, output_dir / args.output_name, page_w)
+    fig, embeds, page_w, page_h = build_figure(args.version, figures_dir, grid, draw_points=not args.no_points)
+    save_figure(fig, embeds, output_dir / args.output_name, page_w, page_h=page_h)
+
+    if args.version == 'v3' and not args.no_stacked:      # second version: panel a on top of panel b
+        out = output_dir / (Path(args.output_name).stem + '_stacked.pdf')
+        fig, embeds, page_w, page_h = build_figure('v3_stacked', figures_dir, grid, draw_points=not args.no_points)
+        save_figure(fig, embeds, out, page_w, page_h=page_h)
 
     if args.sm and args.version != 'original':
-        fig, embeds, page_w = build_figure('sm', figures_dir, grid)
-        save_figure(fig, embeds, output_dir / args.sm_output_name, page_w)
+        fig, embeds, page_w, page_h = build_figure('sm', figures_dir, grid)
+        save_figure(fig, embeds, output_dir / args.sm_output_name, page_w, page_h=page_h)
 
 
 if __name__ == '__main__':

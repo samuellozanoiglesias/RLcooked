@@ -23,11 +23,21 @@ not found, small synthetic placeholder data are generated automatically
 so the script can still be run end-to-end for layout/style testing --
 replace with real data for publication.
 
+MARL simulations: panels d-f are computed by the clustering pipeline from the simulated
+games of the simulation tree (see MARL_SIMS below and marl_simulations.py):
+  .../<game_version>/simulations/<init_type>/map_<map>/synergy_1.35/specialized_0.25/
+      abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+This script lists those simulations (figure3_marl_simulations_index.csv) and checks that
+the agent counts of 3f match them.
+
 USAGE:
 nohup python fig3_human_vs_rl_clustering.py > log_fig3_human_vs_rl_clustering.log 2>&1 &
+    # other cluster / reward configuration
+    MARL_CLUSTER=brigit MARL_SYNERGY=1.35 MARL_SPECIALIZATION=0.25 python fig3_human_vs_rl_clustering.py
 """
 
 import os
+import sys
 
 import numpy as np
 import pandas as pd
@@ -42,6 +52,25 @@ from matplotlib.ticker import PercentFormatter
 # --------------------------------------------------------------------------
 csv_directory = './data/human/'
 figures_directory = './figures/'
+
+# MARL simulations behind panels d-f: the simulation tree (marl_simulations.py, same folder)
+#   <base>/data/samuel_lozano/cooked/<game_version>/simulations/<init_type>/map_<map>/
+#       synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+# walk1 = walking speed of ai_rl_1, cut2 = cutting speed of ai_rl_2 (other speeds 1.0);
+# HA = abilities_1.0_1.0, MA = abilities_0.4_0.2; every Training_* and simulation_* is used.
+# The script lists them (figure3_marl_simulations_index.csv: the input list for the clustering
+# pipeline that writes 3d/3e/3f) and checks the agent counts against 3f.
+# Override from the shell, e.g.  MARL_CLUSTER=brigit python fig3_human_vs_rl_clustering.py
+MARL_SIMS = {
+    'cluster':        os.environ.get('MARL_CLUSTER', 'cuenca'),
+    'game_version':   os.environ.get('MARL_GAME_VERSION', 'classic_collision'),
+    'init_type':      os.environ.get('MARL_INIT_TYPE', 'empty_init'),
+    'synergy':        os.environ.get('MARL_SYNERGY', '1.35'),
+    'specialization': os.environ.get('MARL_SPECIALIZATION', '0.25'),
+    'checkpoint':     os.environ.get('MARL_CHECKPOINT', '753'),
+    'maps': {'Open': 'baseline_division_of_labor_large', 'PB': 'encouraged_division_of_labor_large'},
+    'pairs': {'HA': (1.0, 1.0), 'MA': (0.4, 0.2)},
+}
 
 FILES = {
     'action_human':  '3a_human_action_counts.csv',
@@ -382,13 +411,40 @@ def load_data():
     return d
 
 
+def marl_simulation_index(cfg=MARL_SIMS):
+    """One row per simulated game of the four conditions (rows of 3f), from the simulation
+    tree; None if marl_simulations.py cannot be imported. Folders only (no file is read)."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import marl_simulations as ms
+    except ImportError as exc:
+        print(f"[make_figure3] marl_simulations.py not found next to this script ({exc}); "
+              f"MARL simulation inventory skipped")
+        return None
+    base = ms.cluster_base_dir(cfg['cluster'])
+    rows = []
+    for mp, map_name in cfg['maps'].items():
+        root = ms.map_root(base, cfg['game_version'], map_name, cfg['synergy'], cfg['specialization'],
+                           init_type=cfg['init_type'])
+        print(f"[make_figure3] MARL {mp}: {ms.describe_root(root, cfg['checkpoint'])}")
+        for at, pair in cfg['pairs'].items():
+            for ref in ms.iter_simulations(root, pairs=[pair], checkpoint=cfg['checkpoint']):
+                rows.append({'condition': f'{"Open" if mp == "Open" else "PB"} {at}', 'map': map_name,
+                             'ability_type': at, 'walk': ref.walk1, 'cut': ref.cut2,
+                             'training_id': ref.training_id, 'checkpoint': ref.checkpoint,
+                             'simulation': ref.simulation, 'path': str(ref.path)})
+    return pd.DataFrame(rows, columns=['condition', 'map', 'ability_type', 'walk', 'cut', 'training_id',
+                                       'checkpoint', 'simulation', 'path'])
+
+
 EXPECTED_HUMAN_PLAYERS = 140    # 70 teams x 2 players per condition (main experiment)
 _CONDITION_ROWS = ['Open HA (100%,100%)', 'Open MA (40%,20%)', 'PB HA (100%,100%)', 'PB MA (40%,20%)']
 
 
-def write_counts_report(d, path):
-    """Players per condition and archetype in the cluster files (panels c, f), and a check
-    that the human panels use the same 70 teams per condition as Figs. 2 and 4."""
+def write_counts_report(d, path, sims=None):
+    """Players per condition and archetype in the cluster files (panels c, f), a check
+    that the human panels use the same 70 teams per condition as Figs. 2 and 4, and a
+    check of the MARL agents of 3f against the simulation tree (2 agents per simulated game)."""
     lines = ['=' * 80, 'FIG. 3 -- players per condition and archetype (rows of 3c / 3f)', '=' * 80]
     for label, key in (('Humans', 'cluster_human'), ('MARL agents', 'cluster_rl')):
         c = np.asarray(d[key], float)
@@ -403,6 +459,18 @@ def write_counts_report(d, path):
                          f'  WARNING: expected {EXPECTED_HUMAN_PLAYERS} players per condition (the first 70 teams '
                          f'used in Figs. 2 and 4); differs in: {", ".join(bad)}. Re-run the clustering on '
                          f'the per-team selection of fig_sm_ability_pairs_humans_rl.py.')
+    if sims is not None:
+        c = np.asarray(d['cluster_rl'], float)
+        lines.append(f"\nMARL simulation tree (checkpoint_{MARL_SIMS['checkpoint']}, synergy {MARL_SIMS['synergy']}, "
+                     f"specialization {MARL_SIMS['specialization']}, {MARL_SIMS['init_type']}):")
+        for name, key, row in zip(_CONDITION_ROWS, ['Open HA', 'Open MA', 'PB HA', 'PB MA'], c):
+            g = sims[sims['condition'] == key]
+            n_agents = 2 * len(g)
+            ok = 'OK' if n_agents == int(round(row.sum())) else 'MISMATCH'
+            lines.append(f'  {name:<20} simulations={len(g):>5}  trainings={g.training_id.nunique():>3}  '
+                         f'agents={n_agents:>5}  3f total={int(round(row.sum())):>5}  {ok}')
+        lines.append('  (a MISMATCH means 3d/3e/3f were not computed from these simulations: re-run the '
+                     'clustering on figure3_marl_simulations_index.csv)')
     lines.append('\nNote: panel b/e specialization values come from 3b/3e as computed by the clustering '
                  'pipeline; they must use the specialization index of the Methods (same as Fig. 2).')
     with open(path, 'w') as fh:
@@ -550,7 +618,12 @@ def build_figure(data):
 if __name__ == '__main__':
     os.makedirs(figures_directory, exist_ok=True)
     data = load_data()
-    write_counts_report(data, f'{figures_directory}figure3_human_vs_rl_counts.txt')
+    sims = marl_simulation_index()
+    if sims is not None:
+        sims.to_csv(f'{figures_directory}figure3_marl_simulations_index.csv', index=False)
+        print(f"[make_figure3] {len(sims)} MARL simulations listed -> "
+              f"{figures_directory}figure3_marl_simulations_index.csv")
+    write_counts_report(data, f'{figures_directory}figure3_human_vs_rl_counts.txt', sims)
 
     print("[make_figure3] Assembling combined figure...")
     fig, axes = build_figure(data)

@@ -18,15 +18,21 @@ Layout (2 x 2 groups, each group = game score | specialization index):
       [ legend band: High ability (100%, 100%) | Mixed ability (40%, 20%) ]
       (team speeds as percentages of full speed; rho is reserved for MARL theory)
 
-Reward tiers (folder layout of the SLURM simulation tree)
-  Tier 1  neither term      -> --tier_synergy none   --tier_specialization none
-  Tier 2  specialization    -> --tier_synergy none   --tier_specialization 0.25
-  Tier 3  synergy           -> --tier_synergy 1.35   --tier_specialization none
+Reward tiers (folder layout of the simulation tree, see marl_simulations.py)
+  <base>/data/samuel_lozano/cooked/<game_version>/simulations/<init_type>/map_<map>/
+      synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+  HA = abilities_1.0_1.0, MA = abilities_0.4_0.2 (walk1 = walking speed of ai_rl_1,
+  cut2 = cutting speed of ai_rl_2, the other two speeds 1.0); every Training_* and
+  simulation_* folder of checkpoint_753 is used.
+  Tier 1  neither term      -> --tier_synergy 0      --tier_specialization 0
+  Tier 2  specialization    -> --tier_synergy 0      --tier_specialization 0.25
+  Tier 3  synergy           -> --tier_synergy 1.35   --tier_specialization 0
   Tier 4  both (full model) -> --tier_synergy 1.35   --tier_specialization 0.25
-A value 'none' drops that nesting level (synergy_<x>/ or specialized_<y>/).
-If your ablation runs live elsewhere, pass explicit roots per tier with
+Folder values are matched numerically (synergy_0 == synergy_0.0). A value 'none' drops
+that nesting level (synergy_<x>/ or specialized_<y>/). If your ablation runs live
+elsewhere, pass explicit folders per tier (the ones containing abilities_*) with
 --tier_paths (4 templates, '{map}' is replaced by the map name), e.g.
-    --tier_paths /data/.../map_{map}/simulations/ablation_none ...
+    --tier_paths /data/.../simulations/empty_init/map_{map}/ablation_none ...
 Unlike Fig. 2, the resolver here is STRICT: a missing folder is reported and
 the tier is left empty instead of silently falling back to the parent folder
 (which would plot the full model under the wrong title).
@@ -43,9 +49,9 @@ as reported so far) and with one value per training seed (mean of its games; uni
 --stats_unit selects which one is written first (CSV column 'primary').
 
 Usage:
-# Tier 4 (full model) from checkpoint_final, Tiers 1-3 from checkpoint_753 (= final, episode 2000)
+# every tier from checkpoint_753 of the simulation tree
 # (or add --both_from_fig2_csv ./figures/fig2_rl_records.csv to reuse exactly the Fig. 2e-f simulations)
-nohup python3 fig_sm_marl_synergy_and_specialization_ablation.py --game_version classic_collision --cluster cuenca > log_fig_sm_ablation.out 2>&1 &
+nohup python3 fig_sm_marl_synergy_and_specialization_ablation.py --game_version classic_collision --init_type empty_init --cluster cuenca > log_fig_sm_ablation.out 2>&1 &
 
     # re-plot from the records cached by a previous run
     python3 fig_sm_marl_synergy_and_specialization_ablation.py \\
@@ -78,6 +84,7 @@ from scipy.stats import gaussian_kde
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import paper_stats as ps                                   # noqa: E402
+import marl_simulations as ms                              # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Global Style Configuration (PNAS requirements) -- identical to Fig. 2
@@ -111,261 +118,30 @@ def groups_from_long(df: pd.DataFrame, value_col: str) -> dict:
 # ===========================================================================
 # 1. MARL SIMULATION DATA  (loaders identical to Fig. 2)
 # ===========================================================================
-HA_WALKING = {"ai_rl_1": 1.0, "ai_rl_2": 1.0}
-HA_CUTTING = {"ai_rl_1": 1.0, "ai_rl_2": 1.0}
-# MA: one agent is a fast cutter (C=1.0, W low), the other fast walker (C low, W=1.0)
-MA_SPEED_SETS = [
-    ({"ai_rl_1": 1.0, "ai_rl_2": 0.4}, {"ai_rl_1": 0.2, "ai_rl_2": 1.0}),
-    ({"ai_rl_1": 0.4, "ai_rl_2": 1.0}, {"ai_rl_1": 1.0, "ai_rl_2": 0.2}),
-]
-CLUSTER_DIRS = {
-    "cuenca": "",
-    "brigit": "/mnt/lustre/home/samuloza/",
-    "local": "C:/OneDrive - Universidad Complutense de Madrid (UCM)/Doctorado",
-}
+# Simulated games are read from the abilities_<walk1>_<cut2> folders of each tier's
+# simulation tree (marl_simulations.py, same loaders as Fig. 2): HA = abilities_1.0_1.0,
+# MA = abilities_0.4_0.2 (walk1 = walking speed of ai_rl_1, cut2 = cutting speed of ai_rl_2).
+ABILITY_PAIRS = {"HA": (1.0, 1.0), "MA": (0.4, 0.2)}
+CLUSTER_DIRS = ms.CLUSTER_DIRS
 
 
-def _parse_speed_dict(raw: str) -> dict:
-    result = {}
-    for m in re.finditer(r"['\"]?(ai_rl_\d+)['\"]?\s*:\s*([\d.]+)", raw.strip()):
-        result[m.group(1)] = float(m.group(2))
-    return result
-
-
-def _speeds_match(parsed: dict, reference: dict, tol: float = 1e-6) -> bool:
-    if set(parsed.keys()) != set(reference.keys()):
-        return False
-    return all(abs(parsed[k] - reference[k]) < tol for k in reference)
-
-
-def classify_config(config_path: Path):
-    """Return ('HA' | 'MA' | None, checkpoint) from a simulation config.txt."""
-    if not config_path.exists():
-        return None, None
-    text = config_path.read_text(errors="replace")
-    m_walk = re.search(r"WALKING_SPEEDS\s*:\s*(\{[^}]+\})", text)
-    m_cut = re.search(r"CUTTING_SPEEDS\s*:\s*(\{[^}]+\})", text)
-    if not m_walk or not m_cut:
-        return None, None
-    walking = _parse_speed_dict(m_walk.group(1))
-    cutting = _parse_speed_dict(m_cut.group(1))
-
-    if _speeds_match(walking, HA_WALKING) and _speeds_match(cutting, HA_CUTTING):
-        agent_type = "HA"
-    else:
-        agent_type = None
-        for w_ref, c_ref in MA_SPEED_SETS:
-            if _speeds_match(walking, w_ref) and _speeds_match(cutting, c_ref):
-                agent_type = "MA"
-                break
-    m_ck = re.search(r"CHECKPOINT_NUMBER\s*:\s*(\S+)", text)
-    return agent_type, (m_ck.group(1) if m_ck else None)
-
-
-def _extract_agent_id_from_filename(file_path: Path, prefixes: list[str]) -> str:
-    stem = file_path.stem
-    for prefix in prefixes:
-        if stem.startswith(prefix):
-            return stem[len(prefix):]
-    return stem
-
-
-def load_positions(simulation_path: Path) -> pd.DataFrame | None:
-    sim_csv = simulation_path / "simulation.csv"
-    if sim_csv.exists():
-        df = pd.read_csv(sim_csv)
-        for old, new in [("tile_x", "x"), ("tile_y", "y"), ("tick", "frame")]:
-            if new not in df.columns and old in df.columns:
-                df[new] = df[old]
-        return df
-
-    pos_files = sorted(simulation_path.glob("positions_*.csv")) or \
-        sorted(simulation_path.glob("human_like_positions_*.csv"))
-    if not pos_files:
-        return None
-    frames = []
-    for pf in pos_files:
-        try:
-            d = pd.read_csv(pf)
-        except Exception:
-            continue
-        if "agent_id" not in d.columns:
-            d["agent_id"] = _extract_agent_id_from_filename(pf, ["positions_", "human_like_positions_"])
-        for old, new in [("tile_x", "x"), ("tile_y", "y"), ("tick", "frame")]:
-            if new not in d.columns and old in d.columns:
-                d[new] = d[old]
-        frames.append(d)
-    return pd.concat(frames, ignore_index=True, sort=False) if frames else None
-
-
-def _normalize_actions(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    if "agent_id" not in df.columns:
-        df["agent_id"] = df["player_id"] if "player_id" in df.columns else "unknown"
-    if "action_category_name" not in df.columns:
-        df["action_category_name"] = np.nan
-    for col in ["action_long", "action_name", "action_type", "action"]:
-        if col in df.columns:
-            df["action_category_name"] = df["action_category_name"].fillna(df[col])
-    df["action_category_name"] = df["action_category_name"].fillna("unknown")
-    return df
-
-
-def load_actions(simulation_path: Path) -> pd.DataFrame:
-    meaningful = simulation_path / "meaningful_actions.csv"
-    if meaningful.exists():
-        try:
-            return _normalize_actions(pd.read_csv(meaningful))
-        except Exception:
-            pass
-    hl_files = sorted(simulation_path.glob("human_like_actions_*.csv"))
-    if hl_files:
-        frames = []
-        for af in hl_files:
-            try:
-                d = pd.read_csv(af)
-            except Exception:
-                continue
-            if "agent_id" not in d.columns:
-                d["agent_id"] = d["player_id"] if "player_id" in d.columns else \
-                    _extract_agent_id_from_filename(af, ["human_like_actions_"])
-            frames.append(d)
-        if frames:
-            return _normalize_actions(pd.concat(frames, ignore_index=True, sort=False))
-    actions_csv = simulation_path / "actions.csv"
-    if actions_csv.exists():
-        try:
-            return _normalize_actions(pd.read_csv(actions_csv))
-        except Exception:
-            pass
-    return pd.DataFrame(columns=["agent_id", "action_category_name"])
-
-
-def extract_metrics(simulation_path: Path, initialization_period: float = 0.0) -> dict | None:
-    pos = load_positions(simulation_path)
-    if pos is None or pos.empty or "score" not in pos.columns or "agent_id" not in pos.columns:
-        return None
-    pos = pos.copy()
-    pos["agent_id"] = pos["agent_id"].astype(str)
-    for _col in ("second", "frame", "score"):
-        if _col in pos.columns:
-            pos[_col] = pd.to_numeric(pos[_col], errors="coerce")
-    if "second" in pos.columns:
-        pos = pos.dropna(subset=["second"])
-    elif "frame" in pos.columns:
-        pos = pos.dropna(subset=["frame"])
-    pos = pos.dropna(subset=["score"])
-    if pos.empty:
-        return None
-
-    if "second" in pos.columns:
-        pos["adj_sec"] = (pos["second"] - initialization_period).clip(lower=0)
-    elif "frame" in pos.columns:
-        pos["adj_sec"] = (pos["frame"] / 30.0 - initialization_period).clip(lower=0)
-    else:
-        pos["adj_sec"] = 0.0
-
-    score_ts = pos.groupby("adj_sec")["score"].max().sort_index()
-    team_deliveries = int((score_ts.diff().fillna(0) > 0).sum())
-
-    deliveries_per_agent: dict[str, int] = {}
-    for agent_id, grp in pos.groupby("agent_id"):
-        diffs = grp.sort_values("adj_sec")["score"].diff().fillna(0)
-        deliveries_per_agent[agent_id] = int((diffs > 0).sum())
-    if sum(deliveries_per_agent.values()) == 0 and team_deliveries > 0:
-        agents = sorted(pos["agent_id"].unique())
-        deliveries_per_agent = {a: team_deliveries // len(agents) for a in agents}
-
-    actions = load_actions(simulation_path)
-    cuts_per_agent: dict[str, int] = {}
-    if not actions.empty and "action_category_name" in actions.columns:
-        actions["agent_id"] = actions["agent_id"].astype(str)
-        cut_mask = actions["action_category_name"].astype(str).str.contains("cut", case=False, na=False)
-        for agent_id, grp in actions.groupby("agent_id"):
-            cuts_per_agent[agent_id] = int(cut_mask[grp.index].sum())
-
-    return {"total_deliveries": team_deliveries,
-            "deliveries_per_agent": deliveries_per_agent,
-            "cuts_per_agent": cuts_per_agent}
-
-
-def read_init_period(config_path: Path) -> float:
-    if not config_path.exists():
-        return 0.0
-    m = re.search(r"AGENT_INITIALIZATION_PERIOD\s*:\s*([\d.]+)", config_path.read_text(errors="replace"))
-    return float(m.group(1)) if m else 0.0
-
-
-def specialization_index(metrics: dict) -> float | None:
-    """|(cuts_a1 - cuts_a2)/total_cuts + (del_a2 - del_a1)/total_del| * 100 / 2"""
-    per_agent_cuts = metrics.get("cuts_per_agent", {})
-    per_agent_del = metrics.get("deliveries_per_agent", {})
-    if len(per_agent_cuts) < 2 or len(per_agent_del) < 2:
-        return None
-    vals_cuts = list(per_agent_cuts.values())[:2]
-    vals_del = list(per_agent_del.values())[:2]
-    total_cuts, total_del = sum(vals_cuts), sum(vals_del)
-    if total_cuts == 0 or total_del == 0:
-        return 0.0
-    cuts_term = (vals_cuts[0] - vals_cuts[1]) / total_cuts
-    del_term = (vals_del[1] - vals_del[0]) / total_del
-    return abs(del_term + cuts_term) * 100 / 2
-
-
-def _latest_numbered_checkpoint(ck_dirs: list[Path]) -> list[Path]:
-    """Highest-numbered checkpoint_<int> folder (filter 'latest'); non-numeric names ignored."""
-    numbered = [p for p in ck_dirs if p.name.replace("checkpoint_", "").isdigit()]
-    return [max(numbered, key=lambda p: int(p.name.replace("checkpoint_", "")))] if numbered else []
-
-
-def collect_group_metrics(simulations_root: Path, checkpoint_filter: str | None,
-                          agent_type_filter: str, verbose: bool = True) -> list[dict]:
-    results = []
-    if not simulations_root.exists():
-        print(f"  [WARN] simulations root not found: {simulations_root}")
-        return results
-    training_dirs = sorted(simulations_root.glob("Training_*"))
-    if not training_dirs:
-        print(f"  [WARN] no Training_* dirs found in {simulations_root}")
-        return results
-
-    for training_dir in training_dirs:
-        ck_dirs = sorted(training_dir.glob("checkpoint_*"))
-        use_latest = str(checkpoint_filter).lower() == "latest"
-        if use_latest:
-            ck_dirs = _latest_numbered_checkpoint(ck_dirs)
-        for ck_dir in ck_dirs:
-            ck_number = ck_dir.name.replace("checkpoint_", "")
-            # literal folder match, exactly as in fig2_human_marl_comparison.py:
-            # 'final' -> checkpoint_final, '753' -> checkpoint_753
-            if not use_latest and checkpoint_filter is not None and ck_number != str(checkpoint_filter):
-                continue
-            for sim_dir in sorted(ck_dir.glob("simulation_*")):
-                config_path = sim_dir / "config.txt"
-                agent_type, config_ck = classify_config(config_path)
-                effective_ck = config_ck if config_ck is not None else ck_number
-                if checkpoint_filter is not None and not use_latest \
-                        and str(effective_ck) != str(checkpoint_filter):
-                    continue
-                if agent_type != agent_type_filter:
-                    continue
-                metrics = extract_metrics(sim_dir, initialization_period=read_init_period(config_path))
-                if metrics is None:
-                    if verbose:
-                        print(f"  [SKIP] no usable data in {sim_dir}")
-                    continue
-                spec = specialization_index(metrics)
-                results.append({
-                    "training_id": training_dir.name,
-                    "checkpoint": ck_number,
-                    "simulation": sim_dir.name,
-                    "total_deliveries": metrics["total_deliveries"],
-                    "specialization_index": spec,
-                })
-                if verbose:
-                    spec_str = f"{spec:.3f}" if spec is not None else "N/A"
-                    print(f"  {sim_dir.name}  deliveries={metrics['total_deliveries']}  spec_idx={spec_str}")
-    return results
+def collect_group_metrics(map_root: Path, checkpoint, agent_type: str, verbose: bool = True) -> list[dict]:
+    """Every Training_*/checkpoint_<ck>/simulation_* of the abilities folder of agent_type."""
+    if not map_root.exists():
+        print(f"  [WARN] simulations root not found: {map_root}")
+        return []
+    pair = ABILITY_PAIRS[agent_type]
+    adir = ms.find_ability_dir(map_root, *pair)
+    if adir is None:
+        print(f"  [WARN] no abilities_{pair[0]:g}_{pair[1]:g} folder in {map_root}")
+        return []
+    print(f"  Abilities folder : {adir}")
+    df = ms.collect_records(map_root, pairs=[pair], checkpoint=checkpoint, verbose=verbose)
+    if df.empty:
+        print(f"  [WARN] no simulations with usable data under {adir}/Training_*/checkpoint_{checkpoint}")
+        return []
+    return df[["training_id", "checkpoint", "simulation", "total_deliveries",
+               "specialization_index"]].to_dict("records")
 
 
 # ===========================================================================
@@ -504,49 +280,33 @@ TIER_TITLES = {
 }
 TIER_DEFAULT_SYNERGY = ["0", "0", "1.35", "1.35"]
 TIER_DEFAULT_SPECIALIZATION = ["0", "0.25", "0", "0.25"]
-# Checkpoint FOLDER per tier (literal suffix of checkpoint_<name>, matched exactly as in
-# fig2_human_marl_comparison.py). The full model (Tier 4, same simulations as main-text
-# Fig. 2e-f) uses checkpoint_final; the three ablation tiers use checkpoint_753, which is
-# mislabeled but holds the final (episode-2000) policies of those runs.
-TIER_DEFAULT_CHECKPOINT = ["753", "753", "753", "753"]
+# Checkpoint FOLDER per tier (checkpoint_<name>): checkpoint_753 for every tier.
+TIER_DEFAULT_CHECKPOINT = [ms.DEFAULT_CHECKPOINT] * 4
 
 
 def _norm_ck(v):
-    """'all' -> None (every checkpoint); anything else is the literal checkpoint folder suffix
-    ('final' -> checkpoint_final, '753' -> checkpoint_753); 'latest' = highest-numbered folder."""
-    v = str(v).strip()
-    return None if v.lower() == "all" else v
+    """'753' -> checkpoint_753 (literal folder); 'latest' = highest-numbered folder; 'all'."""
+    return str(v).strip()
 
 
 def _is_none(v) -> bool:
-    return v is None or str(v).strip().lower() in ("", "none", "null", "-")
+    return ms.is_none(v)
 
 
 def resolve_tier_root(base_cluster_dir: str, map_nr: str, game_version: str,
                       synergy, specialization, study_name: str = "",
-                      path_template: str | None = None) -> Path:
-    """Strict resolver: returns the first existing candidate, else the preferred one
-    (which does not exist and is reported by collect_group_metrics)."""
-    if path_template:
-        root = Path(path_template.replace("{map}", map_nr))
-        return root / study_name if study_name else root
-    nest = Path()
-    if not _is_none(synergy):
-        nest = nest / f"synergy_{synergy}"
-    if not _is_none(specialization):
-        nest = nest / f"specialized_{specialization}"
-    candidates = [
-        Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/{game_version}/map_{map_nr}") / nest,
-        Path(f"{base_cluster_dir}/data/samuel_lozano/cooked/map_{map_nr}") / nest,
-    ]
-    found = next((c for c in candidates if c.exists()), candidates[0])
-    sims_root = found / "simulations"
-    return sims_root / study_name if study_name else sims_root
+                      path_template: str | None = None, init_type: str = ms.DEFAULT_INIT_TYPE) -> Path:
+    """Folder holding the abilities_* folders of one tier and map:
+    .../<game_version>/simulations/<init_type>/map_<map>/synergy_<s>/specialized_<l>.
+    STRICT: a missing folder is returned as is and reported (never a parent folder).
+    'none' drops a level; path_template ('{map}' substituted) replaces the resolution."""
+    return ms.map_root(base_cluster_dir, game_version, map_nr, synergy, specialization,
+                       init_type=init_type, study_name=study_name or None, path_template=path_template)
 
 
 def collect_ablation_records(args) -> pd.DataFrame:
     """Crawl the four tiers x two maps x two compositions -> one long dataframe."""
-    base_cluster_dir = CLUSTER_DIRS[args.cluster]
+    base_cluster_dir = ms.cluster_base_dir(args.cluster)
     tier_ck = [args.checkpoint] * 4 if args.checkpoint is not None else args.tier_checkpoints
     templates = args.tier_paths or [None] * 4
     rows = []
@@ -555,17 +315,18 @@ def collect_ablation_records(args) -> pd.DataFrame:
         for switch, map_nr in (("low", args.map_baseline), ("high", args.map_encouraged)):
             root = resolve_tier_root(base_cluster_dir, map_nr, args.game_version,
                                      args.tier_synergy[t_idx], args.tier_specialization[t_idx],
-                                     args.study_name, templates[t_idx])
+                                     args.study_name, templates[t_idx], args.init_type)
             for at in _ABILITY_ORDER:
                 print(f"\n{'=' * 60}\n[{TIER_TITLES[tier]}] {at} on map {map_nr}\n"
                       f"  Simulations root : {root}\n  Checkpoint folder: "
-                      f"{'checkpoint_' + ck if ck and ck != 'latest' else (ck or 'all')}\n{'=' * 60}")
+                      f"{ck if ck.lower() in ('latest', 'all') else 'checkpoint_' + ck}\n{'=' * 60}")
                 recs = collect_group_metrics(root, ck, at, verbose=args.verbose)
                 for r in recs:
                     rows.append({"tier": tier, "switch_cost_condition": switch,
                                  "ability_type": at, "map": map_nr, **r})
                 used = sorted({r["checkpoint"] for r in recs})
-                print(f"  -> {len(recs)} simulations collected from checkpoint folder(s): {used}")
+                print(f"  -> {len(recs)} simulations from {len({r['training_id'] for r in recs})} "
+                      f"trainings, checkpoint folder(s): {used}")
     return pd.DataFrame(rows, columns=["tier", "switch_cost_condition", "ability_type", "map",
                                        "training_id", "checkpoint", "simulation",
                                        "total_deliveries", "specialization_index"])
@@ -747,8 +508,8 @@ def demo_records(n: int = 50, seed: int = 0) -> pd.DataFrame:
     keys = [("low", "HA"), ("low", "MA"), ("high", "HA"), ("high", "MA")]
     rows = []
     for tier, tgt in _DEMO_TARGETS.items():
-        for (switch, at), (ms, ss), (mp, sp) in zip(keys, tgt["score"], tgt["spec"]):
-            score = np.clip(np.rint(rng.normal(ms, ss * np.sqrt(n), n)), 0, None)
+        for (switch, at), (m_score, ss), (mp, sp) in zip(keys, tgt["score"], tgt["spec"]):
+            score = np.clip(np.rint(rng.normal(m_score, ss * np.sqrt(n), n)), 0, None)
             if mp > 85:   # saturated specialization: skewed towards 100 %
                 spec = 100 - rng.gamma(1.2, (100 - mp) / 1.2, n)
             else:
@@ -776,11 +537,13 @@ def main():
                    help="specialized_<y> folder per tier ('none' = no specialization level)")
     p.add_argument("--tier_paths", nargs=4, default=None,
                    metavar=("NEITHER", "SPEC", "SYN", "BOTH"),
-                   help="Explicit simulations roots per tier ('{map}' is substituted)")
+                   help="Explicit folder per tier that contains the abilities_* folders "
+                        "('{map}' is substituted)")
     p.add_argument("--tier_checkpoints", nargs=4, default=TIER_DEFAULT_CHECKPOINT,
                    metavar=("NEITHER", "SPEC", "SYN", "BOTH"),
-                   help="Checkpoint folder per tier (literal checkpoint_<name>, as in Fig. 2), 'latest' "
-                        "(highest-numbered folder) or 'all'. Default: 753 753 753 final")
+                   help="Checkpoint folder per tier (literal checkpoint_<name>), 'latest' "
+                        "(highest-numbered folder) or 'all'. Default: 753 753 753 753")
+    p.add_argument("--init_type", default=ms.DEFAULT_INIT_TYPE, choices=["empty_init", "random_init"])
     p.add_argument("--both_from_fig2_csv", default=None,
                    help="Take Tier 4 (full model) from the MARL records cached by "
                         "fig2_human_marl_comparison.py (fig2_rl_records.csv), so that panels g-h are "
@@ -790,7 +553,7 @@ def main():
     p.add_argument("--game_version", default="classic_collision",
                    choices=["classic", "competition", "classic_collision", "competition_collision"])
     p.add_argument("--study_name", default="")
-    p.add_argument("--cluster", default="cuenca", choices=list(CLUSTER_DIRS))
+    p.add_argument("--cluster", default="cuenca", help=f"{list(CLUSTER_DIRS)} or a literal base folder")
     p.add_argument("--stats_unit", choices=["training", "simulation"], default="training",
                    help="Unit reported first (both are always reported): one value per training seed "
                         "(default, independent units) or per simulated game")
