@@ -18,15 +18,15 @@ ablation figures):
       [ legend band: the five ability pairs ]
 
 Each panel shows condition means +- SEM (humans: across teams; RL: across
-trainings); lines join the open and PB means of the same ability pair.
+simulated games); lines join the open and PB means of the same ability pair.
 
 MARL data (--rl_source sims, default): SIMULATED GAMES read from the simulation tree
 (marl_simulations.py, same loaders as Fig. 2e-f and the SI ablation):
     <base>/data/samuel_lozano/cooked/<game_type>/simulations/<init_type>/map_<map>/
-        synergy_1.35/specialized_0.25/abilities_<walk>_<cut>/Training_*/checkpoint_753/simulation_*/
+        synergy_1.35/specialized_0.25/abilities_<walk>_<cut>/Training_*/checkpoint_750/simulation_*/
 where abilities_<walk>_<cut> holds the walking speed of ai_rl_1 (walk) and the cutting
 speed of ai_rl_2 (cut); the other two speeds are 1.0. Every Training_* and every
-simulation_* folder of checkpoint_753 is used, for each of the five pairs. The
+simulation_* folder of checkpoint_750 is used, for each of the five pairs. The
 specialization index is computed per simulated game from the per-agent cut and delivery
 counts, then averaged per training: ONE VALUE PER TRAINING is the unit of every RL test
 and of the RL means +- SEM, because games of one training are not independent.
@@ -60,17 +60,29 @@ Human data selection
   * <o>_selected_games.csv: one column per condition with the game_id of the selected games
     in selection order (row 'team' = 1..70); the check that every game_id is unique is
     written to <o>_stats.txt.
-  Required files in human_data/: combined_actions_with_demographics_csv.zip and
-  oct2026_new_condition_encouraged.zip (+ any later batch).
+  Required files in human_data/: combined_actions_with_demographics_csv.zip,
+  oct2026_new_condition_encouraged.zip and oct2026_new_condition_encouraged_2.zip
+  (+ any later batch). The files are put in this canonical order by the script
+  (HUMAN_BATCH_ORDER; later unknown batches after them, numerically sorted), so the
+  result does not depend on how the shell expands *.zip (locale collation can put
+  '..._2.zip' before '....zip'). --keep_file_order uses the order given instead.
+  A folder can be given to --human_data: every .zip / .csv in it is used.
+  The audit lists, per ability pair x map, how many selected teams come from each file,
+  and warns if a cell has fewer than --n_teams teams.
 
 Usage
-    # humans + RL simulated games (checkpoint_753, every Training_* / simulation_*)
-    nohup python3 fig_sm_ability_pairs_humans_rl.py --human_data ./data/human_data/*.zip --rl_source sims --synergy 1.35 --specialization 0.25 --init_type empty_init --rl_checkpoint 753 > log_fig_sm_pairs.out 2>&1 &
+# humans + RL simulated games (checkpoint_750, every Training_* / simulation_*)
+nohup python3 fig_sm_ability_pairs_humans_rl.py --human_data ./data/human_data/ --rl_source sims --synergy 1.35 --specialization 0.25 --init_type empty_init --rl_checkpoint 750 > log_fig_sm_pairs.out 2>&1 &
 
     # re-plot from the caches written by a previous run
     python3 fig_sm_ability_pairs_humans_rl.py \\
         --human_csv ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv \\
         --rl_csv ./figures/fig_sm_ability_pairs_humans_rl_rl_records_sims.csv
+
+RL per-training CSV (<output>_rl_per_training.csv, written whenever RL data are loaded,
+from the tree or from --rl_csv): one row per training x ability pair x map with the mean
+(and SD) over that training's simulated games of the game score and the specialization
+index, n_simulations, the map, the ability pair, the reward folders and the checkpoint.
 
 The per-team human CSV written here (<output>_human_teams.csv) is also the human
 input of fig_sm_marl_ablation.py (pretraining) and fig4_human_vs_rl_gridmap.py
@@ -148,6 +160,19 @@ def pair_label(p, tex=False):
     return rf"({a}\%, {b}\%)" if tex else f"({a}%, {b}%)"
 
 
+# Short names shown in the figure for the two main-experiment conditions
+PAIR_ABBREV = {(1.0, 1.0): "HA", (0.4, 0.2): "MA"}
+
+
+def pair_display(p, tex=False):
+    """Figure label: 'HA' for (100%,100%), 'MA' for (40%,20%), otherwise the percentages.
+    (pair_label stays unchanged because it is also used as a data key and in the report.)"""
+    for k, name in PAIR_ABBREV.items():
+        if abs(p[0] - k[0]) < 1e-6 and abs(p[1] - k[1]) < 1e-6:
+            return name
+    return pair_label(p, tex=tex)
+
+
 def _pair_key(w, c):
     """Snap a (walk, cut) pair to the canonical PAIRS entry (or None)."""
     for p in PAIRS:
@@ -180,6 +205,43 @@ def parse_condition(cond: str):
     if cs2 == 1.0 and ws1 == 1.0:
         return (ws2, cs1), suffix
     return None, suffix
+
+
+# Canonical order of the human data batches: the first --n_teams games of each condition are
+# taken in this order (older batches first, the new batches only fill up the missing teams).
+HUMAN_BATCH_ORDER = [
+    "combined_actions_with_demographics",
+    "oct2026_new_condition_encouraged",
+    "oct2026_new_condition_encouraged_2",
+]
+
+
+def _batch_sort_key(path: Path):
+    """Known batches in HUMAN_BATCH_ORDER; any other file afterwards, sorted by base name and
+    then by its trailing batch number (..._2 < ..._3 < ..._10), independent of the locale."""
+    stem = path.stem
+    if stem in HUMAN_BATCH_ORDER:
+        return (0, HUMAN_BATCH_ORDER.index(stem), "", 0)
+    m = re.match(r"^(.*?)(?:_(\d+))?$", stem)
+    return (1, 0, m.group(1), int(m.group(2) or 0))
+
+
+def order_human_paths(paths, keep_order=False):
+    """Expand folders, drop duplicates (same resolved file) and, unless keep_order, sort the
+    files into the canonical batch order."""
+    out, seen = [], set()
+    for p in map(Path, paths):
+        items = (sorted(q for q in p.iterdir() if q.suffix.lower() in (".zip", ".csv"))
+                 if p.is_dir() else [p])
+        for q in items:
+            if not q.exists():
+                print(f"[WARN] human data file not found: {q}")
+                continue
+            r = q.resolve()
+            if r not in seen:
+                seen.add(r)
+                out.append(q)
+    return out if keep_order else sorted(out, key=_batch_sort_key)
 
 
 def _iter_csv_sources(paths):
@@ -226,11 +288,13 @@ def load_human_teams(paths, n_teams=70, cut_def="start_cutting", spec_undefined=
     audit = audit if audit is not None else []
     frames, seen, file_rows = [], set(), []
     for label, fh in _iter_csv_sources(paths):
-        df = pd.read_csv(fh, usecols=lambda c: c in _USECOLS, low_memory=False)
+        df = pd.read_csv(fh, usecols=lambda c: c in _USECOLS, dtype={"game_id": str}, low_memory=False)
+        df = df[df["game_id"].notna()]
+        df["game_id"] = df["game_id"].str.strip()        # same id format in every batch
         games = set(df["game_id"].unique())
         new_games = games - seen
         file_rows.append((label, len(df), len(games), len(games - new_games)))
-        frames.append(df[df["game_id"].isin(new_games)])
+        frames.append(df[df["game_id"].isin(new_games)].assign(source=label.split(":")[0]))
         seen |= new_games
     if not frames:
         raise SystemExit("No human CSV found in --human_data")
@@ -245,7 +309,8 @@ def load_human_teams(paths, n_teams=70, cut_def="start_cutting", spec_undefined=
     # sort=False keeps the games in the order of the CSV files (files in the order given in
     # --human_data, then row order); the files are pre-ordered, so no re-ordering is done here.
     g0 = raw.groupby("game_id", sort=False).agg(condition=("condition", "first"), map_name=("map_name", "first"),
-                                                start=("game_start_time", "first"))
+                                                start=("game_start_time", "first"),
+                                                source=("source", "first"))
     g0["order"] = np.arange(len(g0))
     parsed = g0["condition"].map(parse_condition)
     g0["pair"] = parsed.map(lambda x: x[0])
@@ -286,7 +351,7 @@ def load_human_teams(paths, n_teams=70, cut_def="start_cutting", spec_undefined=
         rows.append({
             "game_id": gid, "walk": r["pair_key"][0], "cut": r["pair_key"][1],
             "map": r["map"], "rank": int(r["rank"]) + 1, "order": int(r["order"]),
-            "game_start_time": r["start"], "n_players": len(pl),
+            "game_start_time": r["start"], "source_file": r["source"], "n_players": len(pl),
             "prolific_ids": ";".join(str(pid_of.get(p)) for p in pl),
             "total_deliveries": sum(D[:2]),
             "D1": D[0], "D2": D[1], "C1": C[0], "C2": C[1],
@@ -309,6 +374,20 @@ def load_human_teams(paths, n_teams=70, cut_def="start_cutting", spec_undefined=
             sub = kept[(kept["pair_key"] == p) & (kept["map"] == mp)]
             span = f"{str(sub['start'].min())[:10]} .. {str(sub['start'].max())[:10]}" if len(sub) else ""
             audit.append(f"  {pair_label(p):<12} {mp:<4}  available={a:>4}  used={k:>3}  dates {span}{flag}")
+            if len(sub):
+                by_src = sub.groupby("source", sort=False).size()
+                audit.append("        from: " + ", ".join(f"{s}={n}" for s, n in by_src.items()))
+
+    short = [(p, mp) for p in PAIRS for mp in MAPS
+             if int(((teams["walk"] == p[0]) & (teams["cut"] == p[1]) & (teams["map"] == mp)).sum()) < n_teams]
+    if short:
+        msg = (f"[WARN] {len(short)} condition(s) with fewer than {n_teams} teams: "
+               + ", ".join(f"{pair_label(p)} {mp}" for p, mp in short)
+               + " -- check that every batch (e.g. oct2026_new_condition_encouraged_2.zip) is in --human_data")
+        print(msg)
+        audit.append("\n" + msg)
+    else:
+        audit.append(f"\nAll {len(PAIRS) * len(MAPS)} conditions have {n_teams} teams  OK")
     return teams
 
 
@@ -350,7 +429,7 @@ def load_demographics(paths, teams):
 # ===========================================================================
 # 2. RL DATA -- simulated games of the simulation tree (marl_simulations.py)
 #    .../simulations/<init_type>/map_<map>/synergy_<s>/specialized_<l>/
-#        abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+#        abilities_<walk1>_<cut2>/Training_*/checkpoint_750/simulation_*/
 #    walk1 = walking speed of ai_rl_1, cut2 = cutting speed of ai_rl_2 (other speeds 1.0),
 #    i.e. exactly the (walk, cut) pairs of PAIRS.
 # ===========================================================================
@@ -421,6 +500,62 @@ def training_means(rl: pd.DataFrame) -> pd.DataFrame:
     """One row per training (mean over its episode window)."""
     return (rl.groupby(["walk", "cut", "map", "training_id"], as_index=False)
               [["total_deliveries", "specialization_index"]].mean())
+
+
+def _trailing_int(v) -> float:
+    """'Training_12' -> 12 (natural sorting); NaN if there is no number."""
+    m = re.search(r"(\d+)\s*$", str(v))
+    return float(m.group(1)) if m else np.nan
+
+
+def rl_per_training_table(rl: pd.DataFrame, args, from_tree: bool) -> pd.DataFrame:
+    """One row per training (Training_* folder = one seed) x ability pair x map of the MARL
+    simulations, averaged over that training's simulated games (the 'training' unit):
+
+      map, map_name                   Open / PB and the map folder
+      walk, cut, pair, ability        walking speed of ai_rl_1, cutting speed of ai_rl_2,
+                                      '(40%, 20%)'-style label and figure label (HA / MA / %)
+      synergy, specialization_level   reward folders synergy_<s> / specialized_<l>
+                                      (empty when the records come from --rl_csv)
+      checkpoint, training, n_simulations
+      score, score_sd                 mean / SD over games of total_deliveries
+      specialization_index, specialization_index_sd   mean / SD over games (%)
+    """
+    cols = ["map", "map_name", "walk", "cut", "pair", "ability", "synergy", "specialization_level",
+            "checkpoint", "training", "n_simulations", "score", "score_sd",
+            "specialization_index", "specialization_index_sd"]
+    if rl is None or rl.empty:
+        return pd.DataFrame(columns=cols)
+    d = rl.copy()
+    for c in ("total_deliveries", "specialization_index"):
+        d[c] = pd.to_numeric(d[c], errors="coerce")
+    if "checkpoint" not in d.columns:
+        d["checkpoint"] = args.rl_checkpoint if from_tree else np.nan
+    keys = ["walk", "cut", "map", "training_id"]
+    out = (d.groupby(keys, as_index=False, sort=False)
+             .agg(checkpoint=("checkpoint", lambda x: ";".join(sorted(map(str, x.dropna().unique())))),
+                  n_simulations=("total_deliveries", "size"),
+                  score=("total_deliveries", "mean"),
+                  score_sd=("total_deliveries", "std"),
+                  specialization_index=("specialization_index", "mean"),
+                  specialization_index_sd=("specialization_index", "std")))
+    out["training"] = out["training_id"].map(
+        lambda t: str(t) if str(t).startswith("Training_") else f"Training_{t}")
+    out["pair"] = [pair_label((w, c)) for w, c in zip(out["walk"], out["cut"])]
+    out["ability"] = [pair_display((w, c)) for w, c in zip(out["walk"], out["cut"])]
+    if from_tree:
+        out["map_name"] = out["map"].map({"Open": args.map_baseline, "PB": args.map_encouraged})
+        out["synergy"], out["specialization_level"] = args.synergy, args.specialization
+    else:
+        out["map_name"] = out["map"].map({v: k for k, v in MAP_NAMES.items()})
+        out["synergy"], out["specialization_level"] = np.nan, np.nan
+    # order of the figure: map (Open, PB) -> ability pair (order of PAIRS) -> training (numeric)
+    out["_m"] = out["map"].map({m: i for i, m in enumerate(MAPS)})
+    out["_p"] = [PAIRS.index(_pair_key(w, c)) if _pair_key(w, c) else len(PAIRS)
+                 for w, c in zip(out["walk"], out["cut"])]
+    out["_t"] = out["training"].map(_trailing_int)
+    out = out.sort_values(["_m", "_p", "_t", "training"], kind="stable", na_position="last")
+    return out[cols].reset_index(drop=True)
 
 
 # ===========================================================================
@@ -516,7 +651,7 @@ def analyse(df: pd.DataFrame, who: str, unit: str, out: list, csv_rows: list):
 
 
 def agreement(h: pd.DataFrame, r: pd.DataFrame, out: list, csv_rows: list, by_pair=None):
-    out.append("\n--- Humans vs RL: MA - HA difference per map x ability cell (humans: teams; RL: trainings) ---")
+    out.append("\n--- Humans vs RL: MA - HA difference per map x ability cell (humans: teams; RL: simulated games) ---")
     for col, name, pct in METRICS:
         xs, ys = [], []
         out.append(f"  {name}:")
@@ -687,7 +822,7 @@ def make_figure(human: pd.DataFrame, rl: pd.DataFrame | None, output_path: Path,
     handles = [matplotlib.lines.Line2D([], [], marker="D", markersize=13 * sl, markerfacecolor=_PAIR_COLOR[p],
                                        markeredgecolor="black", markeredgewidth=1.5 * sl,
                                        color=_PAIR_COLOR[p], linewidth=2.5 * sl) for p in PAIRS]
-    labels = [rf"\textbf{{{pair_label(p, tex=True)}}}" for p in PAIRS]
+    labels = [rf"\textbf{{{pair_display(p, tex=True)}}}" for p in PAIRS]
     mixed = rl_ha_training is not None and not rl_ha_training.empty
     cx, cy = LEGEND_CENTER
     rows = [(handles, labels)]
@@ -698,7 +833,7 @@ def make_figure(human: pd.DataFrame, rl: pd.DataFrame | None, output_path: Path,
                                       markeredgecolor=_PAIR_COLOR[HA], markeredgewidth=2.0 * sl,
                                       color=_PAIR_COLOR[HA], linewidth=2.0 * sl, linestyle=_DASH)]
         l2 = [r"\textbf{Simulated games}", r"\textbf{Training episodes}",
-              rf"\textbf{{{pair_label(HA, tex=True)}, training}}"]
+              rf"\textbf{{{pair_display(HA, tex=True)}, training}}"]
         rows.append((h2, l2))
     dy = LEGEND_ROW_DY if mixed else 0.0
     widths = []
@@ -726,7 +861,10 @@ def make_figure(human: pd.DataFrame, rl: pd.DataFrame | None, output_path: Path,
 def main():
     ap = argparse.ArgumentParser(description="SI figure + statistics: five ability pairs, humans and RL.")
     ap.add_argument("--human_data", nargs="*", default=[],
-                    help="Human zips / CSVs (duplicate games are counted once)")
+                    help="Human zips / CSVs or folders holding them (duplicate games are counted once); "
+                         "sorted into the canonical batch order unless --keep_file_order")
+    ap.add_argument("--keep_file_order", action="store_true",
+                    help="Read the human files in the order given instead of the canonical batch order")
     ap.add_argument("--human_csv", default=None, help="Per-team CSV written by a previous run")
     ap.add_argument("--n_teams", type=int, default=70, help="Teams per ability pair x map (first ones in the order of the CSV files)")
     ap.add_argument("--cut_def", default="start_cutting", choices=["start_cutting", "contains_cut"],
@@ -740,11 +878,14 @@ def main():
                     help="'sims' (default): simulated games of every ability pair, read from the "
                          "abilities_<walk>_<cut> folders of the simulation tree; 'none': humans only")
     ap.add_argument("--rl_checkpoint", default=ms.DEFAULT_CHECKPOINT,
-                    help="checkpoint_<n> folder of the simulated games (default 753), 'latest' or 'all'")
+                    help="checkpoint_<n> folder of the simulated games (default 750), 'latest' or 'all'")
     ap.add_argument("--rl_path_template", default=None,
                     help="Explicit folder that contains the abilities_* folders ('{map}' substituted)")
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--rl_csv", default=None, help="Cached RL simulation records (skips crawling the tree)")
+    ap.add_argument("--rl_unit", choices=["simulation", "training"], default="simulation",
+                    help="Unit of the MARL statistics and of the MARL means +- SEM in the figure: one simulated "
+                         "game (default, as Fig. 2 and the ablation) or one training (mean of its games)")
     ap.add_argument("--map_baseline", default="baseline_division_of_labor_large")
     ap.add_argument("--map_encouraged", default="encouraged_division_of_labor_large")
     ap.add_argument("--game_type", default="classic_collision",
@@ -783,7 +924,7 @@ def main():
         "  Specialization index = 100 * |(D1 - D2)/(D1 + D2) + (C2 - C1)/(C1 + C2)| / 2 (D deliveries,\n"
         f"    C cuts per player); no deliveries or no cuts -> {'0' if args.spec_undefined == 'zero' else 'excluded'}.\n"
         f"    Human cuts: {args.cut_def!r}. RL cuts: per-agent cut actions of each simulated game.\n"
-        "  Units: humans = team; RL = training (mean over its simulated games), as in the SI pretraining section.")
+        f"  Units: humans = team; RL = {'simulated game' if args.rl_unit == 'simulation' else 'training (mean over its simulated games)'}.")
 
     # ---------------- humans ---------------------------------------------------
     human = None
@@ -791,6 +932,8 @@ def main():
         human = pd.read_csv(args.human_csv)
         report.append(f"\nHuman teams read from {args.human_csv}")
     elif args.human_data:
+        args.human_data = order_human_paths(args.human_data, args.keep_file_order)
+        print("Human data files (in reading order):\n  " + "\n  ".join(map(str, args.human_data)))
         audit = []
         human = load_human_teams(args.human_data, args.n_teams, args.cut_def, args.spec_undefined, audit)
         report.append("\n" + "=" * 100 + "\nDATA AUDIT (humans)\n" + "=" * 100)
@@ -897,9 +1040,21 @@ def main():
     rl_plot = None
     if rl_sims_ep is not None and not rl_sims_ep.empty:
         _coverage(rl_sims_ep, "simulated games")
-        rl_plot = training_means(rl_sims_ep)
-        report.append("\n" + "=" * 100 + "\nMARL SIMULATIONS (unit = training; mean of its simulated games)\n" + "=" * 100)
-        analyse(rl_plot, "MARL simulations", "training", report, csv_rows)
+        rl_pt = rl_per_training_table(rl_sims_ep, args, from_tree=not args.rl_csv)
+        rl_pt.to_csv(f"{stem}_rl_per_training.csv", index=False)
+        report.append(f"\nPer-training RL values -> {Path(stem).name}_rl_per_training.csv "
+                      f"({len(rl_pt)} rows = trainings x ability pairs x maps, "
+                      f"{int(rl_pt['n_simulations'].sum())} simulated games)")
+        print(f"Per-training RL data -> {stem}_rl_per_training.csv ({len(rl_pt)} rows)")
+        if args.rl_unit == "simulation":
+            # one value per simulated game: the analogue of one human team's game
+            rl_plot = rl_sims_ep.copy()
+            report.append("\n" + "=" * 100 + "\nMARL SIMULATIONS (unit = simulated game)\n" + "=" * 100)
+            analyse(rl_plot, "MARL simulations", "simulated game", report, csv_rows)
+        else:
+            rl_plot = training_means(rl_sims_ep)
+            report.append("\n" + "=" * 100 + "\nMARL SIMULATIONS (unit = training; mean of its simulated games)\n" + "=" * 100)
+            analyse(rl_plot, "MARL simulations", "training", report, csv_rows)
 
     if rl_plot is not None and human is not None:
         report.append("\n" + "=" * 100 + "\nHUMANS vs RL\n" + "=" * 100)

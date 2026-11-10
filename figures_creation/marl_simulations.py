@@ -12,14 +12,19 @@ paper_stats.py). The simulated games live in
 e.g.
   /data/samuel_lozano/cooked/classic_collision/simulations/empty_init/
       map_baseline_division_of_labor_large/synergy_1.35/specialized_0.25/abilities_0.1_0.8/
-      Training_2026-05-17_01-29-22/checkpoint_753/simulation_2026_10_29-04_25_41/
+      Training_2026-05-17_01-29-22/checkpoint_750/simulation_2026_10_29-04_25_41/
 
 abilities_<walk1>_<cut2>:
     walk1 = walking speed of ai_rl_1, cut2 = cutting speed of ai_rl_2;
     the other two speeds (cutting speed of ai_rl_1, walking speed of ai_rl_2) are always 1.0.
 The ability pair of a simulation is taken from this folder name (not from config.txt).
 Every Training_* and every simulation_* folder is used; the checkpoint folder is
-checkpoint_753 unless another one is requested.
+checkpoint_750 unless another one is requested.
+
+Per-agent counts: deliveries come from the positions files, cuts from the actions file.
+The two agents are matched across both files by the number in their id ('ai_rl_1' = '1' =
+1.0), and an agent missing from a file counts as 0, so specialization_index is always defined
+(it is computed from the four columns deliver_ai_rl_k / cut_ai_rl_k written in each record).
 
 Folder values are matched NUMERICALLY (synergy_1.35 == synergy_1.350, abilities_1_1 ==
 abilities_1.0_1.0), so the scripts do not depend on how the numbers were formatted.
@@ -37,7 +42,7 @@ from typing import Iterable, Iterator
 import numpy as np
 import pandas as pd
 
-DEFAULT_CHECKPOINT = "753"
+DEFAULT_CHECKPOINT = "750"
 DEFAULT_INIT_TYPE = "empty_init"
 FIXED_CUT1 = 1.0          # cutting speed of ai_rl_1 (always 1 in this tree)
 FIXED_WALK2 = 1.0         # walking speed of ai_rl_2 (always 1 in this tree)
@@ -171,7 +176,7 @@ def find_ability_dir(root: Path, walk1: float, cut2: float, tol: float = SPEED_T
 
 
 def _checkpoint_dirs(training_dir: Path, checkpoint) -> list[Path]:
-    """checkpoint: '753' (literal folder checkpoint_753), 'all', or 'latest'
+    """checkpoint: '750' (literal folder checkpoint_750), 'all', or 'latest'
     (highest-numbered checkpoint_<int>)."""
     ck = DEFAULT_CHECKPOINT if checkpoint is None else str(checkpoint).strip()
     if ck.lower() == "all":
@@ -337,16 +342,17 @@ def extract_metrics(simulation_path: Path, initialization_period: float | None =
     else:
         pos["adj_sec"] = 0.0
 
-    score_ts = pos.groupby("adj_sec")["score"].max().sort_index()
-    team_deliveries = int((score_ts.diff().fillna(0) > 0).sum())
-
-    deliveries_per_agent: dict[str, int] = {}
+    # Deliveries of each agent = FINAL value of that agent's score column (last row in time
+    # order of its positions_<agent>.csv). The old count of score increases is kept only as a
+    # diagnostic (score_increments) to compare the two definitions.
+    deliveries_per_agent: dict[str, float] = {}
+    increments_per_agent: dict[str, int] = {}
     for agent_id, grp in pos.groupby("agent_id"):
-        diffs = grp.sort_values("adj_sec")["score"].diff().fillna(0)
-        deliveries_per_agent[agent_id] = int((diffs > 0).sum())
-    if sum(deliveries_per_agent.values()) == 0 and team_deliveries > 0:
-        agents = sorted(pos["agent_id"].unique())
-        deliveries_per_agent = {a: team_deliveries // len(agents) for a in agents}
+        s = grp.sort_values("adj_sec", kind="stable")["score"]
+        last = float(s.iloc[-1])
+        deliveries_per_agent[agent_id] = int(last) if last.is_integer() else last
+        increments_per_agent[agent_id] = int((s.diff().fillna(0) > 0).sum())
+    score_increments = int(sum(increments_per_agent.values()))
 
     actions = load_actions(simulation_path)
     cuts_per_agent: dict[str, int] = {}
@@ -356,74 +362,159 @@ def extract_metrics(simulation_path: Path, initialization_period: float | None =
         for agent_id, grp in actions.groupby("agent_id"):
             cuts_per_agent[agent_id] = int(cut_mask[grp.index].sum())
 
-    return {"total_deliveries": team_deliveries,
+    # Game score = final score of agent 1 + final score of agent 2
+    total = sum(deliveries_per_agent.values())
+    return {"total_deliveries": int(total) if float(total).is_integer() else total,
+            "score_increments": score_increments,
             "deliveries_per_agent": deliveries_per_agent,
             "cuts_per_agent": cuts_per_agent}
 
 
-def specialization_index(metrics: dict) -> float | None:
-    """|(cuts_a1 - cuts_a2)/total_cuts + (del_a2 - del_a1)/total_del| * 100 / 2 (as in Fig. 2);
-    agents aligned by id; no deliveries or no cuts -> 0."""
-    per_agent_cuts = metrics.get("cuts_per_agent", {})
-    per_agent_del = metrics.get("deliveries_per_agent", {})
-    agents = sorted(set(per_agent_cuts) & set(per_agent_del))[:2]
-    if len(agents) < 2:
-        return None
-    vals_cuts = [per_agent_cuts[a] for a in agents]
-    vals_del = [per_agent_del[a] for a in agents]
-    total_cuts, total_del = sum(vals_cuts), sum(vals_del)
+_IGNORED_IDS = {"", "nan", "none", "unknown", "null"}
+
+
+def _id_number(agent_id: str):
+    """Number that identifies an agent id: 'ai_rl_1' -> 1, '1' -> 1, '1.0' -> 1, 'agent-2' -> 2;
+    None when the id has no number."""
+    s = str(agent_id).strip()
+    try:
+        f = float(s)
+        if f.is_integer():
+            return int(f)
+    except ValueError:
+        pass
+    m = re.search(r"(\d+)\s*$", s)
+    return int(m.group(1)) if m else None
+
+
+def _valid_ids(d: dict) -> list[str]:
+    return [a for a in d if str(a).strip().lower() not in _IGNORED_IDS]
+
+
+def agent_slots(metrics: dict) -> dict:
+    """Per-agent counts in slots 1 / 2 (ai_rl_1, ai_rl_2), matched across the positions file
+    (deliveries) and the actions file (cuts) even when the two files write the agent ids
+    differently ('ai_rl_1' vs '1' vs 1.0). Returns {'d1', 'd2', 'c1', 'c2', 'matched'}.
+
+    Ids are matched by their number; the two numbers present (e.g. 1, 2 or 0, 1) become slots 1
+    and 2 in increasing order. If the two files use different numberings (e.g. 0/1 in one and
+    1/2 in the other), each file is ranked on its own. matched = False when the alignment had
+    to fall back to that per-file ranking or an id had no number."""
+    dels, cuts = metrics.get("deliveries_per_agent", {}), metrics.get("cuts_per_agent", {})
+    d_ids, c_ids = _valid_ids(dels), _valid_ids(cuts)
+    out = {"d1": 0, "d2": 0, "c1": 0, "c2": 0, "matched": True}
+
+    def by_number(ids):
+        nums = {a: _id_number(a) for a in ids}
+        return nums if all(n is not None for n in nums.values()) else None
+
+    dn, cn = by_number(d_ids), by_number(c_ids)
+    if dn is not None and cn is not None:
+        union = sorted(set(dn.values()) | set(cn.values()))
+        if len(union) <= 2:
+            slot = {n: k + 1 for k, n in enumerate(union)}
+            for a, n in dn.items():
+                out[f"d{slot[n]}"] += dels[a]
+            for a, n in cn.items():
+                out[f"c{slot[n]}"] += cuts[a]
+            return out
+    # fallback: rank the ids of each file separately (numbers if possible, else names)
+    out["matched"] = False
+    for ids, nums, src, key in ((d_ids, dn, dels, "d"), (c_ids, cn, cuts, "c")):
+        order = sorted(ids, key=lambda a: (nums[a], a) if nums else (0, str(a)))[:2]
+        for k, a in enumerate(order):
+            out[f"{key}{k + 1}"] = src[a]
+    return out
+
+
+def specialization_from_counts(d1, d2, c1, c2) -> float:
+    """|(c1 - c2)/(c1 + c2) + (d2 - d1)/(d1 + d2)| * 100 / 2 (as in Fig. 2);
+    no deliveries or no cuts -> 0."""
+    total_cuts, total_del = c1 + c2, d1 + d2
     if total_cuts == 0 or total_del == 0:
         return 0.0
-    cuts_term = (vals_cuts[0] - vals_cuts[1]) / total_cuts
-    del_term = (vals_del[1] - vals_del[0]) / total_del
-    return abs(del_term + cuts_term) * 100 / 2
+    return abs((c1 - c2) / total_cuts + (d2 - d1) / total_del) * 100 / 2
 
 
-def _agent_slot(agent_id: str, agents: list[str]) -> int:
-    """1 or 2: 'ai_rl_1' -> 1, 'ai_rl_2' -> 2; other ids by sorted order."""
-    m = re.search(r"(\d+)$", agent_id)
-    if m and all(re.search(r"(\d+)$", a) for a in agents):
-        nums = sorted(int(re.search(r"(\d+)$", a).group(1)) for a in agents)
-        return nums.index(int(m.group(1))) + 1
-    return sorted(agents).index(agent_id) + 1
+def specialization_index(metrics: dict) -> float:
+    """Specialization index of one simulated game (agents aligned with agent_slots)."""
+    s = agent_slots(metrics)
+    return specialization_from_counts(s["d1"], s["d2"], s["c1"], s["c2"])
+
+
+def recompute_specialization(df: pd.DataFrame) -> pd.DataFrame:
+    """Fill specialization_index from the per-agent columns deliver_ai_rl_k / cut_ai_rl_k
+    (e.g. for record CSVs written before this fix, where the column is empty)."""
+    cols = ["deliver_ai_rl_1", "deliver_ai_rl_2", "cut_ai_rl_1", "cut_ai_rl_2"]
+    if not set(cols) <= set(df.columns):
+        return df
+    df = df.copy()
+    d1, d2, c1, c2 = (pd.to_numeric(df[c], errors="coerce").fillna(0).to_numpy(float) for c in cols)
+    df["specialization_index"] = [specialization_from_counts(*v) for v in zip(d1, d2, c1, c2)]
+    return df
 
 
 def simulation_record(ref: SimRef) -> dict | None:
     """One flat row per simulated game: speeds, per-agent deliveries / cuts (ai_rl_1, ai_rl_2),
-    total_deliveries and specialization_index."""
+    total_deliveries and specialization_index (computed from those same four columns)."""
     met = extract_metrics(ref.path)
     if met is None:
         return None
+    s = agent_slots(met)
     row = {"walk": ref.walk1, "cut": ref.cut2, **speeds_of(ref.walk1, ref.cut2),
            "training_id": ref.training_id, "checkpoint": ref.checkpoint, "simulation": ref.simulation,
-           "total_deliveries": met["total_deliveries"],
-           "specialization_index": specialization_index(met)}
-    agents = sorted(set(met["deliveries_per_agent"]) | set(met["cuts_per_agent"]))[:2]
-    for k in (1, 2):
-        row[f"deliver_ai_rl_{k}"] = 0
-        row[f"cut_ai_rl_{k}"] = 0
-    for a in agents:
-        k = _agent_slot(a, agents)
-        row[f"deliver_ai_rl_{k}"] = met["deliveries_per_agent"].get(a, 0)
-        row[f"cut_ai_rl_{k}"] = met["cuts_per_agent"].get(a, 0)
+           # game score = deliveries of agent 1 + deliveries of agent 2, by construction
+           "total_deliveries": s["d1"] + s["d2"],
+           "specialization_index": specialization_from_counts(s["d1"], s["d2"], s["c1"], s["c2"]),
+           "deliver_ai_rl_1": s["d1"], "cut_ai_rl_1": s["c1"],
+           "deliver_ai_rl_2": s["d2"], "cut_ai_rl_2": s["c2"],
+           "agent_ids_matched": s["matched"],
+           # agents found in each file (2 = both); an agent missing from a file counts as 0
+           "n_agents_positions": len(_valid_ids(met["deliveries_per_agent"])),
+           "n_agents_actions": len(_valid_ids(met["cuts_per_agent"])),
+           "score_increments": met["score_increments"]}            # diagnostic only
+    raw_total = sum(met["deliveries_per_agent"][a] for a in _valid_ids(met["deliveries_per_agent"]))
+    if raw_total != row["total_deliveries"]:
+        row["_lost"] = (raw_total, row["total_deliveries"])
+    if not s["matched"]:
+        row["_ids"] = (sorted(map(str, met["deliveries_per_agent"])), sorted(map(str, met["cuts_per_agent"])))
     return row
 
 
 def collect_records(root: Path, pairs=None, checkpoint=DEFAULT_CHECKPOINT, verbose: bool = False,
                     extra: dict | None = None) -> pd.DataFrame:
     """DataFrame of simulation_record() rows for every simulation under root (see iter_simulations)."""
-    rows = []
+    rows, unmatched = [], []
     for ref in iter_simulations(root, pairs, checkpoint):
         rec = simulation_record(ref)
         if rec is None:
             if verbose:
                 print(f"  [SKIP] no usable data in {ref.path}")
             continue
+        ids = rec.pop("_ids", None)
+        if ids is not None:
+            unmatched.append((ref.path, ids))
+        lost = rec.pop("_lost", None)
+        if lost is not None:
+            print(f"  [WARN] {ref.path}: sum of the agents' final scores = {lost[0]}, but only "
+                  f"{lost[1]} assigned to ai_rl_1 / ai_rl_2 (more than two agent ids?)")
         if extra:
             rec.update(extra)
         rows.append(rec)
         if verbose:
-            s = rec["specialization_index"]
             print(f"  abilities_{ref.walk1:g}_{ref.cut2:g}/{ref.training_id}/{ref.simulation}  "
-                  f"deliveries={rec['total_deliveries']}  spec_idx={'N/A' if s is None else f'{s:.3f}'}")
-    return pd.DataFrame(rows)
+                  f"deliveries={rec['total_deliveries']}  spec_idx={rec['specialization_index']:.3f}")
+    if unmatched:
+        path, (d_ids, c_ids) = unmatched[0]
+        print(f"  [WARN] {len(unmatched)} simulated games: agent ids of the positions files {d_ids} and "
+              f"of the actions file {c_ids} could not be matched by number; each file was ranked "
+              f"separately (first case: {path})")
+    df = pd.DataFrame(rows)
+    if len(df):
+        assert (df["total_deliveries"] == df["deliver_ai_rl_1"] + df["deliver_ai_rl_2"]).all()
+        assert df["specialization_index"].notna().all()
+        n_diff = int((df["total_deliveries"] != df["score_increments"]).sum())
+        if n_diff:
+            print(f"  [INFO] {n_diff} of {len(df)} simulated games: total_deliveries "
+                  f"(sum of the final scores) differs from the old count of score increases")
+    return df

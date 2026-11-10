@@ -26,7 +26,7 @@ replace with real data for publication.
 MARL simulations: panels d-f are computed by the clustering pipeline from the simulated
 games of the simulation tree (see MARL_SIMS below and marl_simulations.py):
   .../<game_version>/simulations/<init_type>/map_<map>/synergy_1.35/specialized_0.25/
-      abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+      abilities_<walk1>_<cut2>/Training_*/checkpoint_750/simulation_*/
 This script lists those simulations (figure3_marl_simulations_index.csv) and checks that
 the agent counts of 3f match them.
 
@@ -55,7 +55,7 @@ figures_directory = './figures/'
 
 # MARL simulations behind panels d-f: the simulation tree (marl_simulations.py, same folder)
 #   <base>/data/samuel_lozano/cooked/<game_version>/simulations/<init_type>/map_<map>/
-#       synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+#       synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_750/simulation_*/
 # walk1 = walking speed of ai_rl_1, cut2 = cutting speed of ai_rl_2 (other speeds 1.0);
 # HA = abilities_1.0_1.0, MA = abilities_0.4_0.2; every Training_* and simulation_* is used.
 # The script lists them (figure3_marl_simulations_index.csv: the input list for the clustering
@@ -67,7 +67,7 @@ MARL_SIMS = {
     'init_type':      os.environ.get('MARL_INIT_TYPE', 'empty_init'),
     'synergy':        os.environ.get('MARL_SYNERGY', '1.35'),
     'specialization': os.environ.get('MARL_SPECIALIZATION', '0.25'),
-    'checkpoint':     os.environ.get('MARL_CHECKPOINT', '753'),
+    'checkpoint':     os.environ.get('MARL_CHECKPOINT', '750'),
     'maps': {'Open': 'baseline_division_of_labor_large', 'PB': 'encouraged_division_of_labor_large'},
     'pairs': {'HA': (1.0, 1.0), 'MA': (0.4, 0.2)},
 }

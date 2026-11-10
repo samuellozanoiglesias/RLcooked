@@ -17,7 +17,7 @@ the same colour scale (RdBu_r, clipped to [-4, +4]).
 
 MARL data: simulated games of the simulation tree (marl_simulations.py, same folder)
     <base>/data/samuel_lozano/cooked/<game_type>/simulations/<init_type>/map_<map>/
-        synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+        synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_750/simulation_*/
 with walk1 = walking speed of ai_rl_1 and cut2 = cutting speed of ai_rl_2 (the other two
 speeds are 1.0). Every Training_* and every simulation_* folder is used; each grid cell is the
 mean over all simulated games of its abilities folder.
@@ -36,8 +36,8 @@ Usage:
     python fig4_human_vs_rl_gridmap.py [options]
 
 Examples:
-    # Default analysis (simulated games, checkpoint_753, every Training_* / simulation_*)
-    nohup python fig4_human_vs_rl_gridmap.py --init_type empty_init --specialization 0.25 --synergy 1.35 --checkpoint 753 > fig4.log 2>&1 &
+# Default analysis (simulated games, checkpoint_750, every Training_* / simulation_*)
+nohup python fig4_human_vs_rl_gridmap.py --init_type empty_init --specialization 0.25 --synergy 1.35 --checkpoint 750 > fig4.log 2>&1 &
 
     # Besides the figure: <name>_coverage.txt (seeds and simulated games per cell) and
     # <name>_per_training.csv (abilities, map, training_id, num_simulations, mean_score)
@@ -342,7 +342,7 @@ TEXTS = {
     'xlabel_a':  ('cmr10', 36, r'Walking speed of player 1 (\%)', (123.52 + 589.43) / 2, 615.15, 0, 'center'),
     'xlabel_b':  ('cmr10', 36, r'Walking speed of player 1 (\%)', (672.33 + 1138.13) / 2, 615.06, 0, 'center'),
     'ylabel_a':  ('cmr10', 36, r'Cutting speed of player 2 (\%)', 41.84, (68.10 + 534.12) / 2, 90, 'center'),
-    'cbar_lab':  ('cmr10', 36, 'Relative advantage over HA', 1282.0, (63.04 + 545.61) / 2, 90, 'center'),
+    'cbar_lab':  ('cmr10', 44, 'Relative advantage over HA', 1282.0, (63.04 + 545.61) / 2, 90, 'center'),
     'cbar_+4':   ('cmr10', 30, '+4', 1194.91, 73.32, 0),
     'cbar_+2':   ('cmr10', 30, '+2', 1196.03, 189.22, 0),
     'cbar_0':    ('cmr10', 30, '0', 1204.03, 315.95, 0),
@@ -632,7 +632,8 @@ def write_coverage_files(records: List[pd.DataFrame], map_names: Dict[str, str],
                           of simulated games and the games per seed (min..max), plus a
                           seeds grid and a simulations grid (rows = cut2, columns = walk1).
     <stem>_per_training.csv : one row per map x abilities x training, with columns
-                          abilities, map, training_id, num_simulations, mean_score."""
+                          abilities, map, training_id, num_simulations, mean_score,
+                          mean_specialization_index."""
     df = pd.concat([r for r in records if r is not None and len(r)], ignore_index=True) \
         if any(r is not None and len(r) for r in records) else pd.DataFrame()
 
@@ -640,10 +641,17 @@ def write_coverage_files(records: List[pd.DataFrame], map_names: Dict[str, str],
         return f'abilities_{_format_speed_label(w)}_{_format_speed_label(c)}'
 
     # ---- per-training CSV ----
-    cols = ['abilities', 'map', 'training_id', 'num_simulations', 'mean_score']
+    cols = ['abilities', 'map', 'training_id', 'num_simulations', 'mean_score',
+            'mean_specialization_index']
     if len(df):
-        g = (df.groupby(['map_name', 'walk', 'cut', 'training_id'])['total_deliveries']
-               .agg(num_simulations='size', mean_score='mean').reset_index())
+        if 'specialization_index' not in df.columns:
+            df['specialization_index'] = np.nan
+        g = (df.groupby(['map_name', 'walk', 'cut', 'training_id'])
+               .agg(num_simulations=('total_deliveries', 'size'),
+                    mean_score=('total_deliveries', 'mean'),
+                    mean_specialization_index=('specialization_index',
+                                               lambda x: pd.to_numeric(x, errors='coerce').mean()))
+               .reset_index())
         g['abilities'] = [ab_name(w, c) for w, c in zip(g['walk'], g['cut'])]
         per_tr = (g.rename(columns={'map_name': 'map'})
                    .sort_values(['map', 'walk', 'cut', 'training_id'])[cols])
@@ -699,7 +707,7 @@ def setup_argument_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument('--checkpoint', type=str, default=ms.DEFAULT_CHECKPOINT,
-                        help="checkpoint_<n> folder of the simulated games (default 753), 'latest' or 'all'")
+                        help="checkpoint_<n> folder of the simulated games (default 750), 'latest' or 'all'")
     parser.add_argument('--records_csv', type=str, default=None,
                         help='Re-use the per-game records cached by a previous run (skips crawling the tree)')
     parser.add_argument('--verbose', action='store_true')
@@ -789,6 +797,12 @@ def main():
             if cached is not None:
                 prepared = cached[cached['map_name'] == map_name].copy()
                 print(f'{len(prepared)} simulated games read from {args.records_csv}')
+                if 'agent_ids_matched' not in prepared.columns:
+                    # cache written by the old loader: specialization_index may be empty
+                    prepared = ms.recompute_specialization(prepared)
+                    print('[WARN] --records_csv was written by an older marl_simulations.py: '
+                          'specialization_index recomputed from deliver_ai_rl_k / cut_ai_rl_k. '
+                          'Re-run without --records_csv to rebuild the per-agent counts as well.')
             else:
                 prepared = analyzer.load_experimental_data()
             records.append(prepared)

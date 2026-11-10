@@ -6,10 +6,10 @@ Produces ONE combined figure (PDF + PNG) with a 2 x 3 layout:
 
     row 1  "Human"   a  Number of clusters
                      b  Noise fraction
-                     c  Size of smallest cluster
-    row 2  "MARL"    d  Number of clusters
+                     c  Smallest cluster
+    row 2  "MARL Simulations"    d  Number of clusters
                      e  Noise fraction
-                     f  Size of smallest cluster
+                     f  Smallest cluster
 
 Every panel is a heat-map over the DBSCAN parameter grid
 (x = minimum cluster size, y = epsilon). The black star marks the
@@ -56,7 +56,7 @@ warnings.filterwarnings('ignore')
 # ==========================================================================
 DATASETS = {                                 # row key -> (file prefix, row title)
     'human': ('human', 'Human'),
-    'rl':    ('rl', 'MARL'),
+    'rl':    ('rl', 'MARL Simulations'),
 }
 ROW_ORDER = ('human', 'rl')
 
@@ -80,13 +80,14 @@ def load_matrices(data_dir: Path, prefix: str) -> Tuple[np.ndarray, np.ndarray, 
 
 # ==========================================================================
 # PANEL DEFINITIONS (one per column)
+# Every colour-bar label is a single line.
 # ==========================================================================
 PANELS = [
     dict(name='clusters', label=['Number of Clusters'], cmap='terrain',
          vmin=0, vmax=7, ticks=[0, 3, 6], fmt='{:.0f}'),
     dict(name='noise', label=['Noise Fraction'], cmap='Spectral_r',
          vmin=0.0, vmax=1.0, ticks=[0.0, 0.5, 1.0], fmt='{:.1f}'),
-    dict(name='smallest', label=['Size of', 'Smallest Cluster'], cmap='gnuplot_r',
+    dict(name='smallest', label=['Smallest Cluster'], cmap='gnuplot_r',
          vmin=0, vmax=400, ticks=[0, 200, 400], fmt='{:.0f}'),
 ]
 PANEL_LETTERS = {'human': ['a', 'b', 'c'], 'rl': ['d', 'e', 'f']}
@@ -100,23 +101,23 @@ Y_TICKS = [2, 4, 6, 8, 10]
 # Same page width, fonts and line widths as Figure 4.
 # ==========================================================================
 PAGE_W = 1332.36
-ROW_H = 685.0
+ROW_H = 640.0                                # was 685 (compact rows)
 ROW_GAP = 10.0
-PAGE_H = 2 * ROW_H + ROW_GAP                 # 18.50 x 19.17 in
+PAGE_H = 2 * ROW_H + ROW_GAP                 # 1290 pt (was 1380)
 
 COL_LEFT = 150.0                             # left edge of the first column
 PANEL_W = 350.0                              # square panels
 PANEL_HGAP = 58.0
 
 # vertical positions inside a row (relative to the top of the row)
-ROW_TITLE_BASELINE = 44.0
-CBAR_LABEL_BASELINE = 140.0                  # baseline of the LAST label line
-CBAR_LABEL_LINESKIP = 38.0
-CBAR_TOP = 182.0
+ROW_TITLE_BASELINE = 52.0                    # was 76
+CBAR_LABEL_BASELINE = 102.0                  # was 130 -> only ~18 pt below the row title
+CBAR_LABEL_LINESKIP = 42.0
+CBAR_TOP = 152.0                             # was 182
 CBAR_H = 21.0
 CBAR_REL_W = 0.80                            # colour bar width / panel width
-PANEL_TOP = 222.0
-XLABEL_BASELINE = PANEL_TOP + PANEL_W + 92.0
+PANEL_TOP = 192.0                            # was 222
+XLABEL_BASELINE = PANEL_TOP + PANEL_W + 86.0
 
 SPINE_LW = 1.12
 TICK_LEN, TICK_W = 8.4, 1.68
@@ -126,10 +127,11 @@ XTICK_PAD, YTICK_PAD = 4.46, 4.8
 TICK_FONT = ('cmr10', 30)
 CBAR_TICK_FONT = ('cmr10', 30)
 LABEL_FONT = ('cmr10', 36)
-CBAR_LABEL_FONT = ('cmr10', 34.1)
-TITLE_FONT = ('cmbx10', 38)
+CBAR_LABEL_FONT = ('cmr10', 40)              # subtitles (back to 40 so they clear the panel letters)
+TITLE_FONT = ('cmbx10', 60)                  # row titles (was 52)
 LETTER_FONT = ('cmbx10', 50)
-EPS_FONTSIZE = 44
+LETTER_GAP = 16.0                            # space between a panel letter and its subtitle
+EPS_LABEL = r'Neighborhood radius $\epsilon$'   # y-axis label (one line)
 
 GRID_KW = dict(color='white', linewidth=1.3, alpha=0.85)
 STAR_KW = dict(marker='*', s=1150, c='black', edgecolors='white', linewidths=1.6, zorder=6)
@@ -205,7 +207,7 @@ class DBSCANHeatmapPlotter:
         return COL_LEFT + col * (PANEL_W + PANEL_HGAP)
 
     def _text(self, fig, page, font, size, text, x, y, ha='left', rot=0):
-        fig.text(x, y, tex(font, size, text), transform=page, ha=ha, va='baseline',
+        return fig.text(x, y, tex(font, size, text), transform=page, ha=ha, va='baseline',
                  rotation=rot, rotation_mode='anchor', zorder=3, **_text_kw(font, size))
 
     # -- panels -----------------------------------------------------------
@@ -257,9 +259,12 @@ class DBSCANHeatmapPlotter:
 
         # Colour-bar label as free text (multi-line labels grow upwards)
         xc = left + 0.5 * PANEL_W
+        artists = []
         for k, line in enumerate(reversed(spec['label'])):
-            self._text(fig, page, *CBAR_LABEL_FONT, line, xc,
-                       row_top + CBAR_LABEL_BASELINE - k * CBAR_LABEL_LINESKIP, ha='center')
+            artists.append(self._text(fig, page, *CBAR_LABEL_FONT, line, xc,
+                                      row_top + CBAR_LABEL_BASELINE - k * CBAR_LABEL_LINESKIP,
+                                      ha='center'))
+        return artists
 
     # -- full figure ------------------------------------------------------
     def create_figure(self, data: Dict[str, Tuple[np.ndarray, ...]],
@@ -276,15 +281,18 @@ class DBSCANHeatmapPlotter:
                 ax = fig.add_axes(self._rect_to_fig(rect))
                 im = self._plot_panel(ax, data[key][col], spec, show_ylabels=(col == 0),
                                       star=stars.get(key))
-                self._add_colorbar(fig, page, im, spec, col, row_top)
+                label_artists = self._add_colorbar(fig, page, im, spec, col, row_top)
 
-                # Panel letter
+                # Panel letter, right-aligned a fixed gap to the left of its subtitle
+                renderer = fig.canvas.get_renderer()
+                label_left = min(a.get_window_extent(renderer).x0 for a in label_artists)
+                label_left *= 72.0 / fig.dpi                     # display pixels -> page points
                 self._text(fig, page, *LETTER_FONT, PANEL_LETTERS[key][col],
-                           left - 58.0, row_top + CBAR_LABEL_BASELINE + 4.0)
+                           label_left - LETTER_GAP, row_top + CBAR_LABEL_BASELINE + 4.0, ha='right')
 
                 if col == 0:
-                    ax.set_ylabel(r'$\epsilon$', fontsize=EPS_FONTSIZE, labelpad=12, rotation=0,
-                                  va='center')
+                    ax.set_ylabel(tex(*LABEL_FONT, EPS_LABEL), labelpad=12,
+                                  **_text_kw(*LABEL_FONT))
 
             # Row title (centred over the row) and shared x label (centred under it)
             row_l, row_r = self._col_left(0), self._col_left(len(PANELS) - 1) + PANEL_W

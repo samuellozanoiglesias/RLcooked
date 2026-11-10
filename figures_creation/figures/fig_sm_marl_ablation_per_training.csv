@@ -1,0 +1,831 @@
+map,switch_cost_condition,walk,cut,source,source_name,training_id,n_games,score,specialization
+Open map,low,0.1,0.1,human,humans,01eec8b1e2f7acc1,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,0a5a9152bbb58f42,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,0b4c6b663799d8e5,1.0,1.0,0.0
+Open map,low,0.1,0.1,human,humans,0ba864b76c42a7c6,1.0,5.0,0.0
+Open map,low,0.1,0.1,human,humans,0bf65c029a73e3a1,1.0,2.0,80.0
+Open map,low,0.1,0.1,human,humans,1447e4439c23cfa6,1.0,5.0,71.42857142857143
+Open map,low,0.1,0.1,human,humans,1969f7dd88e0651a,1.0,3.0,16.666666666666664
+Open map,low,0.1,0.1,human,humans,1a36d078416412b4,1.0,5.0,0.0
+Open map,low,0.1,0.1,human,humans,1d732b901f63af3d,1.0,2.0,40.0
+Open map,low,0.1,0.1,human,humans,21c85a5b39e4112e,1.0,2.0,50.0
+Open map,low,0.1,0.1,human,humans,24e4ca8a278c28f4,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,2f208d1f10f7a639,1.0,4.0,40.0
+Open map,low,0.1,0.1,human,humans,36af749931ab3072,1.0,1.0,0.0
+Open map,low,0.1,0.1,human,humans,398a493febb7ccef,1.0,3.0,50.0
+Open map,low,0.1,0.1,human,humans,3caa8e565f65e759,1.0,3.0,33.333333333333336
+Open map,low,0.1,0.1,human,humans,3db57a304b3df2f4,1.0,2.0,25.0
+Open map,low,0.1,0.1,human,humans,473ccd7df9725b97,1.0,3.0,6.666666666666665
+Open map,low,0.1,0.1,human,humans,5187ee35fadec422,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,51f9953b5eda2edd,1.0,1.0,0.0
+Open map,low,0.1,0.1,human,humans,52308ea05d22bee2,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,57361a0f8f88dcf2,1.0,3.0,8.333333333333334
+Open map,low,0.1,0.1,human,humans,5a78d43b069daaa9,1.0,3.0,50.0
+Open map,low,0.1,0.1,human,humans,5aa64f7275de697f,1.0,7.0,100.0
+Open map,low,0.1,0.1,human,humans,6651170a16c50777,1.0,2.0,25.0
+Open map,low,0.1,0.1,human,humans,66f9317af01e714a,1.0,2.0,25.0
+Open map,low,0.1,0.1,human,humans,6bf26254c8a104a0,1.0,2.0,25.0
+Open map,low,0.1,0.1,human,humans,702fc1ff6871b1d2,1.0,8.0,100.0
+Open map,low,0.1,0.1,human,humans,73396779d0c4b889,1.0,2.0,0.0
+Open map,low,0.1,0.1,human,humans,79cd2730357a24f2,1.0,8.0,33.333333333333336
+Open map,low,0.1,0.1,human,humans,7f8280f8fd938844,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,7f98ffac5a44ddd0,1.0,5.0,62.5
+Open map,low,0.1,0.1,human,humans,80da23a745be1f0b,1.0,3.0,33.333333333333336
+Open map,low,0.1,0.1,human,humans,8842dd78fef2a5f7,1.0,3.0,60.0
+Open map,low,0.1,0.1,human,humans,891662bf920e72ba,1.0,3.0,25.0
+Open map,low,0.1,0.1,human,humans,8c3d8dbe5860d7c8,1.0,2.0,50.0
+Open map,low,0.1,0.1,human,humans,92e7aed8c7115a97,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,98bda1520999d010,1.0,1.0,33.333333333333336
+Open map,low,0.1,0.1,human,humans,9968d16d4e41eb84,1.0,4.0,0.0
+Open map,low,0.1,0.1,human,humans,9c60611fc655be0f,1.0,1.0,66.66666666666666
+Open map,low,0.1,0.1,human,humans,9e8989d78f912f62,1.0,2.0,25.0
+Open map,low,0.1,0.1,human,humans,9f87428cf38faadd,1.0,4.0,14.285714285714285
+Open map,low,0.1,0.1,human,humans,9f884793df5155f4,1.0,3.0,75.0
+Open map,low,0.1,0.1,human,humans,aa37013badfd43b5,1.0,2.0,20.0
+Open map,low,0.1,0.1,human,humans,ad5d691c06d66fc8,1.0,4.0,0.0
+Open map,low,0.1,0.1,human,humans,af69080af7352fc7,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,b0326503c53a0cb9,1.0,2.0,0.0
+Open map,low,0.1,0.1,human,humans,b31427e9f333d408,1.0,6.0,0.0
+Open map,low,0.1,0.1,human,humans,b492b7f68125d8d1,1.0,2.0,16.666666666666668
+Open map,low,0.1,0.1,human,humans,c075d65227fdc021,1.0,3.0,33.33333333333333
+Open map,low,0.1,0.1,human,humans,c31321442b534f7a,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,c35688578308264c,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,c5fd4ae4ef0829c2,1.0,1.0,25.0
+Open map,low,0.1,0.1,human,humans,cad791fe5840c839,1.0,2.0,33.333333333333336
+Open map,low,0.1,0.1,human,humans,cbeca8a688962e2a,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,cfba9bafb93a9e41,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,d25c8c0209f27559,1.0,1.0,25.0
+Open map,low,0.1,0.1,human,humans,d7c98b07902184ee,1.0,5.0,71.42857142857143
+Open map,low,0.1,0.1,human,humans,dc60ad94f233be73,1.0,1.0,33.333333333333336
+Open map,low,0.1,0.1,human,humans,dcbf9f775733bdb5,1.0,6.0,100.0
+Open map,low,0.1,0.1,human,humans,de430cb9d3b507e9,1.0,2.0,50.0
+Open map,low,0.1,0.1,human,humans,e65cfe2e2614044b,1.0,1.0,50.0
+Open map,low,0.1,0.1,human,humans,e882fe2a5905439f,1.0,2.0,25.0
+Open map,low,0.1,0.1,human,humans,eab7b8c52d1c5bf0,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,ee5aed10b89daf00,1.0,1.0,75.0
+Open map,low,0.1,0.1,human,humans,eeadec326c147d3f,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,f08fbea0cc2f9988,1.0,5.0,85.71428571428572
+Open map,low,0.1,0.1,human,humans,f62e29a8c5e82728,1.0,2.0,75.0
+Open map,low,0.1,0.1,human,humans,fb25a928eb4cf471,1.0,2.0,25.0
+Open map,low,0.1,0.1,human,humans,fdba536e6d299956,1.0,0.0,0.0
+Open map,low,0.1,0.1,human,humans,fe0723d7d6c98a5b,1.0,3.0,25.0
+Open map,low,0.1,0.1,scratch,from scratch,Training_2026-05-16_22-47-04,20.0,0.0,0.0
+Open map,low,0.1,0.1,scratch,from scratch,Training_2026-05-18_21-58-37,20.0,1.35,21.631160506160505
+Open map,low,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-29-10,20.0,1.5,8.666666666666666
+Open map,low,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-29-26,20.0,1.45,8.472238137679314
+Open map,low,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-29-42,20.0,1.7,16.676948051948052
+Open map,low,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-29-57,20.0,0.0,0.0
+Open map,low,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-30-13,20.0,1.9,35.33714896214896
+Open map,low,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-30-27,20.0,1.8,15.074356199356199
+Open map,low,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-30-45,20.0,0.0,0.0
+Open map,low,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-31-00,20.0,0.8,19.084054834054832
+Open map,low,0.1,0.1,pretrained,pretrained,Training_2026-11-04_00-19-18,20.0,2.95,50.058383867594394
+Open map,low,0.1,0.1,pretrained,pretrained,Training_2026-11-04_00-20-15,20.0,2.45,38.319865319865315
+Open map,low,0.1,0.1,pretrained,pretrained,Training_2026-11-04_00-21-15,20.0,2.2,44.48972024707319
+Open map,low,0.2,1.0,human,humans,00c4a0ed0ff31014,1.0,6.0,5.555555555555553
+Open map,low,0.2,1.0,human,humans,014b241f7fc70f76,1.0,8.0,100.0
+Open map,low,0.2,1.0,human,humans,0a7fc75aa43f3d5b,1.0,2.0,10.0
+Open map,low,0.2,1.0,human,humans,0bc27e3b663b6513,1.0,8.0,12.5
+Open map,low,0.2,1.0,human,humans,0bf70bc58bef1d44,1.0,7.0,1.5873015873015872
+Open map,low,0.2,1.0,human,humans,0e8c9291b62f8555,1.0,6.0,0.0
+Open map,low,0.2,1.0,human,humans,0f3bda86573b8f63,1.0,5.0,0.0
+Open map,low,0.2,1.0,human,humans,1824580e0171a547,1.0,3.0,33.333333333333336
+Open map,low,0.2,1.0,human,humans,19f79c8ef6e9fc66,1.0,8.0,30.55555555555556
+Open map,low,0.2,1.0,human,humans,1b6ac04fabe54b2e,1.0,8.0,100.0
+Open map,low,0.2,1.0,human,humans,1c5c1362563e789d,1.0,1.0,66.66666666666666
+Open map,low,0.2,1.0,human,humans,23984d560146d416,1.0,6.0,42.85714285714286
+Open map,low,0.2,1.0,human,humans,2407ce351e2b1de7,1.0,2.0,10.0
+Open map,low,0.2,1.0,human,humans,2977bf9387d2a3fc,1.0,8.0,0.0
+Open map,low,0.2,1.0,human,humans,2a3fc9333df1c6de,1.0,4.0,0.0
+Open map,low,0.2,1.0,human,humans,2a9f9045489d5d69,1.0,4.0,60.0
+Open map,low,0.2,1.0,human,humans,2e7a315f3317612e,1.0,7.0,1.785714285714285
+Open map,low,0.2,1.0,human,humans,32947ee7b2322366,1.0,4.0,21.428571428571427
+Open map,low,0.2,1.0,human,humans,33be3308a84e390e,1.0,6.0,52.38095238095239
+Open map,low,0.2,1.0,human,humans,35d754b416afd424,1.0,2.0,25.0
+Open map,low,0.2,1.0,human,humans,3a4f62d01d9cd242,1.0,0.0,0.0
+Open map,low,0.2,1.0,human,humans,3b2c46781c1bdf2f,1.0,4.0,50.0
+Open map,low,0.2,1.0,human,humans,415ce734932399d9,1.0,6.0,11.904761904761903
+Open map,low,0.2,1.0,human,humans,43c00234ef344332,1.0,8.0,19.444444444444446
+Open map,low,0.2,1.0,human,humans,44e282f445843393,1.0,8.0,100.0
+Open map,low,0.2,1.0,human,humans,49a40ada82d42d2a,1.0,6.0,33.33333333333333
+Open map,low,0.2,1.0,human,humans,50f4f1b66fcfbcb5,1.0,1.0,0.0
+Open map,low,0.2,1.0,human,humans,52aa4c71dc0df8a6,1.0,4.0,16.666666666666668
+Open map,low,0.2,1.0,human,humans,58992821e9ba849d,1.0,1.0,0.0
+Open map,low,0.2,1.0,human,humans,598b7abd764e6c1e,1.0,5.0,10.0
+Open map,low,0.2,1.0,human,humans,5b8ad99564805be7,1.0,7.0,17.857142857142858
+Open map,low,0.2,1.0,human,humans,5e34073182b49c65,1.0,5.0,0.0
+Open map,low,0.2,1.0,human,humans,667858900aba834a,1.0,3.0,33.333333333333336
+Open map,low,0.2,1.0,human,humans,68b2a5f3fc861bca,1.0,1.0,0.0
+Open map,low,0.2,1.0,human,humans,7123ae59215ad66a,1.0,1.0,42.85714285714286
+Open map,low,0.2,1.0,human,humans,7211f8803ba6b738,1.0,4.0,83.33333333333333
+Open map,low,0.2,1.0,human,humans,7603edac8bdbed37,1.0,5.0,2.857142857142858
+Open map,low,0.2,1.0,human,humans,783ead96b86ec319,1.0,6.0,16.666666666666664
+Open map,low,0.2,1.0,human,humans,7a284eb507efb3e1,1.0,6.0,26.190476190476183
+Open map,low,0.2,1.0,human,humans,7ac10f10c949921f,1.0,5.0,2.857142857142858
+Open map,low,0.2,1.0,human,humans,89f20de1a008b247,1.0,0.0,0.0
+Open map,low,0.2,1.0,human,humans,8d1a23498269e95a,1.0,1.0,100.0
+Open map,low,0.2,1.0,human,humans,95a92f10e6bf0968,1.0,0.0,0.0
+Open map,low,0.2,1.0,human,humans,9b0b76a687dc166d,1.0,6.0,38.095238095238095
+Open map,low,0.2,1.0,human,humans,9b60652cb07ab318,1.0,7.0,0.0
+Open map,low,0.2,1.0,human,humans,a61f4812f3414055,1.0,3.0,6.666666666666665
+Open map,low,0.2,1.0,human,humans,a80ff45f3be3d06c,1.0,7.0,62.5
+Open map,low,0.2,1.0,human,humans,a86ff32cea3fbad3,1.0,5.0,0.0
+Open map,low,0.2,1.0,human,humans,a990c8b92afc9678,1.0,5.0,11.428571428571429
+Open map,low,0.2,1.0,human,humans,b5734d126e0f4e11,1.0,10.0,54.54545454545454
+Open map,low,0.2,1.0,human,humans,b8687c3970112ba6,1.0,0.0,0.0
+Open map,low,0.2,1.0,human,humans,bdfd05d21b3d670f,1.0,6.0,20.833333333333336
+Open map,low,0.2,1.0,human,humans,c78b078a2e3b131a,1.0,1.0,0.0
+Open map,low,0.2,1.0,human,humans,cb87d1e7347224f0,1.0,7.0,100.0
+Open map,low,0.2,1.0,human,humans,ccd72358439dc0db,1.0,5.0,47.5
+Open map,low,0.2,1.0,human,humans,d49837d884e5005a,1.0,6.0,57.14285714285714
+Open map,low,0.2,1.0,human,humans,d60785466fd024ae,1.0,5.0,60.0
+Open map,low,0.2,1.0,human,humans,d6d830a04b2d0138,1.0,7.0,30.35714285714286
+Open map,low,0.2,1.0,human,humans,dd11bbcfca9e7e1a,1.0,8.0,100.0
+Open map,low,0.2,1.0,human,humans,e0f315b228d5204e,1.0,5.0,0.0
+Open map,low,0.2,1.0,human,humans,e5f9cb86f303e614,1.0,3.0,8.333333333333334
+Open map,low,0.2,1.0,human,humans,e72b4fce617817b4,1.0,5.0,2.857142857142858
+Open map,low,0.2,1.0,human,humans,ea8919af94ac5c8a,1.0,8.0,0.0
+Open map,low,0.2,1.0,human,humans,ebee6832a4465034,1.0,5.0,0.0
+Open map,low,0.2,1.0,human,humans,ee911c806daa91ef,1.0,5.0,16.666666666666668
+Open map,low,0.2,1.0,human,humans,f028c6dbabf5a1d9,1.0,9.0,0.0
+Open map,low,0.2,1.0,human,humans,f2a38203d882c00b,1.0,7.0,5.357142857142858
+Open map,low,0.2,1.0,human,humans,f421c830af15628d,1.0,3.0,0.0
+Open map,low,0.2,1.0,human,humans,f67846c8ffcc119b,1.0,1.0,33.333333333333336
+Open map,low,0.2,1.0,human,humans,fc8aef8d66cd95dc,1.0,4.0,4.999999999999999
+Open map,low,0.2,1.0,scratch,from scratch,Training_2026-05-17_23-52-41,20.0,4.05,8.883333646342447
+Open map,low,0.2,1.0,scratch,from scratch,Training_2026-05-17_23-53-49,20.0,4.9,39.91582125333103
+Open map,low,0.2,1.0,scratch,from scratch,Training_2026-05-17_23-55-04,20.0,3.6,9.808914009294558
+Open map,low,0.2,1.0,scratch,from scratch,Training_2026-05-18_06-48-08,20.0,4.95,26.06742190635139
+Open map,low,0.2,1.0,scratch,from scratch,Training_2026-05-18_07-19-07,20.0,4.5,8.335905337995097
+Open map,low,0.2,1.0,scratch,from scratch,Training_2026-05-19_14-09-47,20.0,3.95,8.351749581037025
+Open map,low,0.2,1.0,scratch,from scratch,Training_2026-05-19_14-12-23,20.0,3.55,17.1961629665264
+Open map,low,0.2,1.0,scratch,from scratch,Training_2026-05-19_21-50-57,20.0,5.2,19.54521393056285
+Open map,low,0.2,1.0,scratch,from scratch,Training_2026-05-19_22-16-24,20.0,3.55,9.294539172877103
+Open map,low,0.2,1.0,scratch,from scratch,Training_2026-05-19_22-40-48,20.0,5.0,14.224382505451214
+Open map,low,0.2,1.0,pretrained,pretrained,Training_2026-11-04_00-16-00,20.0,5.0,26.19960393637453
+Open map,low,0.2,1.0,pretrained,pretrained,Training_2026-11-04_00-16-31,20.0,5.35,32.36870956156382
+Open map,low,0.2,1.0,pretrained,pretrained,Training_2026-11-04_00-17-03,20.0,5.9,44.09771797521663
+Open map,low,0.4,0.2,human,humans,01b0d8cd80a917d2,1.0,3.0,16.666666666666664
+Open map,low,0.4,0.2,human,humans,07d69669f51d8abd,1.0,8.0,88.88888888888889
+Open map,low,0.4,0.2,human,humans,08fa9c0f93d3cca7,1.0,5.0,66.66666666666666
+Open map,low,0.4,0.2,human,humans,12c661097986eb0e,1.0,3.0,16.666666666666664
+Open map,low,0.4,0.2,human,humans,291b849f89e431de,1.0,5.0,2.857142857142858
+Open map,low,0.4,0.2,human,humans,29f49e7969eb7d8d,1.0,6.0,20.83333333333333
+Open map,low,0.4,0.2,human,humans,2a31ecf28f4deb55,1.0,3.0,40.0
+Open map,low,0.4,0.2,human,humans,2b11cb4fc59d0e22,1.0,4.0,0.0
+Open map,low,0.4,0.2,human,humans,31b820eb9154a7de,1.0,5.0,6.666666666666665
+Open map,low,0.4,0.2,human,humans,32362a735f177a9d,1.0,3.0,0.0
+Open map,low,0.4,0.2,human,humans,334d3267dbd5c95e,1.0,5.0,100.0
+Open map,low,0.4,0.2,human,humans,3b3b16c153f5cfca,1.0,2.0,0.0
+Open map,low,0.4,0.2,human,humans,3b59c13d9dbe8029,1.0,6.0,11.904761904761903
+Open map,low,0.4,0.2,human,humans,47a66f019ade9934,1.0,9.0,66.66666666666667
+Open map,low,0.4,0.2,human,humans,4a1bcc4b94d1019f,1.0,5.0,100.0
+Open map,low,0.4,0.2,human,humans,4a437fb7505c9b43,1.0,4.0,0.0
+Open map,low,0.4,0.2,human,humans,52415c125a502223,1.0,3.0,0.0
+Open map,low,0.4,0.2,human,humans,54c987f3c6899520,1.0,6.0,4.166666666666666
+Open map,low,0.4,0.2,human,humans,56cec98d1e042978,1.0,4.0,8.333333333333334
+Open map,low,0.4,0.2,human,humans,5d66195f70b36b17,1.0,4.0,58.33333333333333
+Open map,low,0.4,0.2,human,humans,5d7bc390e590d6e9,1.0,4.0,100.0
+Open map,low,0.4,0.2,human,humans,5dea58c625c4ee15,1.0,7.0,1.4285714285714262
+Open map,low,0.4,0.2,human,humans,6113ed5bfaf2fa19,1.0,6.0,41.66666666666666
+Open map,low,0.4,0.2,human,humans,661ef63627ad5774,1.0,1.0,0.0
+Open map,low,0.4,0.2,human,humans,66abf812af59627b,1.0,4.0,15.0
+Open map,low,0.4,0.2,human,humans,688ad2fad1202ea5,1.0,4.0,16.666666666666664
+Open map,low,0.4,0.2,human,humans,6a1b7361efca218e,1.0,4.0,15.0
+Open map,low,0.4,0.2,human,humans,6cdf9833a90563ae,1.0,5.0,100.0
+Open map,low,0.4,0.2,human,humans,6d3f009764b6aca7,1.0,11.0,100.0
+Open map,low,0.4,0.2,human,humans,6d6b8f59edc61c62,1.0,5.0,100.0
+Open map,low,0.4,0.2,human,humans,6dd806cd73bf3b5b,1.0,10.0,100.0
+Open map,low,0.4,0.2,human,humans,771468c2a738df79,1.0,6.0,0.0
+Open map,low,0.4,0.2,human,humans,77be1a9626a08aff,1.0,6.0,7.142857142857142
+Open map,low,0.4,0.2,human,humans,823ac4ee8ddd4983,1.0,7.0,85.71428571428572
+Open map,low,0.4,0.2,human,humans,898e420b434421ea,1.0,6.0,0.0
+Open map,low,0.4,0.2,human,humans,89e46e8966f2c1ae,1.0,8.0,40.0
+Open map,low,0.4,0.2,human,humans,8fd49a43d42f7547,1.0,4.0,20.0
+Open map,low,0.4,0.2,human,humans,90bf57b02fd2d4d2,1.0,4.0,0.0
+Open map,low,0.4,0.2,human,humans,994f1f1f342fbfc1,1.0,5.0,17.142857142857142
+Open map,low,0.4,0.2,human,humans,9b3263bb16a3abf3,1.0,5.0,50.0
+Open map,low,0.4,0.2,human,humans,a1110d2d33597782,1.0,3.0,6.666666666666665
+Open map,low,0.4,0.2,human,humans,aad53a457917386a,1.0,5.0,20.0
+Open map,low,0.4,0.2,human,humans,ab238ed83b2761cf,1.0,5.0,3.3333333333333326
+Open map,low,0.4,0.2,human,humans,ac52098585ba30ed,1.0,3.0,50.0
+Open map,low,0.4,0.2,human,humans,ae5a89875992461d,1.0,5.0,80.0
+Open map,low,0.4,0.2,human,humans,b1e76775e165878d,1.0,4.0,0.0
+Open map,low,0.4,0.2,human,humans,b2be7bc9dff59f21,1.0,6.0,23.809523809523807
+Open map,low,0.4,0.2,human,humans,b39ca4979d0cce40,1.0,7.0,88.88888888888889
+Open map,low,0.4,0.2,human,humans,b48a1b3637855a20,1.0,4.0,100.0
+Open map,low,0.4,0.2,human,humans,bd1aadb4c979c4da,1.0,6.0,19.04761904761905
+Open map,low,0.4,0.2,human,humans,c15607995c28abf8,1.0,3.0,16.666666666666664
+Open map,low,0.4,0.2,human,humans,c8ae347111a80aec,1.0,9.0,100.0
+Open map,low,0.4,0.2,human,humans,cba91effb8cc0631,1.0,6.0,0.0
+Open map,low,0.4,0.2,human,humans,ccdbf7332c0750e6,1.0,4.0,15.0
+Open map,low,0.4,0.2,human,humans,d6ac76f76328b9e2,1.0,6.0,100.0
+Open map,low,0.4,0.2,human,humans,db58502afc9f2520,1.0,6.0,83.33333333333333
+Open map,low,0.4,0.2,human,humans,dee50cbd0b2f8034,1.0,5.0,2.857142857142858
+Open map,low,0.4,0.2,human,humans,df4502f2e9e75049,1.0,10.0,100.0
+Open map,low,0.4,0.2,human,humans,e21c625877163e94,1.0,1.0,40.0
+Open map,low,0.4,0.2,human,humans,e483b7430d552258,1.0,4.0,30.0
+Open map,low,0.4,0.2,human,humans,e884d0a7a5c3858e,1.0,5.0,37.142857142857146
+Open map,low,0.4,0.2,human,humans,ea5d54113a24fd1d,1.0,10.0,100.0
+Open map,low,0.4,0.2,human,humans,eb2e8e7dc519098f,1.0,9.0,100.0
+Open map,low,0.4,0.2,human,humans,ecec22c36cec588c,1.0,6.0,0.0
+Open map,low,0.4,0.2,human,humans,ed4844a8e0105139,1.0,4.0,4.999999999999999
+Open map,low,0.4,0.2,human,humans,f1e9b5be4bf6451b,1.0,6.0,85.71428571428572
+Open map,low,0.4,0.2,human,humans,f39154a62f45d5f2,1.0,4.0,0.0
+Open map,low,0.4,0.2,human,humans,f74c0586a1c79ddc,1.0,5.0,40.0
+Open map,low,0.4,0.2,human,humans,fc9c1930af331c77,1.0,9.0,70.0
+Open map,low,0.4,0.2,human,humans,fcbbddae14082cf2,1.0,7.0,100.0
+Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-17_23-53-13,20.0,5.95,17.837359039531215
+Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-17_23-54-26,20.0,6.4,29.502766288090676
+Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-17_23-55-42,20.0,6.75,32.539845558829356
+Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-18_07-12-48,20.0,7.05,37.284717612175314
+Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-18_07-31-46,20.0,6.9,56.69030277986438
+Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-19_14-11-42,20.0,7.25,66.2932211447629
+Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-19_14-13-05,20.0,6.2,33.99075263390008
+Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-19_21-55-59,20.0,7.3,51.036785214508015
+Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-19_22-32-46,20.0,5.55,11.467490842490843
+Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-19_23-02-03,20.0,5.2,19.35732878517511
+Open map,low,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-19-01,20.0,7.05,26.804793543417667
+Open map,low,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-19-54,20.0,6.55,29.149908827690005
+Open map,low,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-20-55,20.0,6.3,19.203128187610822
+Open map,low,0.7,0.4,human,humans,078307a9443f5424,1.0,7.0,62.5
+Open map,low,0.7,0.4,human,humans,07f48be620f073c9,1.0,8.0,5.555555555555555
+Open map,low,0.7,0.4,human,humans,0d69fdbd0c8cbea2,1.0,6.0,83.33333333333333
+Open map,low,0.7,0.4,human,humans,0dbd01c0d7cbaf68,1.0,7.0,17.142857142857142
+Open map,low,0.7,0.4,human,humans,12c802437648abcb,1.0,7.0,66.66666666666666
+Open map,low,0.7,0.4,human,humans,1981b27bcba101df,1.0,9.0,50.505050505050505
+Open map,low,0.7,0.4,human,humans,19c82e3a645c5036,1.0,7.0,1.5873015873015872
+Open map,low,0.7,0.4,human,humans,1bd3e14f2da03858,1.0,6.0,16.666666666666664
+Open map,low,0.7,0.4,human,humans,1d262b36153edceb,1.0,6.0,21.428571428571427
+Open map,low,0.7,0.4,human,humans,22e8fa7c33ed1b93,1.0,4.0,0.0
+Open map,low,0.7,0.4,human,humans,2a34b564462d1812,1.0,10.0,13.333333333333334
+Open map,low,0.7,0.4,human,humans,2ab98d499e16feaa,1.0,6.0,100.0
+Open map,low,0.7,0.4,human,humans,2e6d2e243504f17e,1.0,8.0,77.5
+Open map,low,0.7,0.4,human,humans,33540149e045b2e4,1.0,6.0,7.142857142857142
+Open map,low,0.7,0.4,human,humans,3633c56d7c0c880d,1.0,6.0,0.0
+Open map,low,0.7,0.4,human,humans,394a4f2a94a4c4e2,1.0,14.0,100.0
+Open map,low,0.7,0.4,human,humans,397168d48c4c458a,1.0,2.0,0.0
+Open map,low,0.7,0.4,human,humans,410dd66c26f95306,1.0,6.0,0.0
+Open map,low,0.7,0.4,human,humans,426f3273aff2d467,1.0,8.0,100.0
+Open map,low,0.7,0.4,human,humans,4368608d0c7d8a78,1.0,6.0,4.761904761904762
+Open map,low,0.7,0.4,human,humans,456891e82d438823,1.0,9.0,0.0
+Open map,low,0.7,0.4,human,humans,45978ce184bc162b,1.0,8.0,0.0
+Open map,low,0.7,0.4,human,humans,473d495258d5e36e,1.0,5.0,16.666666666666668
+Open map,low,0.7,0.4,human,humans,4e786c6eacb35202,1.0,10.0,0.0
+Open map,low,0.7,0.4,human,humans,4ed36feda92064af,1.0,8.0,87.5
+Open map,low,0.7,0.4,human,humans,53fe785d8aa57882,1.0,7.0,12.698412698412698
+Open map,low,0.7,0.4,human,humans,56ccd2824f95e36f,1.0,2.0,40.0
+Open map,low,0.7,0.4,human,humans,5a30b0cb2af8368c,1.0,5.0,0.0
+Open map,low,0.7,0.4,human,humans,62c0fd37154cec61,1.0,10.0,100.0
+Open map,low,0.7,0.4,human,humans,64da784b1607f403,1.0,7.0,37.5
+Open map,low,0.7,0.4,human,humans,662acd7c1454e5a8,1.0,9.0,77.77777777777779
+Open map,low,0.7,0.4,human,humans,66a39883a94df6e2,1.0,8.0,52.5
+Open map,low,0.7,0.4,human,humans,66d9c235eca8e8a6,1.0,5.0,0.0
+Open map,low,0.7,0.4,human,humans,68bb778d8315959b,1.0,8.0,78.40909090909092
+Open map,low,0.7,0.4,human,humans,693a9e3111bf3bd1,1.0,7.0,17.142857142857142
+Open map,low,0.7,0.4,human,humans,6e6707d6b03b1e29,1.0,7.0,1.5873015873015872
+Open map,low,0.7,0.4,human,humans,711b3100e257f02f,1.0,7.0,71.42857142857143
+Open map,low,0.7,0.4,human,humans,74d4468460fe6e9a,1.0,4.0,0.0
+Open map,low,0.7,0.4,human,humans,7c14c0b316c3e1a4,1.0,2.0,25.0
+Open map,low,0.7,0.4,human,humans,83cf4fc879d72f46,1.0,2.0,40.0
+Open map,low,0.7,0.4,human,humans,87ee169c447d5fd9,1.0,6.0,0.0
+Open map,low,0.7,0.4,human,humans,8d92ac76d6557f9e,1.0,11.0,100.0
+Open map,low,0.7,0.4,human,humans,98a8ce7fde2f007c,1.0,9.0,100.0
+Open map,low,0.7,0.4,human,humans,9d9a65be4675fdfd,1.0,5.0,0.0
+Open map,low,0.7,0.4,human,humans,9ff69d6b7e2935ec,1.0,8.0,44.44444444444444
+Open map,low,0.7,0.4,human,humans,a74841fdc7dbeeef,1.0,0.0,0.0
+Open map,low,0.7,0.4,human,humans,a8168a157ffa361b,1.0,2.0,0.0
+Open map,low,0.7,0.4,human,humans,a9b1bae7a7b08d35,1.0,11.0,90.90909090909092
+Open map,low,0.7,0.4,human,humans,ae989484e8864da0,1.0,5.0,10.0
+Open map,low,0.7,0.4,human,humans,b6c9e5765a46633a,1.0,11.0,100.0
+Open map,low,0.7,0.4,human,humans,b6fa7acd2e77d28f,1.0,2.0,0.0
+Open map,low,0.7,0.4,human,humans,b76614ca326e0d77,1.0,7.0,5.357142857142858
+Open map,low,0.7,0.4,human,humans,b7a5b3f2b7be5046,1.0,4.0,7.142857142857142
+Open map,low,0.7,0.4,human,humans,b7ec0f001d446755,1.0,7.0,77.77777777777779
+Open map,low,0.7,0.4,human,humans,b9551b06feebf560,1.0,10.0,100.0
+Open map,low,0.7,0.4,human,humans,bdde63cd904abc8b,1.0,9.0,90.0
+Open map,low,0.7,0.4,human,humans,be6d3bc48b01b7b1,1.0,4.0,25.0
+Open map,low,0.7,0.4,human,humans,c8995e2dbe4fa7d6,1.0,4.0,20.0
+Open map,low,0.7,0.4,human,humans,c9c5e3362a1735ea,1.0,7.0,4.761904761904762
+Open map,low,0.7,0.4,human,humans,cb110513cd297eea,1.0,6.0,0.0
+Open map,low,0.7,0.4,human,humans,ce71119f7774d3eb,1.0,11.0,100.0
+Open map,low,0.7,0.4,human,humans,cfb5b69e21d13362,1.0,6.0,44.44444444444444
+Open map,low,0.7,0.4,human,humans,d0fce53b2d1f0d42,1.0,8.0,100.0
+Open map,low,0.7,0.4,human,humans,d4bd9530eeb7902d,1.0,7.0,1.5873015873015872
+Open map,low,0.7,0.4,human,humans,dd61fcea2b36e38d,1.0,9.0,22.22222222222222
+Open map,low,0.7,0.4,human,humans,e8c562fd5ec31893,1.0,9.0,0.0
+Open map,low,0.7,0.4,human,humans,ec338db0ac97bf59,1.0,3.0,33.33333333333333
+Open map,low,0.7,0.4,human,humans,ef4620d9917035ea,1.0,7.0,1.5873015873015872
+Open map,low,0.7,0.4,human,humans,fb43de2339a37c70,1.0,5.0,22.857142857142858
+Open map,low,0.7,0.4,human,humans,fbb23a3d8b808f43,1.0,7.0,5.357142857142858
+Open map,low,0.7,0.4,scratch,from scratch,Training_2026-05-17_23-52-56,20.0,6.65,43.35592504412717
+Open map,low,0.7,0.4,scratch,from scratch,Training_2026-05-17_23-54-06,20.0,7.65,25.96151341346598
+Open map,low,0.7,0.4,scratch,from scratch,Training_2026-05-17_23-55-23,20.0,8.25,57.43831989789244
+Open map,low,0.7,0.4,scratch,from scratch,Training_2026-05-18_06-55-59,20.0,8.7,40.71767210653945
+Open map,low,0.7,0.4,scratch,from scratch,Training_2026-05-18_07-29-07,20.0,7.6,17.152121177113166
+Open map,low,0.7,0.4,scratch,from scratch,Training_2026-05-19_14-10-04,20.0,8.8,24.725096998413935
+Open map,low,0.7,0.4,scratch,from scratch,Training_2026-05-19_14-11-22,20.0,7.3,52.798111521250874
+Open map,low,0.7,0.4,scratch,from scratch,Training_2026-05-19_21-54-00,20.0,6.55,13.450663307280953
+Open map,low,0.7,0.4,scratch,from scratch,Training_2026-05-19_22-16-45,20.0,7.35,41.11117052640841
+Open map,low,0.7,0.4,scratch,from scratch,Training_2026-05-19_22-53-31,20.0,8.6,49.40570801907816
+Open map,low,0.7,0.4,pretrained,pretrained,Training_2026-11-04_00-18-45,20.0,8.25,58.11391924320105
+Open map,low,0.7,0.4,pretrained,pretrained,Training_2026-11-04_00-19-35,20.0,8.95,19.27919673987449
+Open map,low,0.7,0.4,pretrained,pretrained,Training_2026-11-04_00-20-34,20.0,8.8,36.24491945658683
+Open map,low,1.0,1.0,human,humans,020cd7734be0cc71,1.0,15.0,100.0
+Open map,low,1.0,1.0,human,humans,048d8cc17de3a0a9,1.0,14.0,100.0
+Open map,low,1.0,1.0,human,humans,073ba41e9ff14cef,1.0,5.0,0.0
+Open map,low,1.0,1.0,human,humans,07eb4485ed358b67,1.0,7.0,2.857142857142858
+Open map,low,1.0,1.0,human,humans,08a2bfeb357d6eeb,1.0,7.0,15.873015873015872
+Open map,low,1.0,1.0,human,humans,10ce6a6658fd2789,1.0,12.0,91.66666666666669
+Open map,low,1.0,1.0,human,humans,1405ec3eb90f7250,1.0,10.0,80.9090909090909
+Open map,low,1.0,1.0,human,humans,153c67cfcbd89316,1.0,12.0,86.66666666666667
+Open map,low,1.0,1.0,human,humans,163aa621b6a73c24,1.0,8.0,100.0
+Open map,low,1.0,1.0,human,humans,16a6c889be74c639,1.0,8.0,29.166666666666668
+Open map,low,1.0,1.0,human,humans,1af33ec9d1620b30,1.0,2.0,30.0
+Open map,low,1.0,1.0,human,humans,2091bef7b5524c97,1.0,8.0,26.13636363636364
+Open map,low,1.0,1.0,human,humans,22ee77ea25f17612,1.0,13.0,92.3076923076923
+Open map,low,1.0,1.0,human,humans,2f7df380f852dd8c,1.0,10.0,4.545454545454546
+Open map,low,1.0,1.0,human,humans,322a503bf635f44b,1.0,9.0,100.0
+Open map,low,1.0,1.0,human,humans,34ec27cf816e8fa6,1.0,7.0,85.71428571428572
+Open map,low,1.0,1.0,human,humans,36972814f3bcd9b0,1.0,9.0,47.77777777777778
+Open map,low,1.0,1.0,human,humans,3797f13b0868c874,1.0,9.0,15.151515151515152
+Open map,low,1.0,1.0,human,humans,3f4808930cea47e6,1.0,9.0,3.0303030303030303
+Open map,low,1.0,1.0,human,humans,410fbfc53f312589,1.0,8.0,75.0
+Open map,low,1.0,1.0,human,humans,4356582f9f8d1da1,1.0,6.0,85.71428571428572
+Open map,low,1.0,1.0,human,humans,4c3b5319a729caa8,1.0,6.0,25.0
+Open map,low,1.0,1.0,human,humans,4cca2e2c2299b887,1.0,9.0,3.3333333333333357
+Open map,low,1.0,1.0,human,humans,4e59cb921adc832f,1.0,7.0,30.15873015873016
+Open map,low,1.0,1.0,human,humans,4f9dc9bd29ae2cc1,1.0,6.0,62.5
+Open map,low,1.0,1.0,human,humans,548294afd6794175,1.0,7.0,100.0
+Open map,low,1.0,1.0,human,humans,571ef3976552603c,1.0,11.0,63.63636363636363
+Open map,low,1.0,1.0,human,humans,57b0b7f0fada3aa9,1.0,3.0,0.0
+Open map,low,1.0,1.0,human,humans,582655033819fc18,1.0,11.0,73.48484848484848
+Open map,low,1.0,1.0,human,humans,5975bf1c0340ab5a,1.0,7.0,7.142857142857142
+Open map,low,1.0,1.0,human,humans,5c56b4639e91208b,1.0,5.0,40.0
+Open map,low,1.0,1.0,human,humans,5c8551b1e9869c03,1.0,8.0,47.5
+Open map,low,1.0,1.0,human,humans,5d8262799e5f321b,1.0,7.0,63.49206349206349
+Open map,low,1.0,1.0,human,humans,5f9d5efe2ab23748,1.0,5.0,12.5
+Open map,low,1.0,1.0,human,humans,600b5bb67134e167,1.0,8.0,0.0
+Open map,low,1.0,1.0,human,humans,6a760b54c29f808b,1.0,14.0,100.0
+Open map,low,1.0,1.0,human,humans,7070b7ca2bbfabba,1.0,10.0,100.0
+Open map,low,1.0,1.0,human,humans,7bc80852d1727459,1.0,11.0,50.0
+Open map,low,1.0,1.0,human,humans,828f5d5570749ce1,1.0,6.0,23.809523809523807
+Open map,low,1.0,1.0,human,humans,83897bcb35da5207,1.0,10.0,44.61538461538461
+Open map,low,1.0,1.0,human,humans,89b3d88067d1491a,1.0,9.0,9.999999999999998
+Open map,low,1.0,1.0,human,humans,92c147103a3e7eb6,1.0,8.0,5.555555555555555
+Open map,low,1.0,1.0,human,humans,9cf0085b73e2d875,1.0,5.0,26.666666666666668
+Open map,low,1.0,1.0,human,humans,9cf18047061fb427,1.0,11.0,76.62337662337663
+Open map,low,1.0,1.0,human,humans,a29a7d65ae2fd64d,1.0,13.0,100.0
+Open map,low,1.0,1.0,human,humans,a83a8f37012ba682,1.0,14.0,93.33333333333331
+Open map,low,1.0,1.0,human,humans,abd3009f342f5fed,1.0,14.0,92.85714285714286
+Open map,low,1.0,1.0,human,humans,ad48253a8427c5c8,1.0,9.0,1.0101010101010095
+Open map,low,1.0,1.0,human,humans,af1a8484d4e7f78d,1.0,7.0,8.928571428571427
+Open map,low,1.0,1.0,human,humans,b02f07fd5809caf0,1.0,11.0,55.3030303030303
+Open map,low,1.0,1.0,human,humans,b1e5cafef5bd96c9,1.0,6.0,13.33333333333333
+Open map,low,1.0,1.0,human,humans,bb0684efc64f9125,1.0,10.0,6.153846153846154
+Open map,low,1.0,1.0,human,humans,bcbc16329842f675,1.0,5.0,17.142857142857142
+Open map,low,1.0,1.0,human,humans,bdecf1e50ca47762,1.0,3.0,20.0
+Open map,low,1.0,1.0,human,humans,c38c0a0d1fcb972e,1.0,13.0,100.0
+Open map,low,1.0,1.0,human,humans,c84eef125f06d8b0,1.0,9.0,77.77777777777779
+Open map,low,1.0,1.0,human,humans,c9127ae1851a9b72,1.0,1.0,0.0
+Open map,low,1.0,1.0,human,humans,ce56ba9eeb098ed6,1.0,12.0,85.71428571428572
+Open map,low,1.0,1.0,human,humans,cfbd70eb19834766,1.0,10.0,10.0
+Open map,low,1.0,1.0,human,humans,d7097428c41e15ff,1.0,9.0,2.22222222222222
+Open map,low,1.0,1.0,human,humans,d8ac1b98a7138f8d,1.0,1.0,50.0
+Open map,low,1.0,1.0,human,humans,e0c7b64ea9e458b9,1.0,11.0,72.72727272727273
+Open map,low,1.0,1.0,human,humans,e200485dd7c6a135,1.0,7.0,21.428571428571427
+Open map,low,1.0,1.0,human,humans,e3dc66c4857bfcb7,1.0,8.0,51.388888888888886
+Open map,low,1.0,1.0,human,humans,e576de30fd52a7a8,1.0,8.0,7.500000000000001
+Open map,low,1.0,1.0,human,humans,ea5d9d79d2bd5215,1.0,9.0,44.44444444444444
+Open map,low,1.0,1.0,human,humans,ecad343328d56f47,1.0,4.0,71.42857142857143
+Open map,low,1.0,1.0,human,humans,f0590bb4621792a0,1.0,14.0,100.0
+Open map,low,1.0,1.0,human,humans,f426a8987b0ce2c4,1.0,9.0,11.11111111111111
+Open map,low,1.0,1.0,human,humans,f66650d59a622363,1.0,13.0,100.0
+Open map,low,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-17_23-52-25,20.0,10.3,48.55800600736133
+Open map,low,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-17_23-53-30,20.0,9.45,28.18908242421325
+Open map,low,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-17_23-54-43,20.0,9.1,46.02834118381279
+Open map,low,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-18_07-18-07,20.0,9.6,21.671574596202127
+Open map,low,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-19_14-09-31,20.0,9.85,23.332148822398274
+Open map,low,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-19_14-10-41,20.0,9.7,57.157090261669
+Open map,low,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-19_14-12-03,20.0,10.8,71.13648282393231
+Open map,low,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-19_21-43-05,20.0,10.2,69.30666482455628
+Open map,low,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-19_22-04-32,20.0,10.0,35.06710686135504
+Open map,low,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-19_22-34-18,20.0,9.4,43.313042581033194
+Open map,low,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-15-45,20.0,10.0,35.48226879230593
+Open map,low,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-16-16,20.0,9.8,38.16273160171569
+Open map,low,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-16-46,20.0,10.15,29.340289492150077
+Partially-blocked map,high,0.1,0.1,human,humans,022d9120ca59a5ba,1.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,human,humans,11d402216c635a00,1.0,8.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,17dc96754c1387f1,1.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,human,humans,20690240100cf8bc,1.0,4.0,80.0
+Partially-blocked map,high,0.1,0.1,human,humans,250c2cb0fd58ef40,1.0,7.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,27e5d156c0726e50,1.0,5.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,307c23b1e6381019,1.0,4.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,31037759a6482e7e,1.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,human,humans,31867d3b8a18e0b6,1.0,8.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,32bfaa2e931ce5c7,1.0,2.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,37c6e707dafb66a0,1.0,7.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,3a82842d61c6e3f4,1.0,2.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,3be10a1e2b7a98a8,1.0,5.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,3e8ec2a485b79395,1.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,human,humans,47a4271c24895ff9,1.0,10.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,4a321c07a081ac95,1.0,3.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,4aa48c7e6736d08c,1.0,10.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,504c26eb9abd4b43,1.0,1.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,54ca298b68050d31,1.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,human,humans,575df1ba7fa7f980,1.0,2.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,6230677440abce58,1.0,6.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,6490e386c53395e0,1.0,4.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,65c5b02ae33759a4,1.0,10.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,65e98454ca30eae6,1.0,7.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,66b927b5b891df23,1.0,9.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,68ee95756c1bfc29,1.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,human,humans,69d92a8cdcc0d9ac,1.0,5.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,6d09c631021bc967,1.0,6.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,70df014fe7d5b2c2,1.0,1.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,767a9900d3829ca2,1.0,8.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,77007ecc145b9d0e,1.0,4.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,7baeb434862c51fd,1.0,9.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,7d84c942b5824870,1.0,4.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,7dd49838150a3d70,1.0,5.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,8438301a94fb35a6,1.0,7.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,8773dccc57e20714,1.0,3.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,8c4bdf9c14da4618,1.0,5.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,8eac2ae55f6367f2,1.0,8.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,954fd6f87f7ded75,1.0,1.0,0.0
+Partially-blocked map,high,0.1,0.1,human,humans,9b340facf03fca5e,1.0,5.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,9e82391858f32f05,1.0,5.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,a18d2cecf5675d6e,1.0,2.0,10.0
+Partially-blocked map,high,0.1,0.1,human,humans,a52c75adcdb26457,1.0,4.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,a8172e3dcf5e6e78,1.0,6.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,aa0b91f637218452,1.0,7.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,adfa571b2df96b0d,1.0,5.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,b49ee79e70973feb,1.0,6.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,b4a7d49af8ec69c6,1.0,3.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,b91adb9283b2650b,1.0,6.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,be230e5dfc777556,1.0,4.0,0.0
+Partially-blocked map,high,0.1,0.1,human,humans,bfc3cd2d66c7129f,1.0,9.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,c0f620c68e6519df,1.0,7.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,c61e1966ea612162,1.0,1.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,c7a9ded7e516a80b,1.0,5.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,cf5afcb2f633f3f0,1.0,5.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,d07a97bf9fe061df,1.0,1.0,50.0
+Partially-blocked map,high,0.1,0.1,human,humans,d6b391afa3d31acd,1.0,7.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,d83eb00470efaa2c,1.0,6.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,e3a38cc089a529ab,1.0,2.0,66.66666666666666
+Partially-blocked map,high,0.1,0.1,human,humans,e41ebce15f05e66c,1.0,3.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,e7a58251bef2a99b,1.0,3.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,ec0b2a26eed98bf1,1.0,9.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,eedec7f8110a73cf,1.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,human,humans,f003f27ae6f66cec,1.0,5.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,f08c8df21fcf0b69,1.0,9.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,f0d4969d140450c7,1.0,9.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,f2c088ac4fa6d5b3,1.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,human,humans,f44531ad305b3f92,1.0,1.0,0.0
+Partially-blocked map,high,0.1,0.1,human,humans,fef9344455b92e50,1.0,4.0,100.0
+Partially-blocked map,high,0.1,0.1,human,humans,ff3566e3597e2434,1.0,4.0,100.0
+Partially-blocked map,high,0.1,0.1,scratch,from scratch,Training_2026-05-15_03-02-31,20.0,1.55,45.898809523809526
+Partially-blocked map,high,0.1,0.1,scratch,from scratch,Training_2026-05-17_13-06-30,20.0,0.35,27.5
+Partially-blocked map,high,0.1,0.1,scratch,from scratch,Training_2026-05-20_05-02-33,20.0,0.35,21.5
+Partially-blocked map,high,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-28-40,20.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-28-54,20.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-29-09,20.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-29-41,20.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-29-56,20.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-30-27,20.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-31-01,20.0,0.0,0.0
+Partially-blocked map,high,0.1,0.1,pretrained,pretrained,Training_2026-11-04_00-19-10,20.0,4.5,99.0
+Partially-blocked map,high,0.1,0.1,pretrained,pretrained,Training_2026-11-04_00-20-05,20.0,4.7,96.15277777777779
+Partially-blocked map,high,0.1,0.1,pretrained,pretrained,Training_2026-11-04_00-21-06,20.0,3.6,97.91666666666666
+Partially-blocked map,high,0.2,1.0,human,humans,0176ca3093e2c114,1.0,6.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,06a495575f29c9b7,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,0b469cc484b5bfe2,1.0,2.0,0.0
+Partially-blocked map,high,0.2,1.0,human,humans,0fe24c4a5f28f094,1.0,9.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,10a769295b59b42e,1.0,5.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,11793d81e559af70,1.0,11.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,1de2eaa234624316,1.0,11.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,1f00572cfcf937dc,1.0,9.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,1ff928f96f813373,1.0,12.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,26f1713c8bc2dd02,1.0,9.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,294a8e91bd6082d3,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,2b10483cc1fa865e,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,2b2fcc0a0660ff93,1.0,9.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,2b8377646a2de593,1.0,3.0,25.0
+Partially-blocked map,high,0.2,1.0,human,humans,3387ecc2419ac310,1.0,12.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,3a6e28a342950a37,1.0,7.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,3aa7e42d11a43b85,1.0,11.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,3ada0065cc5f8df1,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,3c94de234612e213,1.0,12.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,3d82d99af90af0a6,1.0,9.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,4056ce17f87e2be6,1.0,6.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,436a994d2b24223b,1.0,10.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,483ab2724669b4b3,1.0,1.0,50.0
+Partially-blocked map,high,0.2,1.0,human,humans,495f902c8cd39b0e,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,4fe77a14f72689e7,1.0,3.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,51d5ba7dcefcbc17,1.0,9.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,54cdbea0bc06a66f,1.0,10.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,5591c7d4c9377b54,1.0,6.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,56d62932591f1d67,1.0,7.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,5d884defb321baa0,1.0,9.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,60bf6bc979af7b7d,1.0,6.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,6787beb88784b197,1.0,10.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,68579ba8c9612a8f,1.0,2.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,6d874dd241b6a03a,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,6e64754b0c69e212,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,73016f29bb701542,1.0,7.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,7346f06608cea7ed,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,7b4daa48617c569b,1.0,7.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,7cbab2c445b2c717,1.0,0.0,0.0
+Partially-blocked map,high,0.2,1.0,human,humans,885e33a668cbb08e,1.0,11.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,88fd705f35080418,1.0,6.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,89405bd534cfdb5e,1.0,9.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,8e2e5c559aa0c051,1.0,7.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,95944a05d4c3b557,1.0,7.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,97877cc734553ea4,1.0,3.0,50.0
+Partially-blocked map,high,0.2,1.0,human,humans,97fd59bfe19b8a74,1.0,7.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,98235f2b413fc923,1.0,4.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,9f0375f844b4a76f,1.0,4.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,9fc45cb5ff558326,1.0,9.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,a33306adb2709cf5,1.0,10.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,abf0e383ffe3c85e,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,acead17c91d240b5,1.0,7.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,b689ae1962cc5406,1.0,11.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,b8aa45fe22337479,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,b96631fd73480177,1.0,6.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,ba87a66f366e5a14,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,bfa919f8ac8b24f4,1.0,12.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,c334b325f9ffbf1f,1.0,10.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,c68617457df3dd9f,1.0,7.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,c7cf45553b3cc99d,1.0,3.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,ca9836e51c3d6e38,1.0,4.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,cd8276430e5c1eff,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,e02943c91b1b8fd3,1.0,5.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,e4be46e8847146d7,1.0,7.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,e63604336d3b003b,1.0,3.0,33.333333333333336
+Partially-blocked map,high,0.2,1.0,human,humans,ebafcc72b155b853,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,ed3f54a86f9c1f3d,1.0,0.0,0.0
+Partially-blocked map,high,0.2,1.0,human,humans,f8247e9e9cf9bdaa,1.0,8.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,fb5568b06ef8fd59,1.0,1.0,100.0
+Partially-blocked map,high,0.2,1.0,human,humans,fd929fb60f00a1bb,1.0,4.0,100.0
+Partially-blocked map,high,0.2,1.0,scratch,from scratch,Training_2026-05-12_23-00-46,20.0,0.75,14.753644503644503
+Partially-blocked map,high,0.2,1.0,scratch,from scratch,Training_2026-05-12_23-01-55,20.0,0.65,12.99206349206349
+Partially-blocked map,high,0.2,1.0,scratch,from scratch,Training_2026-05-12_23-03-11,20.0,2.5,38.086749814048154
+Partially-blocked map,high,0.2,1.0,scratch,from scratch,Training_2026-05-13_09-48-13,20.0,0.8,41.52888231135989
+Partially-blocked map,high,0.2,1.0,scratch,from scratch,Training_2026-05-13_09-49-25,20.0,2.75,37.34228576951235
+Partially-blocked map,high,0.2,1.0,scratch,from scratch,Training_2026-05-19_14-11-02,20.0,1.45,27.617641130799022
+Partially-blocked map,high,0.2,1.0,scratch,from scratch,Training_2026-05-19_14-12-14,20.0,0.95,34.265589569161
+Partially-blocked map,high,0.2,1.0,scratch,from scratch,Training_2026-05-19_14-13-32,20.0,1.7,46.476190476190474
+Partially-blocked map,high,0.2,1.0,scratch,from scratch,Training_2026-05-20_00-41-32,20.0,2.55,59.81099456099456
+Partially-blocked map,high,0.2,1.0,scratch,from scratch,Training_2026-05-20_01-04-53,20.0,2.05,53.44352259960245
+Partially-blocked map,high,0.2,1.0,pretrained,pretrained,Training_2026-11-04_01-54-52,20.0,8.2,95.1140873015873
+Partially-blocked map,high,0.2,1.0,pretrained,pretrained,Training_2026-11-04_01-55-47,20.0,7.7,97.96212121212122
+Partially-blocked map,high,0.2,1.0,pretrained,pretrained,Training_2026-11-04_01-57-28,20.0,6.75,95.36002886002886
+Partially-blocked map,high,0.4,0.2,human,humans,06cc64074db7a150,1.0,0.0,0.0
+Partially-blocked map,high,0.4,0.2,human,humans,078d198ab17083ba,1.0,6.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,081aec229e7f2491,1.0,10.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,0cf4f5d6af39b138,1.0,10.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,0e5b06598ad1bcd8,1.0,6.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,186f500bdbe3e451,1.0,7.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,1d11ce554caa0562,1.0,10.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,219b6a836b5e62eb,1.0,12.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,2ede243c87444bca,1.0,9.0,88.88888888888889
+Partially-blocked map,high,0.4,0.2,human,humans,35194a52cd2254f4,1.0,9.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,38a911279b091f72,1.0,7.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,3a7754966bc258e4,1.0,7.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,3bb9339c70772428,1.0,9.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,458fe03df1f0e952,1.0,10.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,4a7754656e957168,1.0,6.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,4b970900631b5baf,1.0,2.0,66.66666666666666
+Partially-blocked map,high,0.4,0.2,human,humans,4cba658f45bf44b8,1.0,8.0,87.5
+Partially-blocked map,high,0.4,0.2,human,humans,50f039bc02d122b9,1.0,6.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,54bb8d6d5547d18c,1.0,8.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,5b54bfc29179d702,1.0,1.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,5cb080b5270f3e5d,1.0,0.0,0.0
+Partially-blocked map,high,0.4,0.2,human,humans,63f1bab0b84069a0,1.0,5.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,6b7fbd3adc8dd480,1.0,1.0,0.0
+Partially-blocked map,high,0.4,0.2,human,humans,6db231465443cff7,1.0,3.0,33.333333333333336
+Partially-blocked map,high,0.4,0.2,human,humans,71cc4bbae6b37af7,1.0,7.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,71faff07d7efc2e2,1.0,11.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,734e5710c3e64b72,1.0,8.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,742570401e76cc1d,1.0,10.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,765539ea2f6b63fc,1.0,8.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,7a225c2ea6e3681c,1.0,8.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,8a565e88d1194811,1.0,6.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,8baaef14a59b3c12,1.0,7.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,8f42407074a4eb98,1.0,3.0,66.66666666666666
+Partially-blocked map,high,0.4,0.2,human,humans,99ec688e5ad27188,1.0,10.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,a3fe1f93e48c7232,1.0,11.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,ae8d5ea85de86276,1.0,3.0,16.666666666666664
+Partially-blocked map,high,0.4,0.2,human,humans,b1001c4f27e60a8f,1.0,10.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,b547804e94b5985c,1.0,8.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,b73c39782df1329e,1.0,8.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,b829ccd9ed553615,1.0,2.0,30.0
+Partially-blocked map,high,0.4,0.2,human,humans,ba884cf57c096bde,1.0,10.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,bae096a262ada980,1.0,7.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,bb6dc331d7cb9055,1.0,9.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,bfdf05102ff58998,1.0,6.0,7.142857142857142
+Partially-blocked map,high,0.4,0.2,human,humans,c198f00b31b15904,1.0,6.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,cbc640f5520fd82d,1.0,3.0,75.0
+Partially-blocked map,high,0.4,0.2,human,humans,cc5101b08be317dd,1.0,8.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,cf763e8d803f8bad,1.0,6.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,cfc94166aa210b8d,1.0,12.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,d0d1971b8fa1c74b,1.0,3.0,80.0
+Partially-blocked map,high,0.4,0.2,human,humans,d450c619dd9ca428,1.0,10.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,d5388e526898f714,1.0,7.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,d6006a8f3909f466,1.0,1.0,66.66666666666666
+Partially-blocked map,high,0.4,0.2,human,humans,d77952f9f939b6fa,1.0,10.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,db8517a39457b321,1.0,8.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,df6502537882e201,1.0,8.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,e0ec75477e784724,1.0,10.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,e1845f2b7e8d5123,1.0,7.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,e2a1b48e99e8cd25,1.0,9.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,e2e6a6cf7c54c09d,1.0,3.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,e5fc61df6eb48726,1.0,2.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,e8c44d0a6aac7525,1.0,7.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,f5fa728c534306c6,1.0,10.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,f8069be6c05c6a5d,1.0,9.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,f9ca51fb4fc5c32b,1.0,7.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,faea0e2b8852ea48,1.0,10.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,fcdbc6a0b3fcdd31,1.0,9.0,88.88888888888889
+Partially-blocked map,high,0.4,0.2,human,humans,fd4f62c46cf372d1,1.0,8.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,ff6427e4ed76c762,1.0,1.0,100.0
+Partially-blocked map,high,0.4,0.2,human,humans,ffd03a6864524e13,1.0,8.0,100.0
+Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-12_23-01-18,20.0,8.7,98.18604865880765
+Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-12_23-02-33,20.0,7.3,94.67175495458227
+Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-12_23-03-50,20.0,6.35,86.9000754147813
+Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-13_09-48-47,20.0,7.5,97.0736111111111
+Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-13_09-50-05,20.0,6.3,88.25602746926276
+Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-19_14-11-37,20.0,6.95,87.54684844294646
+Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-19_14-12-53,20.0,7.45,97.34299516908212
+Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-19_14-14-11,20.0,7.75,95.83323147440794
+Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-20_00-44-42,20.0,7.9,96.96990699788687
+Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-20_03-09-40,20.0,7.6,97.4498746867168
+Partially-blocked map,high,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-18-53,20.0,8.0,89.9191828778295
+Partially-blocked map,high,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-19-46,20.0,7.85,96.61856253537069
+Partially-blocked map,high,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-20-45,20.0,7.15,95.70561559331978
+Partially-blocked map,high,0.7,0.4,human,humans,01a052a128300557,1.0,3.0,16.666666666666664
+Partially-blocked map,high,0.7,0.4,human,humans,04bacf900d2971b9,1.0,5.0,80.0
+Partially-blocked map,high,0.7,0.4,human,humans,04beef6d66c134df,1.0,4.0,10.0
+Partially-blocked map,high,0.7,0.4,human,humans,08c17ba47128d7c5,1.0,12.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,0b77a7c65e617e1a,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,0bec6fe9db100e6e,1.0,9.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,0c8e9f902107d2b3,1.0,4.0,87.5
+Partially-blocked map,high,0.7,0.4,human,humans,0de14fd360b06780,1.0,7.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,1186ebe71f6bf517,1.0,4.0,58.33333333333333
+Partially-blocked map,high,0.7,0.4,human,humans,134d5ccb03bd7916,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,171c0220f49bbb48,1.0,12.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,1eece1e7b0ceeea8,1.0,0.0,0.0
+Partially-blocked map,high,0.7,0.4,human,humans,1f3d78a0b1c1c18e,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,20caddc0d7368408,1.0,3.0,0.0
+Partially-blocked map,high,0.7,0.4,human,humans,29381b67102299b3,1.0,5.0,2.857142857142858
+Partially-blocked map,high,0.7,0.4,human,humans,2a58730bd69e7b75,1.0,4.0,10.0
+Partially-blocked map,high,0.7,0.4,human,humans,2cfeeaeabc82655d,1.0,7.0,2.857142857142858
+Partially-blocked map,high,0.7,0.4,human,humans,2ea131213a5e5960,1.0,12.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,3853b8a854d060b5,1.0,11.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,3e61c5393aac9285,1.0,7.0,80.0
+Partially-blocked map,high,0.7,0.4,human,humans,3eafacbadde34162,1.0,3.0,75.0
+Partially-blocked map,high,0.7,0.4,human,humans,437b8c5d82a76c05,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,4736d45f04f3cba8,1.0,2.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,479d81c06c85535b,1.0,9.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,48cdadde8267b1dd,1.0,9.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,4d6bd0465666b885,1.0,4.0,15.0
+Partially-blocked map,high,0.7,0.4,human,humans,569b7b7b1558a7d5,1.0,5.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,57378dfcf3682d25,1.0,9.0,88.88888888888889
+Partially-blocked map,high,0.7,0.4,human,humans,576571733f6f2ead,1.0,7.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,5e3e5fa33ab02151,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,61c8ed800bf58139,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,65095f0239c62793,1.0,11.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,6686675793feb51a,1.0,0.0,0.0
+Partially-blocked map,high,0.7,0.4,human,humans,67c97a2ed8077c25,1.0,11.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,6affdbd1874b1fa4,1.0,12.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,6c7a6ad254373205,1.0,8.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,6eea61cd9428842e,1.0,8.0,87.5
+Partially-blocked map,high,0.7,0.4,human,humans,79a07bbe59db37c1,1.0,12.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,7c4d5e16c6de509b,1.0,9.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,7d78e7ab3f105487,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,82d64ad1d4ff4cff,1.0,5.0,60.0
+Partially-blocked map,high,0.7,0.4,human,humans,8aa1cde7e679f076,1.0,8.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,8e53a0f89e433b5a,1.0,5.0,23.33333333333333
+Partially-blocked map,high,0.7,0.4,human,humans,9135cce9f3c18feb,1.0,3.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,959f30235b99f090,1.0,7.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,97c3765d09baf90b,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,9a587f30dc1ff356,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,9ad675a0675edc5d,1.0,4.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,9be96125b0a91a61,1.0,11.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,a41be20ba4f584a8,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,a795d440c13b18cb,1.0,1.0,50.0
+Partially-blocked map,high,0.7,0.4,human,humans,b142a06ae71a91c5,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,b1a47f7b9b2c5bce,1.0,7.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,b86a0a8750efb7b4,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,bc10ea4cd04141f4,1.0,11.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,c1396466ac13fcf2,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,c1a38d65c618b8f7,1.0,4.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,c40e0e1e9225e1eb,1.0,9.0,88.88888888888889
+Partially-blocked map,high,0.7,0.4,human,humans,c68e72cb7d72432a,1.0,7.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,d0ee014be5b13090,1.0,12.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,d133807fa76bdaa5,1.0,12.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,d150e6dddd696311,1.0,11.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,d34c785d42be5168,1.0,8.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,d51941ccfaf3cf65,1.0,7.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,dcccc29b83e7d915,1.0,5.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,ddf32bf8039b230b,1.0,10.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,efce17a1a32219b9,1.0,2.0,75.0
+Partially-blocked map,high,0.7,0.4,human,humans,efe9e0063b1ac884,1.0,12.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,f8de9bd201339445,1.0,8.0,100.0
+Partially-blocked map,high,0.7,0.4,human,humans,fd9423514b39678b,1.0,9.0,100.0
+Partially-blocked map,high,0.7,0.4,scratch,from scratch,Training_2026-05-12_23-01-02,20.0,8.75,98.92138544176007
+Partially-blocked map,high,0.7,0.4,scratch,from scratch,Training_2026-05-12_23-02-14,20.0,7.85,98.12147413989518
+Partially-blocked map,high,0.7,0.4,scratch,from scratch,Training_2026-05-13_09-48-29,20.0,8.75,96.2302559912854
+Partially-blocked map,high,0.7,0.4,scratch,from scratch,Training_2026-05-13_09-49-44,20.0,8.75,92.2599753153065
+Partially-blocked map,high,0.7,0.4,scratch,from scratch,Training_2026-05-19_14-11-19,20.0,9.3,98.02754435107377
+Partially-blocked map,high,0.7,0.4,scratch,from scratch,Training_2026-05-19_14-12-33,20.0,7.4,97.8254845739025
+Partially-blocked map,high,0.7,0.4,scratch,from scratch,Training_2026-05-19_14-13-51,20.0,9.15,99.0485668686079
+Partially-blocked map,high,0.7,0.4,scratch,from scratch,Training_2026-05-19_23-24-14,20.0,7.8,89.3043150605844
+Partially-blocked map,high,0.7,0.4,scratch,from scratch,Training_2026-05-20_00-42-32,20.0,8.45,96.1412997165336
+Partially-blocked map,high,0.7,0.4,scratch,from scratch,Training_2026-05-20_02-05-11,20.0,8.25,95.88819207907567
+Partially-blocked map,high,0.7,0.4,pretrained,pretrained,Training_2026-11-04_00-18-37,20.0,8.4,89.36864327510781
+Partially-blocked map,high,0.7,0.4,pretrained,pretrained,Training_2026-11-04_00-19-26,20.0,8.75,96.40318637162716
+Partially-blocked map,high,0.7,0.4,pretrained,pretrained,Training_2026-11-04_00-20-25,20.0,8.15,92.52329687856005
+Partially-blocked map,high,1.0,1.0,human,humans,0199627fae50b005,1.0,11.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,03744ea3c9cdfa06,1.0,7.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,05dd0db17f9b2d65,1.0,8.0,77.77777777777779
+Partially-blocked map,high,1.0,1.0,human,humans,08735c76695dc7de,1.0,5.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,0b3b179a3fbf42bc,1.0,7.0,85.71428571428572
+Partially-blocked map,high,1.0,1.0,human,humans,1018109617bf95f5,1.0,12.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,1430a7903a66ee1f,1.0,10.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,193afc424515faff,1.0,4.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,1c5aad010406f0dc,1.0,9.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,2168e6311ce0affb,1.0,3.0,33.33333333333333
+Partially-blocked map,high,1.0,1.0,human,humans,2275f53cc4ce4cdd,1.0,0.0,0.0
+Partially-blocked map,high,1.0,1.0,human,humans,26a6c3ea28e136f1,1.0,4.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,270a7381300f3044,1.0,6.0,33.33333333333333
+Partially-blocked map,high,1.0,1.0,human,humans,2adcaf31c99e81d1,1.0,4.0,25.0
+Partially-blocked map,high,1.0,1.0,human,humans,2bbd3fe80c5324c8,1.0,7.0,16.071428571428573
+Partially-blocked map,high,1.0,1.0,human,humans,2bde2e23538bf1d3,1.0,9.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,32a6d635a2ced3ee,1.0,6.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,348f586e528ecb8a,1.0,3.0,80.0
+Partially-blocked map,high,1.0,1.0,human,humans,3ab5bf25782c387c,1.0,4.0,40.0
+Partially-blocked map,high,1.0,1.0,human,humans,3d6fd052e66d810d,1.0,4.0,10.0
+Partially-blocked map,high,1.0,1.0,human,humans,3f4f8fdf1d8f901d,1.0,11.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,444c0427ace249f3,1.0,6.0,90.0
+Partially-blocked map,high,1.0,1.0,human,humans,445a923d19774a5e,1.0,10.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,44aaaeabfca37baa,1.0,8.0,78.40909090909092
+Partially-blocked map,high,1.0,1.0,human,humans,455832f92e0389ac,1.0,5.0,42.5
+Partially-blocked map,high,1.0,1.0,human,humans,49a013888502a9c0,1.0,7.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,4ccb38d56f167c55,1.0,6.0,52.38095238095239
+Partially-blocked map,high,1.0,1.0,human,humans,4d3e9846fe262bb3,1.0,8.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,5018087dc364558b,1.0,8.0,25.0
+Partially-blocked map,high,1.0,1.0,human,humans,517656479461a9fe,1.0,10.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,5e1a1ca411f591c1,1.0,6.0,83.33333333333333
+Partially-blocked map,high,1.0,1.0,human,humans,5e217a80f04fc40f,1.0,11.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,63d0cf382aedeb23,1.0,6.0,12.5
+Partially-blocked map,high,1.0,1.0,human,humans,6754c23efc694403,1.0,4.0,33.33333333333333
+Partially-blocked map,high,1.0,1.0,human,humans,6954b0566d60a8de,1.0,4.0,8.333333333333334
+Partially-blocked map,high,1.0,1.0,human,humans,6a1d74e4b8a4f374,1.0,4.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,6bc602d602e1892f,1.0,6.0,45.83333333333333
+Partially-blocked map,high,1.0,1.0,human,humans,6c6bd2a98720855a,1.0,4.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,6e8317eeceb3dde4,1.0,4.0,41.66666666666666
+Partially-blocked map,high,1.0,1.0,human,humans,73c0c2763ebdd85b,1.0,9.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,7597b30c20273b14,1.0,0.0,0.0
+Partially-blocked map,high,1.0,1.0,human,humans,7d9997a2ae2f905f,1.0,9.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,7fd815d2a9ecc217,1.0,3.0,20.0
+Partially-blocked map,high,1.0,1.0,human,humans,84eafa9aed304dee,1.0,4.0,25.0
+Partially-blocked map,high,1.0,1.0,human,humans,88f97abff5fec562,1.0,2.0,0.0
+Partially-blocked map,high,1.0,1.0,human,humans,9821807af0f2365b,1.0,6.0,50.0
+Partially-blocked map,high,1.0,1.0,human,humans,9941f7a6a18e5d3e,1.0,7.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,9b50b88f70bd6f30,1.0,5.0,50.0
+Partially-blocked map,high,1.0,1.0,human,humans,9c3b2bd100878f02,1.0,6.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,aa953497951468a2,1.0,6.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,abe6ce62429a8a2e,1.0,1.0,0.0
+Partially-blocked map,high,1.0,1.0,human,humans,ad4b94fd5e45a0b2,1.0,9.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,af4a08e568a4c6a2,1.0,9.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,b1613703420fed25,1.0,3.0,41.66666666666666
+Partially-blocked map,high,1.0,1.0,human,humans,bd2d70f090c21508,1.0,0.0,0.0
+Partially-blocked map,high,1.0,1.0,human,humans,bf08a6713fc3b1fd,1.0,3.0,0.0
+Partially-blocked map,high,1.0,1.0,human,humans,c248683ab3612a7a,1.0,8.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,c97393cbd2ff18ab,1.0,7.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,cf0821b9754038a1,1.0,1.0,0.0
+Partially-blocked map,high,1.0,1.0,human,humans,d21ad8f8f7407d38,1.0,7.0,85.71428571428572
+Partially-blocked map,high,1.0,1.0,human,humans,d4f91bac49fe323d,1.0,1.0,33.333333333333336
+Partially-blocked map,high,1.0,1.0,human,humans,d670ea4d0fdacfad,1.0,10.0,23.63636363636364
+Partially-blocked map,high,1.0,1.0,human,humans,db37273f86d0cd47,1.0,4.0,57.14285714285714
+Partially-blocked map,high,1.0,1.0,human,humans,dbb11581516579db,1.0,11.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,e1d899409c241ab1,1.0,7.0,44.64285714285714
+Partially-blocked map,high,1.0,1.0,human,humans,eb7d8fa823acfe94,1.0,3.0,4.761904761904762
+Partially-blocked map,high,1.0,1.0,human,humans,f4212c0da7a70f0a,1.0,4.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,f650435ae61b74d3,1.0,7.0,100.0
+Partially-blocked map,high,1.0,1.0,human,humans,f75abcfee67ca9ef,1.0,4.0,50.0
+Partially-blocked map,high,1.0,1.0,human,humans,fb9abe7826852068,1.0,11.0,100.0
+Partially-blocked map,high,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-12_23-01-34,20.0,6.15,63.801328015113995
+Partially-blocked map,high,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-12_23-02-52,20.0,6.3,58.55175889450983
+Partially-blocked map,high,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-13_09-47-56,20.0,6.05,58.20903721869278
+Partially-blocked map,high,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-13_09-49-05,20.0,4.9,56.25884222390969
+Partially-blocked map,high,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-19_14-10-46,20.0,6.5,56.171117262371126
+Partially-blocked map,high,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-19_14-11-56,20.0,4.3,62.98862254068926
+Partially-blocked map,high,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-19_14-13-13,20.0,5.55,62.263779090551246
+Partially-blocked map,high,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-19_23-12-03,20.0,6.1,62.303127428127425
+Partially-blocked map,high,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-20_00-06-12,20.0,6.6,45.13730163106355
+Partially-blocked map,high,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-20_01-03-54,20.0,6.0,47.39380933620647
+Partially-blocked map,high,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-15-46,20.0,6.7,66.20661005390856
+Partially-blocked map,high,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-16-16,20.0,6.9,67.83756391759816
+Partially-blocked map,high,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-16-47,20.0,7.15,57.773859661481524

@@ -29,7 +29,7 @@ Original 3-panel layout (all elements keep these sizes/fonts in every version):
 
 MARL-simulations grid data (marl_simulations.py, same folder):
   <base>/data/samuel_lozano/cooked/<game_type>/simulations/<init_type>/map_<map>/
-      synergy_<s>/specialized_<l>/abilities_<rho>_<rho>/Training_*/checkpoint_753/simulation_*/
+      synergy_<s>/specialized_<l>/abilities_<rho>_<rho>/Training_*/checkpoint_750/simulation_*/
   (abilities_<walk1>_<cut2>: walking speed of ai_rl_1, cutting speed of ai_rl_2; the other two
   speeds are 1.0). Every Training_* and every simulation_* folder is used.
 
@@ -38,17 +38,25 @@ everything else (axes, colour bars, text) is drawn with matplotlib. All
 positions/sizes were measured from Fig5.pdf (page 3174.96 x 637.80 pt).
 
 Usage:
-nohup python fig5_marl_theory_and_simulations.py --sm --init_type empty_init --specialization 0.25 --synergy 1.35 --checkpoint 753 > fig5.log 2>&1 &
+nohup python fig5_marl_theory_and_simulations.py --sm --init_type empty_init --specialization 0.25 --synergy 1.35 --checkpoint 750 > fig5.log 2>&1 &
     # main figure only (needs no MARL data)
     python fig5_marl_theory_and_simulations.py
     # re-plot the SM figure from the cached MARL-simulations grid
     python fig5_marl_theory_and_simulations.py --sm --grid_csv ./figures/fig5c_grid.csv
     # layout test (synthetic panel c)
     python fig5_marl_theory_and_simulations.py --sm --demo
+
+When the grid is computed from the simulation tree (--sm without --grid_csv / --demo), the
+script also writes, next to the SM figure:
+  <sm_output_name>_per_training.csv    one row per training x condition (means over its games)
+  <sm_output_name>_per_simulation.csv  one row per simulated game: score, specialization index,
+                                       map, abilities (rho and the four speeds), synergy /
+                                       specialization level, checkpoint, training and simulation
 """
 
 import sys
 import os
+import re
 import argparse
 import pandas as pd
 import numpy as np
@@ -737,8 +745,15 @@ CB_JET_BANDS = [(125.80, '#9a020c'), (141.82, '#ba0a17'), (155.81, '#f10905'), (
 # ---- panel c ------------------------------------------------------------
 AX_C = (2498.47, 2965.10, 115.23, 533.30)
 CB_C = (2989.60, 3010.70, 115.80, 537.00)
-C_VMAX = 6.0
+C_VMAX = 4.0                 # colour scale clipped to [-4, +4] (saturated beyond), as in Fig. 4
 C_CBAR_TICKS = [-4, -2, 0, 2, 4]
+C_TICK_TEXT_DY = 10.2        # tick-label baseline below its tick (pt), as measured on Fig5.pdf
+
+
+def _cbar_c_label_y(v: float) -> float:
+    """Baseline y (page pt, from the top) of the panel-c colour-bar label of value v."""
+    top, bottom = CB_C[2], CB_C[3]
+    return (top + bottom) / 2 - v / C_VMAX * (bottom - top) / 2 + C_TICK_TEXT_DY
 THUMB_RECTS = [(2416.47, 2481.67, 110.65, 175.85), (2416.47, 2481.67, 183.30, 248.50),
                (2416.52, 2481.62, 255.94, 321.04), (2416.50, 2481.63, 328.49, 393.62),
                (2416.52, 2481.62, 401.07, 466.17), (2416.52, 2481.62, 473.61, 538.71)]
@@ -821,9 +836,10 @@ TEXTS = {
     'xt_c_0.6': ('60', 34, 2734.50, 569.94, 0), 'xt_c_0.8': ('80', 34, 2827.64, 569.94, 0),
     'xt_c_1.0': ('100', 34, 2921.40, 569.94, 0),
     'xlab_c': (rf'Speed percentage (\%)', 38, 2577.98, 619.03, 0),
-    'cbt_c_+4': ('+4', 34, 3021.19, 194.08, 0), 'cbt_c_+2': ('+2', 34, 3022.57, 267.09, 0),
-    'cbt_c_0': ('0', 34, 3030.39, 339.49, 0), 'cbt_c_-2': ('-2', 34, 3026.07, 405.75, 0),
-    'cbt_c_-4': ('-4', 34, 3024.93, 476.58, 0),
+    # colour-bar tick labels: y follows the ticks of the [-C_VMAX, +C_VMAX] scale
+    'cbt_c_+4': ('+4', 34, 3021.19, _cbar_c_label_y(4), 0), 'cbt_c_+2': ('+2', 34, 3022.57, _cbar_c_label_y(2), 0),
+    'cbt_c_0': ('0', 34, 3030.39, _cbar_c_label_y(0), 0), 'cbt_c_-2': ('-2', 34, 3026.07, _cbar_c_label_y(-2), 0),
+    'cbt_c_-4': ('-4', 34, 3024.93, _cbar_c_label_y(-4), 0),
     'cbl_c1': (ADVANTAGE_TITLE, ADVANTAGE_SIZE, 3098.0, (CB_C[2] + CB_C[3]) / 2, 90),   # centred (TEXT_HA)
 }
 
@@ -1299,7 +1315,7 @@ def setup_argument_parser() -> argparse.ArgumentParser:
                         help='Also build the SM figure with the MARL-simulations grid (needs the simulation '
                              'tree, --grid_csv or --demo)')
     parser.add_argument('--checkpoint', type=str, default=ms.DEFAULT_CHECKPOINT,
-                        help="checkpoint_<n> folder of the simulated games (default 753), 'latest' or 'all'")
+                        help="checkpoint_<n> folder of the simulated games (default 750), 'latest' or 'all'")
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--study_name', type=str, default=None)
     parser.add_argument('--map_name_1', type=str, default='baseline_division_of_labor_large')
@@ -1394,6 +1410,171 @@ def write_seed_report(prepared: pd.DataFrame, args, path: Path, map_names=None, 
     print(f'[fig5] seed report -> {path} (+ .csv)')
 
 
+def write_per_training_csv(prepared: pd.DataFrame, analyzer, args, path: Path) -> pd.DataFrame:
+    """One row per training (Training_* folder = one seed) and condition (map x abilities) of
+    the MARL-simulations grid, averaged over that training's simulated games:
+
+      map, map_short, map_row          map folder name, short name, row of the grid (1 = top)
+      condition, ability_config        condition / ability id used by the grid
+      rho                              walking speed of P1 = cutting speed of P2 (grid column)
+      walking_speed_1, cutting_speed_1, walking_speed_2, cutting_speed_2
+      synergy, specialization_level    folders synergy_<s> / specialized_<l>
+      checkpoint, training_id, n_simulations
+      score, score_sd                  mean / SD over games of total_deliveries
+                                       (= deliver_ai_rl_1 + deliver_ai_rl_2)
+      score_diff_vs_rho1               score minus the mean score of rho = 1.0 on the same map
+                                       (the quantity of the grid cells, here per training)
+      specialization_index, specialization_index_sd
+      deliveries_ai_rl_1, deliveries_ai_rl_2, cuts_ai_rl_1, cuts_ai_rl_2   (means over games)
+    """
+    cols = ['map', 'map_short', 'map_row', 'condition', 'ability_config', 'rho',
+            'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2',
+            'synergy', 'specialization_level', 'checkpoint', 'training_id', 'n_simulations',
+            'score', 'score_sd', 'score_diff_vs_rho1', 'specialization_index', 'specialization_index_sd',
+            'deliveries_ai_rl_1', 'deliveries_ai_rl_2', 'cuts_ai_rl_1', 'cuts_ai_rl_2']
+    df = prepared.copy()
+    if df.empty or 'training_id' not in df.columns:
+        out = pd.DataFrame(columns=cols)
+        out.to_csv(path, index=False)
+        print(f'[fig5] per-training CSV (empty: no simulated games) -> {path}')
+        return out
+
+    for c in ('total_deliveries', 'specialization_index', 'deliver_ai_rl_1', 'deliver_ai_rl_2',
+              'cut_ai_rl_1', 'cut_ai_rl_2'):
+        df[c] = pd.to_numeric(df[c], errors='coerce') if c in df.columns else np.nan
+    if 'checkpoint' not in df.columns:
+        df['checkpoint'] = args.checkpoint
+
+    keys = ['map_name', 'condition', 'ability_config', 'training_id']
+    out = (df.groupby(keys, as_index=False, sort=False)
+             .agg(checkpoint=('checkpoint', 'first'),
+                  n_simulations=('total_deliveries', 'size'),
+                  score=('total_deliveries', 'mean'),
+                  score_sd=('total_deliveries', 'std'),
+                  specialization_index=('specialization_index', 'mean'),
+                  specialization_index_sd=('specialization_index', 'std'),
+                  deliveries_ai_rl_1=('deliver_ai_rl_1', 'mean'),
+                  deliveries_ai_rl_2=('deliver_ai_rl_2', 'mean'),
+                  cuts_ai_rl_1=('cut_ai_rl_1', 'mean'),
+                  cuts_ai_rl_2=('cut_ai_rl_2', 'mean')))
+    out = out.rename(columns={'map_name': 'map'})
+
+    speeds = analyzer.ability_config_speeds
+    out['walking_speed_1'] = out['ability_config'].map(lambda a: speeds[a][0])
+    out['cutting_speed_1'] = out['ability_config'].map(lambda a: speeds[a][1])
+    out['walking_speed_2'] = out['ability_config'].map(lambda a: speeds[a][2])
+    out['cutting_speed_2'] = out['ability_config'].map(lambda a: speeds[a][3])
+    out['rho'] = out['walking_speed_1']
+    out['map_short'] = out['map'].map(extract_map_short_name)
+    row_of = {m: i + 1 for i, m in enumerate(analyzer.map_names)}
+    out['map_row'] = out['map'].map(row_of)
+    out['synergy'] = (df['synergy_value'].iloc[0] if 'synergy_value' in df.columns
+                      else args.synergy)
+    out['specialization_level'] = (df['specialization_mode'].iloc[0].replace('specialized_', '')
+                                   if 'specialization_mode' in df.columns else args.specialization)
+
+    # same reference as the grid: mean over ALL games of rho = 1.0 on the same map
+    is_ref = np.isclose(df['ability_config'].map(lambda a: float(speeds[a][0])).astype(float), 1.0)
+    ref = df[is_ref].groupby('map_name')['total_deliveries'].mean()
+    out['score_diff_vs_rho1'] = out['score'] - out['map'].map(ref)
+
+    col_of = {a: j for j, a in enumerate(analyzer.ability_configs)}
+    out['_c'] = out['ability_config'].map(col_of)
+    out = out.sort_values(['map_row', '_c', 'training_id']).reset_index(drop=True)[cols]
+    out.to_csv(path, index=False)
+    print(f'[fig5] per-training CSV -> {path} ({len(out)} rows = trainings x conditions, '
+          f'{int(out["n_simulations"].sum())} simulated games)')
+    return out
+
+
+def _trailing_int(v) -> float:
+    """'simulation_12' -> 12, 'Training_3' -> 3 (natural sorting); NaN if there is no number."""
+    m = re.search(r'(\d+)\s*$', str(v))
+    return float(m.group(1)) if m else np.nan
+
+
+def write_per_simulation_csv(prepared: pd.DataFrame, analyzer, args, path: Path) -> pd.DataFrame:
+    """One row per simulated game (simulation_* folder) of the MARL-simulations grid, with the
+    condition (map x abilities), reward configuration and training it comes from. Same columns
+    as the per-training CSV, but not averaged:
+
+      map, map_short, map_row          map folder name, short name, row of the grid (1 = top)
+      condition, ability_config        condition / ability id used by the grid
+      rho                              walking speed of P1 = cutting speed of P2 (grid column)
+      walking_speed_1, cutting_speed_1, walking_speed_2, cutting_speed_2
+      synergy, specialization_level    folders synergy_<s> / specialized_<l>
+      checkpoint, training_id, simulation
+      score                            total_deliveries of the game (= deliver_ai_rl_1 + deliver_ai_rl_2)
+      score_diff_vs_rho1               score minus the mean score of rho = 1.0 on the same map
+                                       (the reference of the grid cells)
+      specialization_index             specialization index of the game
+      deliveries_ai_rl_1, deliveries_ai_rl_2, cuts_ai_rl_1, cuts_ai_rl_2
+    """
+    cols = ['map', 'map_short', 'map_row', 'condition', 'ability_config', 'rho',
+            'walking_speed_1', 'cutting_speed_1', 'walking_speed_2', 'cutting_speed_2',
+            'synergy', 'specialization_level', 'checkpoint', 'training_id', 'simulation',
+            'score', 'score_diff_vs_rho1', 'specialization_index',
+            'deliveries_ai_rl_1', 'deliveries_ai_rl_2', 'cuts_ai_rl_1', 'cuts_ai_rl_2']
+    df = prepared.copy()
+    if df.empty or 'training_id' not in df.columns:
+        out = pd.DataFrame(columns=cols)
+        out.to_csv(path, index=False)
+        print(f'[fig5] per-simulation CSV (empty: no simulated games) -> {path}')
+        return out
+
+    for c in ('total_deliveries', 'specialization_index', 'deliver_ai_rl_1', 'deliver_ai_rl_2',
+              'cut_ai_rl_1', 'cut_ai_rl_2'):
+        df[c] = pd.to_numeric(df[c], errors='coerce') if c in df.columns else np.nan
+    if 'checkpoint' not in df.columns:
+        df['checkpoint'] = args.checkpoint
+    if 'simulation' not in df.columns:
+        df['simulation'] = np.nan
+
+    speeds = analyzer.ability_config_speeds
+    out = pd.DataFrame({
+        'map': df['map_name'],
+        'map_short': df['map_name'].map(extract_map_short_name),
+        'map_row': df['map_name'].map({m: i + 1 for i, m in enumerate(analyzer.map_names)}),
+        'condition': df['condition'],
+        'ability_config': df['ability_config'],
+        'walking_speed_1': df['ability_config'].map(lambda a: speeds[a][0]),
+        'cutting_speed_1': df['ability_config'].map(lambda a: speeds[a][1]),
+        'walking_speed_2': df['ability_config'].map(lambda a: speeds[a][2]),
+        'cutting_speed_2': df['ability_config'].map(lambda a: speeds[a][3]),
+        'synergy': df['synergy_value'] if 'synergy_value' in df.columns else args.synergy,
+        'specialization_level': (df['specialization_mode'].astype(str).str.replace('specialized_', '', regex=False)
+                                 if 'specialization_mode' in df.columns else args.specialization),
+        'checkpoint': df['checkpoint'],
+        'training_id': df['training_id'],
+        'simulation': df['simulation'],
+        'score': df['total_deliveries'],
+        'specialization_index': df['specialization_index'],
+        'deliveries_ai_rl_1': df['deliver_ai_rl_1'],
+        'deliveries_ai_rl_2': df['deliver_ai_rl_2'],
+        'cuts_ai_rl_1': df['cut_ai_rl_1'],
+        'cuts_ai_rl_2': df['cut_ai_rl_2'],
+    })
+    out['rho'] = out['walking_speed_1']
+
+    # same reference as the grid: mean over ALL games of rho = 1.0 on the same map
+    is_ref = np.isclose(out['rho'].astype(float), 1.0)
+    ref = out[is_ref].groupby('map')['score'].mean()
+    out['score_diff_vs_rho1'] = out['score'] - out['map'].map(ref)
+
+    # order of the figure: map row -> grid column -> training -> simulation (numeric)
+    out['_c'] = out['ability_config'].map({a: j for j, a in enumerate(analyzer.ability_configs)})
+    out['_t'] = out['training_id'].map(_trailing_int)
+    out['_ts'] = out['training_id'].astype(str)
+    out['_s'] = out['simulation'].map(_trailing_int)
+    out['_ss'] = out['simulation'].astype(str)
+    out = (out.sort_values(['map_row', '_c', '_t', '_ts', '_s', '_ss'], kind='stable', na_position='last')
+              .reset_index(drop=True)[cols])
+    out.to_csv(path, index=False)
+    print(f'[fig5] per-simulation CSV -> {path} ({len(out)} simulated games from '
+          f'{out.groupby(["condition", "training_id"]).ngroups} trainings x conditions)')
+    return out
+
+
 def load_sim_grid(args, output_dir: Path) -> np.ndarray:
     """MARL-simulations grid: synthetic (--demo), cached CSV (--grid_csv) or from the simulation tree."""
     if args.demo:
@@ -1425,6 +1606,10 @@ def load_sim_grid(args, output_dir: Path) -> np.ndarray:
     write_seed_report(prepared, args, output_dir / 'figS_marl_simulations_grid_seeds.txt',
                       analyzer.map_names, analyzer.ability_configs,
                       {ab: analyzer.ability_config_speeds[ab][0] for ab in analyzer.ability_configs})
+    write_per_training_csv(prepared, analyzer, args,
+                           output_dir / (Path(args.sm_output_name).stem + '_per_training.csv'))
+    write_per_simulation_csv(prepared, analyzer, args,
+                             output_dir / (Path(args.sm_output_name).stem + '_per_simulation.csv'))
     grid = row_score_difference_grid(prepared, analyzer.map_names, analyzer.ability_configs,
                                      args.game_type)
     grid_csv = output_dir / 'fig5c_grid.csv'

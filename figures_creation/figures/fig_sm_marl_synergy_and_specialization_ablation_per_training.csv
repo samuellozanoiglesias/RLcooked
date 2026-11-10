@@ -1,0 +1,77 @@
+tier,tier_title,map_label,map,ability_type,training,n_simulations,score,specialization
+neither,Neither specialization nor synergy,Open,baseline_division_of_labor_large,HA,Training_2026-06-25_14-00-40,20,10.85,77.34674125141503
+neither,Neither specialization nor synergy,Open,baseline_division_of_labor_large,HA,Training_2026-06-25_14-01-42,20,11.5,52.06672462696164
+neither,Neither specialization nor synergy,Open,baseline_division_of_labor_large,HA,Training_2026-06-25_14-02-54,20,9.8,22.349050843678846
+neither,Neither specialization nor synergy,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-11,20,7.75,61.43877940642646
+neither,Neither specialization nor synergy,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-02-15,20,7.9,45.62137316177493
+neither,Neither specialization nor synergy,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-34,20,7.5,44.6632138168061
+neither,Neither specialization nor synergy,PB,encouraged_division_of_labor_large,HA,Training_2026-06-25_14-00-40,20,7.9,65.12388379648125
+neither,Neither specialization nor synergy,PB,encouraged_division_of_labor_large,HA,Training_2026-06-25_14-01-43,20,6.05,54.83916086511435
+neither,Neither specialization nor synergy,PB,encouraged_division_of_labor_large,HA,Training_2026-06-25_14-02-58,20,7.3,60.396034678912734
+neither,Neither specialization nor synergy,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-11,20,4.15,69.00460441904127
+neither,Neither specialization nor synergy,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-02-18,20,3.6,55.94009715774422
+neither,Neither specialization nor synergy,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-03-37,20,3.4,49.11576413782296
+spec,Specialization only,Open,baseline_division_of_labor_large,HA,Training_2026-06-25_14-00-56,20,11.5,78.26319290394636
+spec,Specialization only,Open,baseline_division_of_labor_large,HA,Training_2026-06-25_14-01-57,20,10.45,12.530553967939166
+spec,Specialization only,Open,baseline_division_of_labor_large,HA,Training_2026-06-25_14-03-14,20,10.95,50.69776169576225
+spec,Specialization only,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-26,20,8.15,55.68206775782854
+spec,Specialization only,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-02-35,20,5.9,24.727903131157028
+spec,Specialization only,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,20,6.1,28.520050163662813
+spec,Specialization only,PB,encouraged_division_of_labor_large,HA,Training_2026-06-25_14-00-56,20,8.35,51.65012410746785
+spec,Specialization only,PB,encouraged_division_of_labor_large,HA,Training_2026-06-25_14-01-59,20,7.2,51.43511512216058
+spec,Specialization only,PB,encouraged_division_of_labor_large,HA,Training_2026-06-25_14-03-18,20,7.65,52.0310020985509
+spec,Specialization only,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-28,20,7.05,95.56637112887113
+spec,Specialization only,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-02-39,20,8.15,96.5252578304049
+spec,Specialization only,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-03-56,20,7.25,97.52433473389355
+syn,Synergy only,Open,baseline_division_of_labor_large,HA,Training_2026-06-25_14-00-40,20,11.8,63.66476058433786
+syn,Synergy only,Open,baseline_division_of_labor_large,HA,Training_2026-06-25_14-01-12,20,12.8,71.92591281020074
+syn,Synergy only,Open,baseline_division_of_labor_large,HA,Training_2026-06-25_14-01-44,20,4.55,21.75597557411681
+syn,Synergy only,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-00-56,20,6.3,41.662565644659466
+syn,Synergy only,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-28,20,5.5,21.156587998650842
+syn,Synergy only,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-02-00,20,7.7,33.48962899502954
+syn,Synergy only,PB,encouraged_division_of_labor_large,HA,Training_2026-06-25_14-00-40,20,4.7,56.73805358078289
+syn,Synergy only,PB,encouraged_division_of_labor_large,HA,Training_2026-06-25_14-01-12,20,7.5,64.60787887358869
+syn,Synergy only,PB,encouraged_division_of_labor_large,HA,Training_2026-06-25_14-01-42,20,6.55,49.42215872403756
+syn,Synergy only,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-00-56,20,4.35,60.19898031855647
+syn,Synergy only,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-26,20,4.65,70.41606703240515
+syn,Synergy only,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-58,20,4.3,64.67956756080999
+both,Specialization and synergy,Open,baseline_division_of_labor_large,HA,Training_2026-05-17_23-52-25,20,10.3,48.55800600736133
+both,Specialization and synergy,Open,baseline_division_of_labor_large,HA,Training_2026-05-17_23-53-30,20,9.45,28.18908242421325
+both,Specialization and synergy,Open,baseline_division_of_labor_large,HA,Training_2026-05-17_23-54-43,20,9.1,46.02834118381279
+both,Specialization and synergy,Open,baseline_division_of_labor_large,HA,Training_2026-05-18_07-18-07,20,9.6,21.671574596202127
+both,Specialization and synergy,Open,baseline_division_of_labor_large,HA,Training_2026-05-19_14-09-31,20,9.85,23.332148822398274
+both,Specialization and synergy,Open,baseline_division_of_labor_large,HA,Training_2026-05-19_14-10-41,20,9.7,57.157090261669
+both,Specialization and synergy,Open,baseline_division_of_labor_large,HA,Training_2026-05-19_14-12-03,20,10.8,71.13648282393231
+both,Specialization and synergy,Open,baseline_division_of_labor_large,HA,Training_2026-05-19_21-43-05,20,10.2,69.30666482455628
+both,Specialization and synergy,Open,baseline_division_of_labor_large,HA,Training_2026-05-19_22-04-32,20,10.0,35.06710686135504
+both,Specialization and synergy,Open,baseline_division_of_labor_large,HA,Training_2026-05-19_22-34-18,20,9.4,43.313042581033194
+both,Specialization and synergy,Open,baseline_division_of_labor_large,MA,Training_2026-05-17_23-53-13,20,5.95,17.837359039531215
+both,Specialization and synergy,Open,baseline_division_of_labor_large,MA,Training_2026-05-17_23-54-26,20,6.4,29.502766288090676
+both,Specialization and synergy,Open,baseline_division_of_labor_large,MA,Training_2026-05-17_23-55-42,20,6.75,32.539845558829356
+both,Specialization and synergy,Open,baseline_division_of_labor_large,MA,Training_2026-05-18_07-12-48,20,7.05,37.284717612175314
+both,Specialization and synergy,Open,baseline_division_of_labor_large,MA,Training_2026-05-18_07-31-46,20,6.9,56.69030277986438
+both,Specialization and synergy,Open,baseline_division_of_labor_large,MA,Training_2026-05-19_14-11-42,20,7.25,66.2932211447629
+both,Specialization and synergy,Open,baseline_division_of_labor_large,MA,Training_2026-05-19_14-13-05,20,6.2,33.99075263390008
+both,Specialization and synergy,Open,baseline_division_of_labor_large,MA,Training_2026-05-19_21-55-59,20,7.3,51.036785214508015
+both,Specialization and synergy,Open,baseline_division_of_labor_large,MA,Training_2026-05-19_22-32-46,20,5.55,11.467490842490843
+both,Specialization and synergy,Open,baseline_division_of_labor_large,MA,Training_2026-05-19_23-02-03,20,5.2,19.35732878517511
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,HA,Training_2026-05-12_23-01-34,20,6.15,63.801328015113995
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,HA,Training_2026-05-12_23-02-52,20,6.3,58.55175889450983
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,HA,Training_2026-05-13_09-47-56,20,6.05,58.20903721869278
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,HA,Training_2026-05-13_09-49-05,20,4.9,56.25884222390969
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,HA,Training_2026-05-19_14-10-46,20,6.5,56.171117262371126
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,HA,Training_2026-05-19_14-11-56,20,4.3,62.98862254068926
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,HA,Training_2026-05-19_14-13-13,20,5.55,62.263779090551246
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,HA,Training_2026-05-19_23-12-03,20,6.1,62.303127428127425
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,HA,Training_2026-05-20_00-06-12,20,6.6,45.13730163106355
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,HA,Training_2026-05-20_01-03-54,20,6.0,47.39380933620647
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,MA,Training_2026-05-12_23-01-18,20,8.7,98.18604865880765
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,MA,Training_2026-05-12_23-02-33,20,7.3,94.67175495458227
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,MA,Training_2026-05-12_23-03-50,20,6.35,86.9000754147813
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,MA,Training_2026-05-13_09-48-47,20,7.5,97.0736111111111
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,MA,Training_2026-05-13_09-50-05,20,6.3,88.25602746926276
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,MA,Training_2026-05-19_14-11-37,20,6.95,87.54684844294646
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,MA,Training_2026-05-19_14-12-53,20,7.45,97.34299516908212
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,MA,Training_2026-05-19_14-14-11,20,7.75,95.83323147440794
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,MA,Training_2026-05-20_00-44-42,20,7.9,96.96990699788687
+both,Specialization and synergy,PB,encouraged_division_of_labor_large,MA,Training_2026-05-20_03-09-40,20,7.6,97.4498746867168

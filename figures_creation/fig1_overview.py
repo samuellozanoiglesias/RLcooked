@@ -474,7 +474,7 @@ class Figure1Plotter:
             spine.set_zorder(7)
 
         Lr, Rr, Tr, Br = LANDSCAPE_RECT
-        self._text(fig, page, *LABEL_FONT, 'Task bias', 0.5 * (Lr + Rr), XLABEL_C_Y, ha='center')
+        self._text(fig, page, *LABEL_FONT, 'Difference in task propensity', 0.5 * (Lr + Rr), XLABEL_C_Y, ha='center')
         self._text(fig, page, *LABEL_FONT, 'Propensity to switch tasks', YLABEL_C_X, 0.5 * (Tr + Br),
                    ha='center', rot=90)
 

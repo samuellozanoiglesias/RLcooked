@@ -27,7 +27,7 @@ Inputs
             Required: the script stops if the file is missing.
   MARL    : simulated games of the simulation tree (see marl_simulations.py, same folder)
               <base>/data/samuel_lozano/cooked/<game_version>/simulations/<init_type>/map_<map>/
-                  synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+                  synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_750/simulation_*/
             HA = abilities_1.0_1.0, MA = abilities_0.4_0.2 (walk1 = walking speed of ai_rl_1,
             cut2 = cutting speed of ai_rl_2, the other speeds 1.0); every Training_* and
             simulation_* folder is used. Or a cached CSV written by a previous run (--rl_csv)
@@ -45,7 +45,7 @@ automatically over the panels of their group (see TITLES), so renaming them
 or changing axis labels keeps them centred.
 
 Usage:
-nohup python3 fig2_human_marl_comparison.py --human_teams_csv ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv --analytic_csv ./data/analytic_model/figure3_specialization_index_long.csv --map_baseline baseline_division_of_labor_large --map_encouraged encouraged_division_of_labor_large --synergy 1.35 --specialization 0.25 --init_type empty_init --checkpoint 753 --game_version classic_collision --cluster cuenca > log_fig2.out 2>&1 &
+nohup python3 fig2_human_marl_comparison.py --human_teams_csv ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv --analytic_csv ./data/analytic_model/figure3_specialization_index_long.csv --map_baseline baseline_division_of_labor_large --map_encouraged encouraged_division_of_labor_large --synergy 1.35 --specialization 0.25 --init_type empty_init --checkpoint 750 --game_version classic_collision --cluster cuenca > log_fig2.out 2>&1 &
 
     # re-plot quickly from the MARL records cached by a previous run
     python3 fig2_human_marl_comparison.py --rl_csv ./figures/fig2_rl_records.csv
@@ -625,7 +625,7 @@ def main():
     parser.add_argument("--synergy", default="1.35")
     parser.add_argument("--specialization", default="0.25")
     parser.add_argument("--checkpoint", default=ms.DEFAULT_CHECKPOINT,
-                        help="Checkpoint folder checkpoint_<n> of the simulated games (default 753), "
+                        help="Checkpoint folder checkpoint_<n> of the simulated games (default 750), "
                              "'latest' or 'all'")
     parser.add_argument("--game_version", default="classic_collision",
                         choices=["classic", "competition", "classic_collision", "competition_collision"])

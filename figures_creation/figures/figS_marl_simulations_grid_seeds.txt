@@ -1,9 +1,42 @@
 ==========================================================================================
 MARL-SIMULATIONS GRID (SI map bank) -- seeds and simulated games per condition
 ==========================================================================================
-simulated games: checkpoint_753, every Training_* / simulation_* folder
+simulated games: checkpoint_750, every Training_* / simulation_* folder
 synergy=1.35, specialization=0.25, init_type=empty_init, game_type=classic_collision
 (one training = one independent random seed)
+
+  Seeds grid (rows: maps, columns: rho, both in the order of the figure; rho = walking speed of player 1 = cutting speed of player 2, abilities_<rho>_<rho>)
+                              map \ rho      1   0.9   0.8   0.7   0.6   0.5   0.4   0.3   0.2   0.1
+  a5_encouraged_division_of_labor_large      3     3     3     3     3     3     3     3     3     3
+  a4_encouraged_division_of_labor_large      3     3     3     3     3     3     3     3     3     3
+  a3_encouraged_division_of_labor_large      3     3     3     3     3     3     3     3     3     3
+  a2_encouraged_division_of_labor_large      3     3     3     3     3     3     3     3     3     3
+  a1_encouraged_division_of_labor_large      3     3     3     3     3     3     3     3     3     3
+     encouraged_division_of_labor_large     10     3     3     3     3     3     3     3     3    10
+  d1_encouraged_division_of_labor_large      3     3     3     3     3     3     3     3     3     3
+  d2_encouraged_division_of_labor_large      3     3     3     3     3     3     3     3     3     3
+  d3_encouraged_division_of_labor_large      3     3     3     3     3     3     3     3     3     3
+  d4_encouraged_division_of_labor_large      3     3     3     3     3     3     3     3     3     3
+  d5_encouraged_division_of_labor_large      3     3     3     3     3     3     3     3     3     3
+       baseline_division_of_labor_large     10     3     3     3     3     3     3     3     3    10
+
+  Simulations grid (rows: maps, columns: rho, both in the order of the figure; rho = walking speed of player 1 = cutting speed of player 2, abilities_<rho>_<rho>)
+                              map \ rho      1   0.9   0.8   0.7   0.6   0.5   0.4   0.3   0.2   0.1
+  a5_encouraged_division_of_labor_large     60    60    60    60    60    60    60    60    60    60
+  a4_encouraged_division_of_labor_large     60    60    60    60    60    60    60    60    60    60
+  a3_encouraged_division_of_labor_large     60    60    60    60    60    60    60    60    60    60
+  a2_encouraged_division_of_labor_large     60    60    60    60    60    60    60    60    60    60
+  a1_encouraged_division_of_labor_large     60    60    60    60    60    60    60    60    60    60
+     encouraged_division_of_labor_large    200    60    60    60    60    60    60    60    60   200
+  d1_encouraged_division_of_labor_large     60    60    60    60    60    60    60    60    60    60
+  d2_encouraged_division_of_labor_large     60    60    60    60    60    60    60    60    60    60
+  d3_encouraged_division_of_labor_large     60    60    60    60    60    60    60    60    60    60
+  d4_encouraged_division_of_labor_large     60    60    60    60    60    60    60    60    60    60
+  d5_encouraged_division_of_labor_large     60    60    60    60    60    60    60    60    60    60
+       baseline_division_of_labor_large    200    60    60    60    60    60    60    60    60   200
+
+  cells with data: 120 / 120; seeds per cell 3..10; simulations per cell 60..200
+  empty cells: none
 
 condition                                     seeds     games/seed
 a1_encouraged_0.1_collision                       3      20..20    
@@ -15,7 +48,7 @@ a1_encouraged_0.6_collision                       3      20..20
 a1_encouraged_0.7_collision                       3      20..20    
 a1_encouraged_0.8_collision                       3      20..20    
 a1_encouraged_0.9_collision                       3      20..20    
-a1_encouraged_1.0_collision                       3      14..20    
+a1_encouraged_1.0_collision                       3      20..20    
 a2_encouraged_0.1_collision                       3      20..20    
 a2_encouraged_0.2_collision                       3      20..20    
 a2_encouraged_0.3_collision                       3      20..20    
@@ -56,7 +89,7 @@ a5_encouraged_0.7_collision                       3      20..20
 a5_encouraged_0.8_collision                       3      20..20    
 a5_encouraged_0.9_collision                       3      20..20    
 a5_encouraged_1.0_collision                       3      20..20    
-baseline_0.1_collision                            2      20..20    
+baseline_0.1_collision                           10      20..20    
 baseline_0.2_collision                            3      20..20    
 baseline_0.3_collision                            3      20..20    
 baseline_0.4_collision                            3      20..20    
@@ -65,7 +98,7 @@ baseline_0.6_collision                            3      20..20
 baseline_0.7_collision                            3      20..20    
 baseline_0.8_collision                            3      20..20    
 baseline_0.9_collision                            3      20..20    
-baseline_1.0_collision                           11      20..20    
+baseline_1.0_collision                           10      20..20    
 d1_encouraged_0.1_collision                       3      20..20    
 d1_encouraged_0.2_collision                       3      20..20    
 d1_encouraged_0.3_collision                       3      20..20    
@@ -85,17 +118,17 @@ d2_encouraged_0.6_collision                       3      20..20
 d2_encouraged_0.7_collision                       3      20..20    
 d2_encouraged_0.8_collision                       3      20..20    
 d2_encouraged_0.9_collision                       3      20..20    
-d2_encouraged_1.0_collision                       2      20..20    
-d3_encouraged_0.1_collision                       2      20..20    
-d3_encouraged_0.2_collision                       2      20..20    
+d2_encouraged_1.0_collision                       3      20..20    
+d3_encouraged_0.1_collision                       3      20..20    
+d3_encouraged_0.2_collision                       3      20..20    
 d3_encouraged_0.3_collision                       3      20..20    
-d3_encouraged_0.4_collision                       2      20..20    
-d3_encouraged_0.5_collision                       2      20..20    
-d3_encouraged_0.6_collision                       2      20..20    
-d3_encouraged_0.7_collision                       2      20..20    
-d3_encouraged_0.8_collision                       2      20..20    
-d3_encouraged_0.9_collision                       2      20..20    
-d3_encouraged_1.0_collision                       2      20..20    
+d3_encouraged_0.4_collision                       3      20..20    
+d3_encouraged_0.5_collision                       3      20..20    
+d3_encouraged_0.6_collision                       3      20..20    
+d3_encouraged_0.7_collision                       3      20..20    
+d3_encouraged_0.8_collision                       3      20..20    
+d3_encouraged_0.9_collision                       3      20..20    
+d3_encouraged_1.0_collision                       3      20..20    
 d4_encouraged_0.1_collision                       3      20..20    
 d4_encouraged_0.2_collision                       3      20..20    
 d4_encouraged_0.3_collision                       3      20..20    
@@ -105,7 +138,7 @@ d4_encouraged_0.6_collision                       3      20..20
 d4_encouraged_0.7_collision                       3      20..20    
 d4_encouraged_0.8_collision                       3      20..20    
 d4_encouraged_0.9_collision                       3      20..20    
-d4_encouraged_1.0_collision                       2      20..20    
+d4_encouraged_1.0_collision                       3      20..20    
 d5_encouraged_0.1_collision                       3      20..20    
 d5_encouraged_0.2_collision                       3      20..20    
 d5_encouraged_0.3_collision                       3      20..20    
@@ -116,7 +149,7 @@ d5_encouraged_0.7_collision                       3      20..20
 d5_encouraged_0.8_collision                       3      20..20    
 d5_encouraged_0.9_collision                       3      20..20    
 d5_encouraged_1.0_collision                       3      20..20    
-encouraged_0.1_collision                          3      20..20    
+encouraged_0.1_collision                         10      20..20    
 encouraged_0.2_collision                          3      20..20    
 encouraged_0.3_collision                          3      20..20    
 encouraged_0.4_collision                          3      20..20    
@@ -127,7 +160,7 @@ encouraged_0.8_collision                          3      20..20
 encouraged_0.9_collision                          3      20..20    
 encouraged_1.0_collision                         10      20..20    
 
-Summary: 2 seed(s) in 12 condition(s); 3 seed(s) in 106 condition(s); 10 seed(s) in 1 condition(s); 11 seed(s) in 1 condition(s) (total 120 conditions, 363 trainings)
+Summary: 3 seed(s) in 116 condition(s); 10 seed(s) in 4 condition(s) (total 120 conditions, 388 trainings)
 
 Training ids per condition:
   a1_encouraged_0.1_collision: Training_2026-05-24_11-39-14, Training_2026-05-24_23-58-22, Training_2026-05-25_10-34-21
@@ -180,7 +213,7 @@ Training ids per condition:
   a5_encouraged_0.8_collision: Training_2026-05-25_15-41-03, Training_2026-05-26_00-03-05, Training_2026-05-26_09-33-52
   a5_encouraged_0.9_collision: Training_2026-05-25_15-40-47, Training_2026-05-25_23-50-54, Training_2026-05-26_08-51-47
   a5_encouraged_1.0_collision: Training_2026-05-25_15-40-31, Training_2026-05-25_23-42-54, Training_2026-05-26_08-50-10
-  baseline_0.1_collision: Training_2026-05-16_22-47-04, Training_2026-05-18_21-58-37
+  baseline_0.1_collision: Training_2026-05-16_22-47-04, Training_2026-05-18_21-58-37, Training_2026-10-30_00-29-10, Training_2026-10-30_00-29-26, Training_2026-10-30_00-29-42, Training_2026-10-30_00-29-57, Training_2026-10-30_00-30-13, Training_2026-10-30_00-30-27, Training_2026-10-30_00-30-45, Training_2026-10-30_00-31-00
   baseline_0.2_collision: Training_2026-05-17_03-37-43, Training_2026-05-19_02-43-40, Training_2026-05-21_07-55-40
   baseline_0.3_collision: Training_2026-05-17_08-19-07, Training_2026-05-19_07-21-24, Training_2026-05-21_12-48-43
   baseline_0.4_collision: Training_2026-05-17_13-26-23, Training_2026-05-19_12-08-08, Training_2026-06-05_12-15-15
@@ -189,7 +222,7 @@ Training ids per condition:
   baseline_0.7_collision: Training_2026-05-18_04-06-14, Training_2026-05-20_06-05-43, Training_2026-06-06_04-35-24
   baseline_0.8_collision: Training_2026-05-18_10-37-46, Training_2026-05-20_12-43-00, Training_2026-06-06_10-28-15
   baseline_0.9_collision: Training_2026-05-18_16-25-00, Training_2026-05-20_18-42-23, Training_2026-06-06_16-00-41
-  baseline_1.0_collision: Training_2026-05-17_23-52-25, Training_2026-05-17_23-53-30, Training_2026-05-17_23-54-43, Training_2026-05-18_06-39-20, Training_2026-05-18_07-18-07, Training_2026-05-19_14-09-31, Training_2026-05-19_14-10-41, Training_2026-05-19_14-12-03, Training_2026-05-19_21-43-05, Training_2026-05-19_22-04-32, Training_2026-05-19_22-34-18
+  baseline_1.0_collision: Training_2026-05-17_23-52-25, Training_2026-05-17_23-53-30, Training_2026-05-17_23-54-43, Training_2026-05-18_07-18-07, Training_2026-05-19_14-09-31, Training_2026-05-19_14-10-41, Training_2026-05-19_14-12-03, Training_2026-05-19_21-43-05, Training_2026-05-19_22-04-32, Training_2026-05-19_22-34-18
   d1_encouraged_0.1_collision: Training_2026-05-22_13-21-58, Training_2026-05-23_01-23-25, Training_2026-05-23_13-03-04
   d1_encouraged_0.2_collision: Training_2026-05-22_13-21-34, Training_2026-05-23_00-08-23, Training_2026-05-23_11-03-20
   d1_encouraged_0.3_collision: Training_2026-05-22_13-21-18, Training_2026-05-23_00-04-52, Training_2026-05-23_09-40-45
@@ -209,17 +242,17 @@ Training ids per condition:
   d2_encouraged_0.7_collision: Training_2026-05-22_13-20-18, Training_2026-05-22_20-10-00, Training_2026-05-23_03-57-35
   d2_encouraged_0.8_collision: Training_2026-05-22_13-20-02, Training_2026-05-22_20-08-22, Training_2026-05-23_03-40-14
   d2_encouraged_0.9_collision: Training_2026-05-22_13-19-46, Training_2026-05-22_19-58-52, Training_2026-05-23_03-37-34
-  d2_encouraged_1.0_collision: Training_2026-05-22_19-34-59, Training_2026-05-23_03-31-14
-  d3_encouraged_0.1_collision: Training_2026-05-22_05-06-33, Training_2026-05-22_10-57-30
-  d3_encouraged_0.2_collision: Training_2026-05-22_04-19-50, Training_2026-05-22_09-43-32
+  d2_encouraged_1.0_collision: Training_2026-05-22_19-34-59, Training_2026-05-23_03-31-14, Training_2026-05-23_07-52-55
+  d3_encouraged_0.1_collision: Training_2026-05-22_05-06-33, Training_2026-05-22_10-57-30, Training_2026-05-22_22-36-43
+  d3_encouraged_0.2_collision: Training_2026-05-22_04-19-50, Training_2026-05-22_09-43-32, Training_2026-05-22_21-42-08
   d3_encouraged_0.3_collision: Training_2026-05-21_22-47-40, Training_2026-05-22_04-07-52, Training_2026-05-22_09-17-35
-  d3_encouraged_0.4_collision: Training_2026-05-22_04-02-35, Training_2026-05-22_09-15-37
-  d3_encouraged_0.5_collision: Training_2026-05-22_03-59-39, Training_2026-05-22_09-15-01
-  d3_encouraged_0.6_collision: Training_2026-05-22_03-45-27, Training_2026-05-22_09-11-04
-  d3_encouraged_0.7_collision: Training_2026-05-22_03-41-20, Training_2026-05-22_09-10-46
-  d3_encouraged_0.8_collision: Training_2026-05-22_03-36-11, Training_2026-05-22_08-58-33
-  d3_encouraged_0.9_collision: Training_2026-05-22_03-31-14, Training_2026-05-22_08-53-07
-  d3_encouraged_1.0_collision: Training_2026-05-22_03-23-35, Training_2026-05-22_08-20-39
+  d3_encouraged_0.4_collision: Training_2026-05-22_04-02-35, Training_2026-05-22_09-15-37, Training_2026-05-22_21-24-28
+  d3_encouraged_0.5_collision: Training_2026-05-22_03-59-39, Training_2026-05-22_09-15-01, Training_2026-05-22_20-50-24
+  d3_encouraged_0.6_collision: Training_2026-05-22_03-45-27, Training_2026-05-22_09-11-04, Training_2026-05-22_20-25-43
+  d3_encouraged_0.7_collision: Training_2026-05-22_03-41-20, Training_2026-05-22_09-10-46, Training_2026-05-22_20-10-01
+  d3_encouraged_0.8_collision: Training_2026-05-22_03-36-11, Training_2026-05-22_08-58-33, Training_2026-05-22_20-08-23
+  d3_encouraged_0.9_collision: Training_2026-05-22_03-31-14, Training_2026-05-22_08-53-07, Training_2026-05-22_19-58-53
+  d3_encouraged_1.0_collision: Training_2026-05-22_03-23-35, Training_2026-05-22_08-20-39, Training_2026-05-23_03-31-15
   d4_encouraged_0.1_collision: Training_2026-05-22_13-21-56, Training_2026-05-22_20-47-08, Training_2026-05-23_04-20-32
   d4_encouraged_0.2_collision: Training_2026-05-22_13-21-33, Training_2026-05-22_20-46-47, Training_2026-05-23_03-20-06
   d4_encouraged_0.3_collision: Training_2026-05-22_13-21-17, Training_2026-05-22_20-28-53, Training_2026-05-23_03-17-46
@@ -229,7 +262,7 @@ Training ids per condition:
   d4_encouraged_0.7_collision: Training_2026-05-22_13-20-17, Training_2026-05-22_20-09-48, Training_2026-05-23_02-21-10
   d4_encouraged_0.8_collision: Training_2026-05-22_13-20-02, Training_2026-05-22_19-48-46, Training_2026-05-23_02-18-38
   d4_encouraged_0.9_collision: Training_2026-05-22_13-19-46, Training_2026-05-22_19-48-26, Training_2026-05-23_02-07-08
-  d4_encouraged_1.0_collision: Training_2026-05-22_13-19-30, Training_2026-05-22_19-30-10
+  d4_encouraged_1.0_collision: Training_2026-05-22_08-20-40, Training_2026-05-22_13-19-30, Training_2026-05-22_19-30-10
   d5_encouraged_0.1_collision: Training_2026-05-22_15-18-15, Training_2026-05-22_22-12-44, Training_2026-05-23_04-06-51
   d5_encouraged_0.2_collision: Training_2026-05-22_15-17-59, Training_2026-05-22_21-49-27, Training_2026-05-23_04-05-33
   d5_encouraged_0.3_collision: Training_2026-05-22_15-17-43, Training_2026-05-22_21-47-08, Training_2026-05-23_03-48-03
@@ -240,7 +273,7 @@ Training ids per condition:
   d5_encouraged_0.8_collision: Training_2026-05-22_15-16-23, Training_2026-05-22_21-13-09, Training_2026-05-23_02-45-03
   d5_encouraged_0.9_collision: Training_2026-05-22_15-16-07, Training_2026-05-22_20-46-47, Training_2026-05-23_02-26-08
   d5_encouraged_1.0_collision: Training_2026-05-22_15-15-52, Training_2026-05-22_19-49-59, Training_2026-05-23_01-43-45
-  encouraged_0.1_collision: Training_2026-05-15_03-02-31, Training_2026-05-17_13-06-30, Training_2026-05-20_05-02-33
+  encouraged_0.1_collision: Training_2026-05-15_03-02-31, Training_2026-05-17_13-06-30, Training_2026-05-20_05-02-33, Training_2026-10-30_00-28-40, Training_2026-10-30_00-28-54, Training_2026-10-30_00-29-09, Training_2026-10-30_00-29-41, Training_2026-10-30_00-29-56, Training_2026-10-30_00-30-27, Training_2026-10-30_00-31-01
   encouraged_0.2_collision: Training_2026-05-15_03-04-52, Training_2026-05-17_21-07-40, Training_2026-05-20_13-32-24
   encouraged_0.3_collision: Training_2026-05-13_09-46-50, Training_2026-05-13_16-22-14, Training_2026-05-14_02-28-40
   encouraged_0.4_collision: Training_2026-05-15_19-31-28, Training_2026-05-18_09-21-57, Training_2026-05-21_01-54-02

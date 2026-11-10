@@ -20,10 +20,10 @@ Layout (2 x 2 groups, each group = game score | specialization index):
 
 Reward tiers (folder layout of the simulation tree, see marl_simulations.py)
   <base>/data/samuel_lozano/cooked/<game_version>/simulations/<init_type>/map_<map>/
-      synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+      synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_750/simulation_*/
   HA = abilities_1.0_1.0, MA = abilities_0.4_0.2 (walk1 = walking speed of ai_rl_1,
   cut2 = cutting speed of ai_rl_2, the other two speeds 1.0); every Training_* and
-  simulation_* folder of checkpoint_753 is used.
+  simulation_* folder of checkpoint_750 is used.
   Tier 1  neither term      -> --tier_synergy 0      --tier_specialization 0
   Tier 2  specialization    -> --tier_synergy 0      --tier_specialization 0.25
   Tier 3  synergy           -> --tier_synergy 1.35   --tier_specialization 0
@@ -48,8 +48,17 @@ as reported so far) and with one value per training seed (mean of its games; uni
 'training', the independent unit, as in the pretraining and five-pair analyses).
 --stats_unit selects which one is written first (CSV column 'primary').
 
+It also writes <output>_per_training.csv: one row per tier x map x ability x training
+seed (Training_<training_id>) with the seed's mean game score ('score') and mean
+specialization index ('specialization') over its simulated games, plus n_simulations.
+
+And <output>_per_simulation.csv: one row per simulated game (tier x map x ability x
+training seed x checkpoint x simulation) with its game score ('score', total deliveries)
+and specialization index ('specialization'), i.e. the unaggregated values behind both
+the 'simulation' unit of the statistics and the per-training means.
+
 Usage:
-# every tier from checkpoint_753 of the simulation tree
+# every tier from checkpoint_750 of the simulation tree
 # (or add --both_from_fig2_csv ./figures/fig2_rl_records.csv to reuse exactly the Fig. 2e-f simulations)
 nohup python3 fig_sm_marl_synergy_and_specialization_ablation.py --game_version classic_collision --init_type empty_init --cluster cuenca > log_fig_sm_ablation.out 2>&1 &
 
@@ -280,12 +289,12 @@ TIER_TITLES = {
 }
 TIER_DEFAULT_SYNERGY = ["0", "0", "1.35", "1.35"]
 TIER_DEFAULT_SPECIALIZATION = ["0", "0.25", "0", "0.25"]
-# Checkpoint FOLDER per tier (checkpoint_<name>): checkpoint_753 for every tier.
+# Checkpoint FOLDER per tier (checkpoint_<name>): checkpoint_750 for every tier.
 TIER_DEFAULT_CHECKPOINT = [ms.DEFAULT_CHECKPOINT] * 4
 
 
 def _norm_ck(v):
-    """'753' -> checkpoint_753 (literal folder); 'latest' = highest-numbered folder; 'all'."""
+    """'750' -> checkpoint_750 (literal folder); 'latest' = highest-numbered folder; 'all'."""
     return str(v).strip()
 
 
@@ -357,6 +366,84 @@ def _unit_frame(df: pd.DataFrame, unit: str) -> pd.DataFrame:
         d = (d.groupby(["tier", "switch_cost_condition", "ability_type", "training_id"], as_index=False)
                [["total_deliveries", "specialization_index"]].mean())
     return d
+
+
+def _training_label(tid) -> str:
+    """'3' -> 'Training_3'; an id that already carries the prefix is kept as is."""
+    s = str(tid)
+    return s if s.startswith("Training_") else f"Training_{s}"
+
+
+def per_training_table(df: pd.DataFrame) -> pd.DataFrame:
+    """One row per (tier, map, ability, training seed): mean game score and mean
+    specialization index over that seed's simulated games, for every tier x map x ability
+    cell (4 x 2 x 2). Same per-seed aggregation as the 'training' unit of the statistics."""
+    d = df.copy()
+    for c in ("total_deliveries", "specialization_index"):
+        d[c] = pd.to_numeric(d[c], errors="coerce")
+    keys = ["tier", "switch_cost_condition", "ability_type", "training_id"]
+    g = d.groupby(keys, as_index=False, sort=False)
+    out = g.agg(n_simulations=("total_deliveries", "size"),
+                score=("total_deliveries", "mean"),
+                specialization=("specialization_index", "mean"))
+    if "map" in d.columns:
+        maps = g["map"].first()
+        out = out.merge(maps, on=keys, how="left")
+    else:
+        out["map"] = np.nan
+    out["training"] = out["training_id"].map(_training_label)
+    out["tier_title"] = out["tier"].map(TIER_TITLES)
+    out["map_label"] = out["switch_cost_condition"].map(_MAP_LABEL)
+    # stable, readable order: tier -> map (Open, PB) -> ability (HA, MA) -> training
+    out["_t"] = out["tier"].map({t: i for i, t in enumerate(TIERS)})
+    out["_m"] = out["switch_cost_condition"].map({s: i for i, s in enumerate(_SWITCH_ORDER)})
+    out["_a"] = out["ability_type"].map({a: i for i, a in enumerate(_ABILITY_ORDER)})
+    out = out.sort_values(["_t", "_m", "_a", "training"]).drop(columns=["_t", "_m", "_a"])
+    return out[["tier", "tier_title", "map_label", "map", "ability_type", "training",
+                "n_simulations", "score", "specialization"]].reset_index(drop=True)
+
+
+def _trailing_int(v) -> float:
+    """'simulation_12' -> 12, 'Training_3' -> 3 (for natural sorting); NaN if no number."""
+    m = re.search(r"(\d+)\s*$", str(v))
+    return float(m.group(1)) if m else np.nan
+
+
+def per_simulation_table(df: pd.DataFrame) -> pd.DataFrame:
+    """One row per simulated game: tier (reward condition), map, ability, training seed,
+    checkpoint and simulation, with that game's score (total deliveries) and
+    specialization index. No aggregation: these are the values of the 'simulation' unit."""
+    d = df.copy()
+    for c in ("total_deliveries", "specialization_index"):
+        d[c] = pd.to_numeric(d[c], errors="coerce")
+    for c in ("map", "checkpoint", "simulation"):
+        if c not in d.columns:
+            d[c] = np.nan
+    out = pd.DataFrame({
+        "tier": d["tier"],
+        "tier_title": d["tier"].map(TIER_TITLES),
+        "synergy_term": d["tier"].isin(["syn", "both"]),
+        "specialization_term": d["tier"].isin(["spec", "both"]),
+        "map_label": d["switch_cost_condition"].map(_MAP_LABEL),
+        "map": d["map"],
+        "ability_type": d["ability_type"],
+        "training": d["training_id"].map(_training_label),
+        "checkpoint": d["checkpoint"],
+        "simulation": d["simulation"],
+        "score": d["total_deliveries"],
+        "specialization": d["specialization_index"],
+    })
+    # stable, readable order: tier -> map (Open, PB) -> ability (HA, MA) -> training -> simulation
+    out["_t"] = out["tier"].map({t: i for i, t in enumerate(TIERS)})
+    out["_m"] = d["switch_cost_condition"].map({s: i for i, s in enumerate(_SWITCH_ORDER)})
+    out["_a"] = out["ability_type"].map({a: i for i, a in enumerate(_ABILITY_ORDER)})
+    out["_tr"] = out["training"].map(_trailing_int)
+    out["_ck"] = out["checkpoint"].astype(str)
+    out["_s"] = out["simulation"].map(_trailing_int)
+    out["_ss"] = out["simulation"].astype(str)
+    out = out.sort_values(["_t", "_m", "_a", "_tr", "training", "_ck", "_s", "_ss"],
+                          kind="stable", na_position="last")
+    return out.drop(columns=["_t", "_m", "_a", "_tr", "_ck", "_s", "_ss"]).reset_index(drop=True)
 
 
 def ablation_stats(df: pd.DataFrame, units=("training", "simulation")):
@@ -542,7 +629,7 @@ def main():
     p.add_argument("--tier_checkpoints", nargs=4, default=TIER_DEFAULT_CHECKPOINT,
                    metavar=("NEITHER", "SPEC", "SYN", "BOTH"),
                    help="Checkpoint folder per tier (literal checkpoint_<name>), 'latest' "
-                        "(highest-numbered folder) or 'all'. Default: 753 753 753 753")
+                        "(highest-numbered folder) or 'all'. Default: 750 750 750 750")
     p.add_argument("--init_type", default=ms.DEFAULT_INIT_TYPE, choices=["empty_init", "random_init"])
     p.add_argument("--both_from_fig2_csv", default=None,
                    help="Take Tier 4 (full model) from the MARL records cached by "
@@ -605,6 +692,16 @@ def main():
     st.to_csv(st_path, index=False)
     st_path.with_suffix(".txt").write_text("\n".join(header + lines) + "\n", encoding="utf-8")
     print(f"\nStatistics saved -> {st_path} (+ .txt)")
+
+    pt = per_training_table(df)
+    pt_path = out_pdf.with_name(out_pdf.stem + "_per_training.csv")
+    pt.to_csv(pt_path, index=False)
+    print(f"Per-training values saved -> {pt_path} ({len(pt)} rows)")
+
+    psim = per_simulation_table(df)
+    psim_path = out_pdf.with_name(out_pdf.stem + "_per_simulation.csv")
+    psim.to_csv(psim_path, index=False)
+    print(f"Per-simulation values saved -> {psim_path} ({len(psim)} rows)")
 
     make_figure(tg, out_pdf)
     return 0

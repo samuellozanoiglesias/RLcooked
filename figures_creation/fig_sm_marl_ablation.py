@@ -24,12 +24,18 @@ MARL data
   * scratch-trained agents and the (1.0, 1.0) HA reference: SIMULATED GAMES of the
     simulation tree (marl_simulations.py, same folder; same loaders as Fig. 2 and Figs. 4-5)
         <cluster>/data/samuel_lozano/cooked/<game_type>/simulations/<init_type>/map_<map>/
-            synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+            synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_750/simulation_*/
     walk1 = walking speed of ai_rl_1, cut2 = cutting speed of ai_rl_2 (the other two speeds
-    1.0); every Training_* and every simulation_* folder of checkpoint_753 (--rl_checkpoint)
+    1.0); every Training_* and every simulation_* folder of checkpoint_750 (--rl_checkpoint)
     is used. One simulated game = one 180-s game; specialization index per game with the
     Fig. 2 formula.
-  * pretrained agents: UNCHANGED -- the TRAINING data of the first existing of
+  * pretrained agents (default, --pretrained_source simulations): SIMULATED GAMES of the
+    pretrained agents, same loader and layout as the scratch-trained ones, under the
+    with_pretraining/ folder (--pretrained_sim_subfolder) written by launch_pretraining_transfer.sh:
+        <cluster>/data/samuel_lozano/cooked/<game_type>/simulations/<init_type>/with_pretraining/map_<map>/
+            synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_750/simulation_*/
+    (or --pretrained_path_template); checkpoint --pretrained_checkpoint (default: --rl_checkpoint).
+  * pretrained agents, --pretrained_source real: the TRAINING data of the first existing of
         <cluster>/data/samuel_lozano/cooked/<game_type>/pretraining_ablation/<init_type>/map_<map>/synergy_x/specialized_y
         <cluster>/data/samuel_lozano/cooked/<game_type>/pretraining_ablation/map_<map>/synergy_x/specialized_y
     (or --pretrained_dir), loaded with the training-data analyzer of the previous
@@ -39,22 +45,27 @@ MARL data
     --num_episodes episodes); specialization index per episode from the per-agent cut
     columns returned by the DataProcessor (auto-detected, or --cut_cols).
 Violins show every simulated game / episode (--violin_unit episode) or one mean per
-training (--violin_unit training). Statistical tests use one value per training by
-default (--stats_unit training), because games / episodes of one training are not independent.
+training (--violin_unit training). Statistical tests use ONE VALUE PER SIMULATED GAME by
+default (--stats_unit game; 'episode' is a synonym, one value per training episode for
+--pretrained_source real). --stats_unit training averages the games / episodes of each
+training first (one value per training), which accounts for games of one training not
+being independent but leaves N = 1 when only one training exists.
 
 Data modes
-  default (--pretrained_source values, while the pretraining runs are in progress):
+  default (--pretrained_source simulations): scratch, (1.0, 1.0) and pretrained agents are all
+      REAL simulated games (pretrained from the with_pretraining/ simulation tree);
+  --pretrained_source values (placeholder, before the pretrained simulations existed):
       * scratch-trained agents and the (1.0, 1.0) baseline are REAL simulated games;
       * pretrained agents are drawn from the fixed placeholder values PRETRAINED_VALUES
         (section 6: score mean / SD, specialization mode / spread per map and pair),
         with the same number of games and trainings as the real scratch data;
-  --pretrained_source real : the pretraining_ablation trainings are loaded instead.
+  --pretrained_source real : the pretraining_ablation TRAINING episodes are loaded instead.
   --demo                   : scratch / HA synthetic too (layout test).
 Humans: read from the per-team CSV written by fig_sm_ability_pairs_humans_rl.py
 (--human_teams_csv; default ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv),
 the same file used by Figs. 2 and 4, i.e. the same 70 teams per condition used everywhere
 in the paper; MARL agents are compared with them by Welch's t-tests (one value per
-training vs one value per team). The script stops if that file is missing (run
+simulated game vs one value per team; one value per training with --stats_unit training). The script stops if that file is missing (run
 fig_sm_ability_pairs_humans_rl.py first, or --no_humans). --human_csv uses a
 condition-means table instead (one-sample t-tests against the human mean).
 Only real records are written to the cache CSV (--rl_csv re-uses it).
@@ -65,11 +76,32 @@ pretrained vs humans and scratch vs humans (HA agents = (1.0, 1.0) simulated gam
 paper_stats.py (higher group first, Welch's t(df) = |t|, p = .059 / p < .001), the same
 as in the main text. The signed t (first-named source minus second) is kept in the CSV.
 
-Usage:
-    # now: real scratch + (1,1) simulated games (checkpoint_753), pretrained from PRETRAINED_VALUES
-    nohup python3 fig_sm_marl_ablation.py --synergy 1.35 --specialization 0.25 --init_type empty_init --rl_checkpoint 753 > log_fig_sm_pretraining.out 2>&1 &
+Default ability pairs (x axis): (10%, 10%), (40%, 20%), (70%, 40%), (20%, 100%) and
+(100%, 100%). At (100%, 100%) the scratch-trained agents are the HA agents themselves and the
+human star shows the HA human teams, so no separate HA comparisons are made there. With more
+than 3 pairs the violins, boxes and markers are drawn smaller and the tick labels in a smaller
+font (always on one line, see _xtick_scale).
 
-    # final version, once the pretraining_ablation trainings are done
+<output>_per_training.csv: one row per training and condition (map x ability pair x source:
+scratch / pretrained / human teams) with the mean game score ('score'), mean specialization
+index ('specialization') and number of games averaged ('n_games'); human rows carry the team
+id in training_id.
+
+<output>_per_simulation.csv: one row per simulated game of the MARL agents (scratch /
+pretrained / HA at (1.0, 1.0)) with training_id, simulation_id, 'score' and 'specialization'.
+
+Usage:
+# scratch, (1,1) and pretrained agents: all simulated games (checkpoint_750)
+nohup python3 fig_sm_marl_ablation.py --synergy 1.35 --specialization 0.25 --init_type empty_init --rl_checkpoint 750 > log_fig_sm_pretraining.out 2>&1 &
+
+    # old values
+    nohup python3 fig_sm_marl_ablation.py --synergy 1.35 --specialization 0.25 --init_type empty_init --rl_checkpoint 750 --pretrained_source values > log_fig_sm_pretraining.out 2>&1 &
+
+    # statistics with one value per training instead of one value per simulated game
+    nohup python3 fig_sm_marl_ablation.py --synergy 1.35 --specialization 0.25 --init_type empty_init --rl_checkpoint 750 --stats_unit training > log_fig_sm_pretraining.out 2>&1 &
+    
+    # placeholder pretrained values / pretraining_ablation training episodes instead
+    python3 fig_sm_marl_ablation.py --pretrained_source values
     python3 fig_sm_marl_ablation.py --pretrained_source real --pretrained_episode_range final
 
     # re-plot from the records cached by a previous run
@@ -131,7 +163,7 @@ SOURCES = ["scratch", "pretrained"]
 #  * scratch-trained agents and the (1.0, 1.0) HA agents: SIMULATED GAMES of the simulation
 #    tree (marl_simulations.py, same folder; same loaders as Fig. 2 and Figs. 4-5)
 #      <base>/data/samuel_lozano/cooked/<game_type>/simulations/<init_type>/map_<map>/
-#          synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_753/simulation_*/
+#          synergy_<s>/specialized_<l>/abilities_<walk1>_<cut2>/Training_*/checkpoint_750/simulation_*/
 #    walk1 = walking speed of ai_rl_1, cut2 = cutting speed of ai_rl_2 (other speeds 1.0);
 #    every Training_* and simulation_* folder is used.
 #  * pretrained agents: UNCHANGED -- training data of the pretraining_ablation folder, loaded
@@ -434,20 +466,42 @@ def _load_prepared(analyzer, args, sel: str, target, label: str) -> pd.DataFrame
     return add_specialization(df, cut_cols)
 
 
-def scratch_sim_records(args, switch: str, map_name: str, pairs: list[tuple]) -> list[dict]:
-    """Simulated games of the scratch-trained agents (one row per simulation_*); the (1.0, 1.0)
-    games become the HA reference (source 'ha_baseline')."""
-    root = msim.map_root(msim.cluster_base_dir(args.cluster), args.game_type, map_name, args.synergy,
+def _scratch_root(args, map_name: str, path_template=None):
+    return msim.map_root(msim.cluster_base_dir(args.cluster), args.game_type, map_name, args.synergy,
                          args.specialization, init_type=args.init_type, study_name=args.study_name,
-                         path_template=args.rl_path_template)
-    print(f"\n{'=' * 70}\nscratch-trained agents (simulated games) on map {map_name}\n"
-          f"  {msim.describe_root(root, args.rl_checkpoint)}\n{'=' * 70}")
-    df = msim.collect_records(root, pairs=list(dict.fromkeys(pairs)), checkpoint=args.rl_checkpoint,
+                         path_template=path_template)
+
+
+def pretrained_sim_root(args, map_name: str):
+    """Folder with the abilities_* folders of the PRETRAINED simulated games: the scratch
+    simulation folder with --pretrained_sim_subfolder inserted after the init folder, i.e.
+    .../simulations/<init_type>/with_pretraining/map_<map>/synergy_x/specialized_y."""
+    if args.pretrained_path_template:
+        template = args.pretrained_path_template.replace("{map}", map_name)
+    else:
+        scratch = os.fspath(_scratch_root(args, map_name))
+        marker = f"{os.sep}simulations{os.sep}{args.init_type}{os.sep}"
+        if marker not in scratch:
+            raise ValueError(f"cannot place '{args.pretrained_sim_subfolder}' in the scratch simulation folder "
+                             f"{scratch} (no '{marker}' in it); set --pretrained_path_template")
+        template = scratch.replace(marker, f"{marker}{args.pretrained_sim_subfolder}{os.sep}", 1)
+    return _scratch_root(args, map_name, path_template=template)
+
+
+def sim_records(args, switch: str, map_name: str, pairs: list[tuple], root, checkpoint,
+                kind: str) -> list[dict]:
+    """Simulated games (one row per simulation_*) of the abilities_* folders under root.
+    kind 'scratch': the (1.0, 1.0) games become the HA reference (source 'ha_baseline');
+    kind 'pretrained': every game is source 'pretrained'."""
+    title = "scratch-trained agents" if kind == "scratch" else "PRETRAINED agents"
+    print(f"\n{'=' * 70}\n{title} (simulated games) on map {map_name}\n"
+          f"  {msim.describe_root(root, checkpoint)}\n{'=' * 70}")
+    df = msim.collect_records(root, pairs=list(dict.fromkeys(pairs)), checkpoint=checkpoint,
                               verbose=args.verbose)
     rows = []
     for pair in dict.fromkeys(pairs):
         sub = df[np.isclose(df["walk"], pair[0]) & np.isclose(df["cut"], pair[1])] if len(df) else df
-        src = "ha_baseline" if pair == (1.0, 1.0) else "scratch"
+        src = "ha_baseline" if (kind == "scratch" and pair == (1.0, 1.0)) else kind
         n_tr = sub["training_id"].nunique() if len(sub) else 0
         print(f"  {pair}: {len(sub)} simulated games from {n_tr} trainings"
               + ("" if len(sub) else f"   <-- no abilities_{pair[0]:g}_{pair[1]:g} data"))
@@ -460,18 +514,25 @@ def scratch_sim_records(args, switch: str, map_name: str, pairs: list[tuple]) ->
     return rows
 
 
-def collect_records(args, pairs: list[tuple], include_pretrained: bool = True) -> pd.DataFrame:
+def collect_records(args, pairs: list[tuple], pretrained_source: str = "simulations") -> pd.DataFrame:
     """Scratch-trained agents and the (1.0, 1.0) HA agents: simulated games of the simulation
-    tree. Pretrained agents (unchanged): training data of the .../<game_type>/pretraining_ablation/...
-    folder through the embedded training-data analyzer."""
+    tree. Pretrained agents: simulated games of the with_pretraining/ tree ('simulations'),
+    training data of the .../<game_type>/pretraining_ablation/ folder ('real'), or nothing
+    ('values': drawn from PRETRAINED_VALUES later)."""
     maps = {"low": args.map_baseline, "high": args.map_encouraged}
     wanted_scratch = pairs + [(1.0, 1.0)]
+    pre_ckpt = args.pretrained_checkpoint or args.rl_checkpoint
     rows = []
     for switch in args.maps:
         map_name = maps[switch]
-        rows += scratch_sim_records(args, switch, map_name, wanted_scratch)
+        rows += sim_records(args, switch, map_name, wanted_scratch,
+                            _scratch_root(args, map_name, args.rl_path_template), args.rl_checkpoint, "scratch")
 
-        if not include_pretrained:
+        if pretrained_source == "simulations":
+            rows += sim_records(args, switch, map_name, pairs, pretrained_sim_root(args, map_name),
+                                pre_ckpt, "pretrained")
+            continue
+        if pretrained_source != "real":
             continue
         an_pre = make_analyzer(args, map_name, None)
         cands = pretrained_dir_candidates(args, an_pre, map_name)
@@ -507,19 +568,87 @@ def collapse_to_trainings(df: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([agg, df[~is_marl]], ignore_index=True)
 
 
+_MARL_SOURCES = ["scratch", "pretrained", "ha_baseline", "ha_training"]
+
+
+_CSV_SOURCES = ["scratch", "pretrained", "human"]
+
+
+def per_training_table(df: pd.DataFrame) -> pd.DataFrame:
+    """One row per training and condition (map x ability pair x source): mean game score and
+    mean specialization index over that training's games / episodes (the per-training values
+    behind the training-level statistics). At (1.0, 1.0) the scratch-trained agents (stored as
+    'ha_baseline') are listed as 'scratch'. Human teams are added with their team id in
+    training_id (one row per team; a single row per condition with --human_csv)."""
+    d = df[df["source"].isin(_MARL_SOURCES + ["human", "human_ha"])].copy()
+    d["source"] = d["source"].replace({"ha_baseline": "scratch", "human_ha": "human"})
+    if "training_id" not in d.columns:
+        d["training_id"] = np.nan
+    if "n_games" not in d.columns:
+        d["n_games"] = np.nan
+    is_h = d["source"] == "human"
+    d["_games"] = np.where(is_h, pd.to_numeric(d["n_games"], errors="coerce"), 1.0)
+    for c in ("walk", "cut", "total_deliveries", "specialization_index"):
+        d[c] = pd.to_numeric(d[c], errors="coerce")
+    keys = ["source", "switch_cost_condition", "walk", "cut", "training_id"]
+    out = (d.groupby(keys, as_index=False, sort=False, dropna=False)
+             .agg(n_games=("_games", "sum"),
+                  score=("total_deliveries", "mean"),
+                  specialization=("specialization_index", "mean")))
+    out["n_games"] = out["n_games"].replace(0, np.nan)
+    out["source_name"] = out["source"].map(_SRC_NAME).fillna(out["source"])
+    out.loc[(out["source"] == "scratch") & np.isclose(out["walk"], 1.0) & np.isclose(out["cut"], 1.0),
+            "source_name"] = "from scratch (= HA agents)"
+    out["map"] = out["switch_cost_condition"].map(MAP_TITLES)
+    out["_s"] = out["source"].map({s: i for i, s in enumerate(_CSV_SOURCES + _MARL_SOURCES)})
+    out["_m"] = out["switch_cost_condition"].map({m: i for i, m in enumerate(_SWITCH_ORDER)})
+    out = out.sort_values(["_m", "walk", "cut", "_s", "training_id"]).drop(columns=["_s", "_m"])
+    return out[["map", "switch_cost_condition", "walk", "cut", "source", "source_name",
+                "training_id", "n_games", "score", "specialization"]].reset_index(drop=True)
+
+
+def per_simulation_table(df: pd.DataFrame) -> pd.DataFrame:
+    """One row per simulated game of the MARL agents (scratch, pretrained, HA): map, ability
+    pair, source, training_id, simulation_id, game score and specialization index. Only rows
+    with a simulation id are kept, i.e. not the training episodes of --pretrained_source real
+    nor the synthetic games of --pretrained_source values. At (1.0, 1.0) the scratch-trained
+    agents (stored as 'ha_baseline') are listed as 'scratch', as in the per-training CSV."""
+    cols = ["map", "switch_cost_condition", "walk", "cut", "source", "source_name",
+            "training_id", "simulation_id", "score", "specialization"]
+    if "simulation" not in df.columns:
+        return pd.DataFrame(columns=cols)
+    d = df[df["source"].isin(_MARL_SOURCES) & df["simulation"].notna()].copy()
+    d["source"] = d["source"].replace({"ha_baseline": "scratch"})
+    d["walk"] = pd.to_numeric(d["walk"], errors="coerce")
+    d["cut"] = pd.to_numeric(d["cut"], errors="coerce")
+    d["source_name"] = d["source"].map(_SRC_NAME).fillna(d["source"])
+    d.loc[(d["source"] == "scratch") & np.isclose(d["walk"], 1.0) & np.isclose(d["cut"], 1.0),
+          "source_name"] = "from scratch (= HA agents)"
+    d["map"] = d["switch_cost_condition"].map(MAP_TITLES)
+    d["simulation_id"] = d["simulation"].astype(str)
+    d["score"] = pd.to_numeric(d["total_deliveries"], errors="coerce")
+    d["specialization"] = pd.to_numeric(d["specialization_index"], errors="coerce")
+    d["_s"] = d["source"].map({s: i for i, s in enumerate(_MARL_SOURCES)})
+    d["_m"] = d["switch_cost_condition"].map({m: i for i, m in enumerate(_SWITCH_ORDER)})
+    d["_n"] = pd.to_numeric(d["simulation_id"].str.extract(r"(\d+)\D*$")[0], errors="coerce")
+    d = d.sort_values(["_m", "walk", "cut", "_s", "training_id", "_n", "simulation_id"], kind="stable")
+    return d[cols].reset_index(drop=True)
+
+
 def report_coverage(df: pd.DataFrame, pairs: list[tuple], maps: list[str]):
     """Print how many real simulations were found per map / source / pair."""
-    print(f"\n{'-' * 60}\nReal MARL data found (scratch / HA: simulated games; pretrained: training episodes)\n{'-' * 60}")
+    print(f"\n{'-' * 60}\nReal MARL data found (games = simulated games; episodes = pretraining_ablation training)\n{'-' * 60}")
     for switch in maps:
         n_ha = _values(df, "ha_baseline", switch, None, "total_deliveries").size
         print(f"  {MAP_TITLES[switch]:<22} HA (1.0, 1.0): {n_ha:4d}")
         for src in SOURCES:
             for pair in pairs:
                 n = _values(df, src, switch, pair, "total_deliveries").size
-                sel = (df["source"] == src) & (df["switch_cost_condition"] == switch) & \
-                    np.isclose(df["walk"].astype(float), pair[0]) & np.isclose(df["cut"].astype(float), pair[1])
+                sel = _select(df, src, switch, pair)
                 n_tr = df.loc[sel, "training_id"].nunique() if "training_id" in df.columns else 0
                 flag = "" if n else "   <-- MISSING"
+                if n and n_tr < 2:
+                    flag += "   <-- only 1 training (fine for per-game stats; no test with --stats_unit training)"
                 print(f"  {MAP_TITLES[switch]:<22} {src:<10} {pair}: {n:5d} games/episodes, {n_tr:3d} trainings{flag}")
 
 
@@ -569,10 +698,30 @@ def load_human_teams_csv(path: Path) -> pd.DataFrame:
     return df
 
 
-def _values(df: pd.DataFrame, source: str, switch: str, pair, col: str) -> np.ndarray:
-    sel = (df["source"] == source) & (df["switch_cost_condition"] == switch)
+HA_PAIR = (1.0, 1.0)
+
+
+def _is_ha_pair(pair) -> bool:
+    return pair is not None and np.isclose(pair[0], HA_PAIR[0]) and np.isclose(pair[1], HA_PAIR[1])
+
+
+def _resolve_source(source: str, pair) -> str:
+    """At (100%, 100%) the scratch-trained agents ARE the HA reference (stored as 'ha_baseline')
+    and the human teams are stored as 'human_ha'."""
+    if _is_ha_pair(pair):
+        return {"scratch": "ha_baseline", "human": "human_ha"}.get(source, source)
+    return source
+
+
+def _select(df: pd.DataFrame, source: str, switch: str, pair) -> pd.Series:
+    sel = (df["source"] == _resolve_source(source, pair)) & (df["switch_cost_condition"] == switch)
     if pair is not None:
         sel &= np.isclose(df["walk"].astype(float), pair[0]) & np.isclose(df["cut"].astype(float), pair[1])
+    return sel
+
+
+def _values(df: pd.DataFrame, source: str, switch: str, pair, col: str) -> np.ndarray:
+    sel = _select(df, source, switch, pair)
     return pd.to_numeric(df.loc[sel, col], errors="coerce").dropna().to_numpy(float)
 
 
@@ -587,7 +736,7 @@ _LEGEND_LABELS = {
     "scratch": r"\textbf{From scratch}",
     "pretrained": r"\textbf{Pretrained}",
     "human": r"\textbf{Humans}",
-    "ha": r"\textbf{High ability (100\%, 100\%)}",
+    "ha": r"\textbf{High ability (HA)}",
 }
 _ALPHA_VIOLIN = 0.55
 _ALPHA_BOX = 0.85
@@ -595,6 +744,13 @@ _VIOLIN_WIDTH = 0.30
 _BOX_WIDTH = 0.10
 _WHISK_CAP = 0.06
 _FS = 30
+
+
+def _xtick_scale(n_pairs: int) -> float:
+    """Font-size factor for the x tick labels so that '(70%, 40%)' fits on one line under
+    its category: 1 up to 3 pairs, 0.85 with 4, 0.68 with 5 (~11 pt in the final figure).
+    Lower the 3.4 if neighbouring labels still touch."""
+    return min(1.0, 3.4 / max(n_pairs, 1))
 
 
 def _aggregate(values):
@@ -606,7 +762,7 @@ def _aggregate(values):
     return arr.mean(), sem, arr.size, arr
 
 
-def _draw_half_violin(ax, x_center, arr, color, direction, s, y_min=None, y_max=None):
+def _draw_half_violin(ax, x_center, arr, color, direction, s, y_min=None, y_max=None, width=_VIOLIN_WIDTH):
     if arr.size < 2:
         return
     if np.std(arr) < 1e-10:
@@ -615,22 +771,22 @@ def _draw_half_violin(ax, x_center, arr, color, direction, s, y_min=None, y_max=
     ys = np.linspace(arr.min() if y_min is None else y_min,
                      arr.max() if y_max is None else y_max, 200)
     density = kde(ys)
-    density_norm = density / density.max() * _VIOLIN_WIDTH * direction if density.max() > 0 else density * 0
+    density_norm = density / density.max() * width * direction if density.max() > 0 else density * 0
     xs_outer = x_center + density_norm
     ax.fill_betweenx(ys, np.full_like(xs_outer, x_center), xs_outer, color=color,
                      alpha=_ALPHA_VIOLIN, linewidth=0, zorder=2)
     ax.plot(xs_outer, ys, color="black", linewidth=1.0 * s, zorder=2.5)
 
 
-def _draw_boxplot(ax, x_center, arr, color, s):
+def _draw_boxplot(ax, x_center, arr, color, s, box_width=_BOX_WIDTH, cap_width=_WHISK_CAP):
     if arr.size < 2:
         return
     q1, med, q3 = np.percentile(arr, [25, 50, 75])
     iqr = q3 - q1
     lo_whisk = max(arr.min(), q1 - 1.5 * iqr)
     hi_whisk = min(arr.max(), q3 + 1.5 * iqr)
-    bw, cw = _BOX_WIDTH / 2, _WHISK_CAP / 2
-    ax.add_patch(plt.Rectangle((x_center - bw, q1), _BOX_WIDTH, iqr, facecolor=color,
+    bw, cw = box_width / 2, cap_width / 2
+    ax.add_patch(plt.Rectangle((x_center - bw, q1), box_width, iqr, facecolor=color,
                                edgecolor="black", linewidth=1.3 * s, alpha=_ALPHA_BOX, zorder=3))
     ax.plot([x_center - bw, x_center + bw], [med, med], color="black", linewidth=1.8 * s, zorder=4)
     for seg in ([x_center, x_center], [lo_whisk, q1]), ([x_center, x_center], [q3, hi_whisk]), \
@@ -661,14 +817,39 @@ def _style_axis(ax, s):
     ax.xaxis.labelpad = mpl.rcParams["axes.labelpad"] * s
 
 
-def _pair_label(pair) -> str:
+def _violin_geometry(n_pairs: int) -> dict:
+    """Side offset, violin / box / whisker-cap widths (x units; one ability pair = 1 unit).
+    With more than 2 pairs the violins are made narrower so that neighbours do not touch."""
+    if n_pairs <= 2:
+        return dict(offset=0.18, violin=_VIOLIN_WIDTH, box=_BOX_WIDTH, cap=_WHISK_CAP)
+    return dict(offset=0.14, violin=0.20, box=0.08, cap=0.05)
+
+
+def _density_scale(n_pairs: int) -> float:
+    """Marker / line scale: 1 up to 2 pairs, smaller with more pairs (5 pairs -> 0.63)."""
+    return min(1.0, np.sqrt(2.0 / max(n_pairs, 1)))
+
+
+_PAIR_ABBREV = {(1.0, 1.0): "HA", (0.4, 0.2): "MA"}
+
+
+def _pair_label(pair, two_lines: bool = False) -> str:
     """(walk, cut) as fractions of full speed -> '(20%, 100%)' (speed percentages)."""
-    return rf"$({round(pair[0] * 100):d}\%,\,{round(pair[1] * 100):d}\%)$"
+    for k, name in _PAIR_ABBREV.items():               # main-experiment conditions -> HA / MA
+        if abs(pair[0] - k[0]) < 1e-6 and abs(pair[1] - k[1]) < 1e-6:
+            return rf"$\mathrm{{{name}}}$"
+    w, c = round(pair[0] * 100), round(pair[1] * 100)
+    if two_lines:
+        return rf"$({w:d}\%,$" + "\n" + rf"${c:d}\%)$"
+    return rf"$({w:d}\%,\,{c:d}\%)$"
 
 
 def draw_pair_panel(ax, df: pd.DataFrame, switch: str, pairs: list[tuple], col: str, *,
                     ylabel: str, ylim, percent: bool, s: float, show_xlabel: bool):
-    """Scratch (left) vs pretrained (right) raincloud per ability pair + humans."""
+    """Scratch (left) vs pretrained (right) raincloud per ability pair + humans.
+    At (100%, 100%) 'from scratch' are the HA agents and the star the HA human teams."""
+    s_axis, s = s, s * _density_scale(len(pairs))      # violins / boxes / markers shrink with many pairs
+    g = _violin_geometry(len(pairs))
     y_lo, y_hi = ylim
     ax.set_ylim(y_lo, y_hi)
     xs_cat = np.arange(1, len(pairs) + 1, dtype=float)
@@ -676,13 +857,13 @@ def draw_pair_panel(ax, df: pd.DataFrame, switch: str, pairs: list[tuple], col: 
     mean_pts = {src: [] for src in SOURCES}
     for x0, pair in zip(xs_cat, pairs):
         for src in SOURCES:
-            xc = x0 + _SIDE_OFFSET[src]
+            xc = x0 + np.sign(_SIDE_OFFSET[src]) * g["offset"]
             mean, _, n, arr = _aggregate(_values(df, src, switch, pair, col))
             if n == 0:
                 mean_pts[src].append((xc, np.nan))
                 continue
-            _draw_half_violin(ax, xc, arr, _COLOR[src], _VIOLIN_DIR[src], s, y_lo, y_hi)
-            _draw_boxplot(ax, xc, arr, _COLOR[src], s)
+            _draw_half_violin(ax, xc, arr, _COLOR[src], _VIOLIN_DIR[src], s, y_lo, y_hi, width=g["violin"])
+            _draw_boxplot(ax, xc, arr, _COLOR[src], s, box_width=g["box"], cap_width=g["cap"])
             _draw_diamond_mean(ax, xc, mean, _COLOR[src], s)
             mean_pts[src].append((xc, mean))
         # humans at matched settings: condition mean only (no dispersion available)
@@ -703,14 +884,17 @@ def draw_pair_panel(ax, df: pd.DataFrame, switch: str, pairs: list[tuple], col: 
                     solid_capstyle="round", alpha=0.8)
 
     ax.set_xticks(xs_cat)
-    ax.set_xticklabels([_pair_label(p) for p in pairs])
+    ax.set_xticklabels([_pair_label(p) for p in pairs])          # always one line
     ax.set_xlim(0.4, len(pairs) + 0.6)
     ax.set_ylabel(ylabel)
     if show_xlabel:
         ax.set_xlabel(r"(walking speed P1, cutting speed P2)")
     if percent:
         ax.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=100, decimals=0))
-    _style_axis(ax, s)
+    _style_axis(ax, s_axis)
+    # smaller x tick labels so that each ability pair fits on one line
+    # (after _style_axis, which sets the tick label size of both axes)
+    ax.tick_params(axis="x", which="major", labelsize=_FS * s_axis * _xtick_scale(len(pairs)))
 
 
 # ===========================================================================
@@ -729,8 +913,7 @@ _SRC_NAME = {"scratch": "from scratch", "pretrained": "pretrained", "ha_baseline
 def _human_games(df, switch, pair):
     if "n_games" not in df.columns:
         return np.nan
-    sel = (df["source"] == "human") & (df["switch_cost_condition"] == switch) & \
-        np.isclose(df["walk"].astype(float), pair[0]) & np.isclose(df["cut"].astype(float), pair[1])
+    sel = _select(df, "human", switch, pair)
     g = pd.to_numeric(df.loc[sel, "n_games"], errors="coerce").dropna()
     return float(g.sum()) if g.size else np.nan
 
@@ -757,6 +940,13 @@ def pretraining_stats(df: pd.DataFrame, pairs: list[tuple], maps: list[str], hum
                          ("pre_vs_ha", "pretrained", v["pretrained"], HA_LABEL, ha),
                          ("scratch_vs_ha", "from scratch", v["scratch"], HA_LABEL, ha)]
                 for key, na, a, nb, b in comps:
+                    if _is_ha_pair(pair) and key != "pre_vs_scratch":
+                        # at (100%, 100%) the scratch-trained agents are the HA agents themselves
+                        row.update({f"t_{key}": np.nan, f"t_signed_{key}": np.nan,
+                                    f"df_{key}": np.nan, f"p_{key}": np.nan})
+                        if key == "pre_vs_ha":
+                            lines.append("    (from scratch = HA agents at this pair: no separate HA comparisons)")
+                        continue
                     txt, res = ps.fmt_compare(na, a, nb, b, pct)
                     row.update({f"t_{key}": res["t"], f"t_signed_{key}": res["t_signed"],
                                 f"df_{key}": res["df"], f"p_{key}": res["p"]})
@@ -809,8 +999,10 @@ def tex(font: str, size: float, text: str) -> str:
 
 def make_figure(df: pd.DataFrame, pairs: list[tuple], maps: list[str], output_path: Path):
     n_rows = len(maps)
-    last_bottom = _ROW_TOP0 + (n_rows - 1) * _ROW_PITCH + _ROW_H
-    leg_top = last_bottom + _LEGEND_GAP
+    extra = 0.0                                          # tick labels are on one line: no extra room
+    row_pitch = _ROW_PITCH + extra
+    last_bottom = _ROW_TOP0 + (n_rows - 1) * row_pitch + _ROW_H
+    leg_top = last_bottom + _LEGEND_GAP + extra
     page_h = leg_top + _LEGEND_H + 1.73
     fig = plt.figure(figsize=(PAGE_W / 72.0, page_h / 72.0))
     page = Affine2D().scale(1.0, -1.0).translate(0.0, page_h).scale(1.0 / 72.0) + fig.dpi_scale_trans
@@ -820,7 +1012,7 @@ def make_figure(df: pd.DataFrame, pairs: list[tuple], maps: list[str], output_pa
 
     letters = iter("abcdefgh")
     for r, switch in enumerate(maps):
-        top = _ROW_TOP0 + r * _ROW_PITCH
+        top = _ROW_TOP0 + r * row_pitch
         bottom = top + _ROW_H
         for k, (col, ylabel, ylim, pct) in enumerate((
                 ("total_deliveries", "Game score", (0, 16), False),
@@ -885,11 +1077,11 @@ _MAP_KEY = {"low": "Open", "high": "PB"}
 # --demo only (layout test): scratch-trained and HA agents are synthetic too.
 _DEMO_LAYOUT = {
     "high": {
-        "scratch":    {(0.1, 0.1): (1.6, 1.3, 32, 26), (0.2, 1.0): (4.6, 1.6, 70, 22), (0.7, 0.4): (7.2, 0.9, 85, 7)},
+        "scratch":    {(0.1, 0.1): (1.6, 1.3, 32, 26), (0.2, 1.0): (4.6, 1.6, 70, 22), (0.4, 0.2): (5.0, 1.2, 62, 18), (0.7, 0.4): (7.2, 0.9, 85, 7)},
         "ha_baseline": (5.3, 1.1, 60, 14),
     },
     "low": {
-        "scratch":    {(0.1, 0.1): (2.4, 1.3, 30, 22), (0.2, 1.0): (4.3, 1.2, 45, 20), (0.7, 0.4): (6.5, 0.8, 46, 10)},
+        "scratch":    {(0.1, 0.1): (2.4, 1.3, 30, 22), (0.2, 1.0): (4.3, 1.2, 45, 20), (0.4, 0.2): (5.2, 1.1, 40, 15), (0.7, 0.4): (6.5, 0.8, 46, 10)},
         "ha_baseline": (7.6, 1.1, 45, 11),
     },
 }
@@ -937,9 +1129,12 @@ def demo_records(pairs: list[tuple], maps: list[str], n: int = 160, seed: int = 
         d = _DEMO_LAYOUT[switch]
         rows += _synthetic_rows(rng, "ha_baseline", switch, (1.0, 1.0), *d["ha_baseline"], n)
         for pair in pairs:
-            rows += _synthetic_rows(rng, "scratch", switch, pair, *d["scratch"][_nearest(d["scratch"], pair)], n)
+            if not _is_ha_pair(pair):          # at (1, 1) the scratch agents are the ha_baseline group
+                rows += _synthetic_rows(rng, "scratch", switch, pair, *d["scratch"][_nearest(d["scratch"], pair)], n)
             rows += _synthetic_rows(rng, "pretrained", switch, pair, *pretrained_value(switch, pair), n)
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    df["simulation"] = "simulation_" + df["episode"].astype(int).astype(str)   # demo: fake simulation ids
+    return df
 
 
 def synthetic_pretrained_rows(df: pd.DataFrame, pairs: list[tuple], maps: list[str],
@@ -952,8 +1147,7 @@ def synthetic_pretrained_rows(df: pd.DataFrame, pairs: list[tuple], maps: list[s
     for switch in maps:
         for pair in pairs:
             m, sd, sm, ss = pretrained_value(switch, pair)
-            sel = (df["source"] == "scratch") & (df["switch_cost_condition"] == switch) & \
-                np.isclose(df["walk"].astype(float), pair[0]) & np.isclose(df["cut"].astype(float), pair[1])
+            sel = _select(df, "scratch", switch, pair)
             n_ep = int(sel.sum()) or n
             n_tr = int(df.loc[sel, "training_id"].nunique()) or 8
             print(f"  [pretrained] {MAP_TITLES[switch]:<22} {pair}: score {m:5.2f} (sd {sd:4.2f}), "
@@ -977,8 +1171,9 @@ def _parse_pairs(raw: list[str]) -> list[tuple]:
 def main():
     p = argparse.ArgumentParser(description="SI figure: scratch-trained (simulated games) vs pretrained "
                                             "agents at low ability.")
-    p.add_argument("--pairs", nargs="+", default=["0.1,0.1", "0.2,1.0"],
-                   help="Ability pairs 'walk,cut' (agent 1 walking speed, agent 2 cutting speed)")
+    p.add_argument("--pairs", nargs="+", default=["0.1,0.1", "0.4,0.2", "0.7,0.4", "0.2,1.0", "1.0,1.0"],
+                   help="Ability pairs 'walk,cut' (agent 1 walking speed, agent 2 cutting speed), "
+                        "in x-axis order; at 1.0,1.0 'from scratch' are the HA agents")
     p.add_argument("--maps", nargs="+", default=["low", "high"], choices=["low", "high"],
                    help="Rows to draw: low = Open map, high = partially-blocked map")
     # --- data location ---
@@ -1006,8 +1201,10 @@ def main():
     p.add_argument("--violin_unit", choices=["episode", "training"], default="episode",
                    help="Violin samples: every simulated game (scratch, HA) / episode of the window "
                         "(pretrained), or one mean per training")
-    p.add_argument("--stats_unit", choices=["episode", "training"], default="training",
-                   help="Unit of the statistical tests (games / episodes of one training are not independent)")
+    p.add_argument("--stats_unit", choices=["game", "episode", "training"], default="game",
+                   help="Unit of the statistical tests: 'game' (default; = 'episode') one value per "
+                        "simulated game (training episode for --pretrained_source real); 'training' "
+                        "one mean per training")
     # --- other inputs ---
     p.add_argument("--rl_csv", default=None, help="Cached records CSV (skips loading the MARL data)")
     p.add_argument("--human_csv", default=None,
@@ -1017,11 +1214,20 @@ def main():
                    help="Per-team human data from fig_sm_ability_pairs_humans_rl.py (default: "
                         "./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv)")
     p.add_argument("--no_humans", action="store_true", help="Do not draw human stars")
-    p.add_argument("--pretrained_source", default="values", choices=["values", "real"],
-                   help="'values' (default): pretrained agents drawn from PRETRAINED_VALUES (top of section 6); "
-                        "'real': load the pretraining_ablation trainings")
+    p.add_argument("--pretrained_source", default="simulations", choices=["simulations", "values", "real"],
+                   help="'simulations' (default): simulated games of the pretrained agents under "
+                        ".../simulations/<init_type>/<pretrained_sim_subfolder>/map_*/...; "
+                        "'values': drawn from PRETRAINED_VALUES (top of section 6); "
+                        "'real': training episodes of the pretraining_ablation trainings")
+    p.add_argument("--pretrained_sim_subfolder", default="with_pretraining",
+                   help="Folder after <init_type> in the simulation tree holding the pretrained games")
+    p.add_argument("--pretrained_path_template", default=None,
+                   help="Pretrained simulated games: explicit folder that contains the abilities_* folders "
+                        "('{map}' substituted); overrides --pretrained_sim_subfolder")
+    p.add_argument("--pretrained_checkpoint", default=None,
+                   help="Pretrained simulated games: checkpoint_<n> folder (default: --rl_checkpoint)")
     p.add_argument("--rl_checkpoint", default=msim.DEFAULT_CHECKPOINT,
-                   help="Scratch / HA simulated games: checkpoint_<n> folder (default 753), 'latest' or 'all'")
+                   help="Scratch / HA simulated games: checkpoint_<n> folder (default 750), 'latest' or 'all'")
     p.add_argument("--rl_path_template", default=None,
                    help="Scratch / HA: explicit folder that contains the abilities_* folders ('{map}' substituted)")
     p.add_argument("--verbose", action="store_true")
@@ -1032,6 +1238,8 @@ def main():
     p.add_argument("--demo", action="store_true",
                    help="Synthetic scratch / HA data (layout test); pretrained from PRETRAINED_VALUES")
     args = p.parse_args()
+    if args.stats_unit == "episode":          # same thing: one value per simulated game / episode
+        args.stats_unit = "game"
 
     pairs = _parse_pairs(args.pairs)
     maps = [m for m in _SWITCH_ORDER if m in args.maps]
@@ -1042,14 +1250,14 @@ def main():
     if args.demo:
         df = demo_records(pairs, maps)
     else:
-        real_pretrained = args.pretrained_source == "real"
+        real_pretrained = args.pretrained_source in ("simulations", "real")
         if args.rl_csv:
             df = pd.read_csv(args.rl_csv)
         else:
-            df = collect_records(args, pairs, include_pretrained=real_pretrained)
+            df = collect_records(args, pairs, pretrained_source=args.pretrained_source)
             cache = out_dir / "fig_sm_pretraining_rl_records.csv"
             df.to_csv(cache, index=False)            # only REAL records are cached
-            print(f"\nMARL records (scratch / HA simulated games, pretrained episodes) cached -> {cache}"
+            print(f"\nMARL records (scratch / HA / pretrained: {args.pretrained_source}) cached -> {cache}"
                   f"  (re-use with --rl_csv)")
         if not (df["source"] == "ha_baseline").any():
             print("\n[!] no (100%,100%) simulated games found (abilities_1.0_1.0): HA comparisons are empty")
@@ -1078,16 +1286,41 @@ def main():
                 f"(it writes <output>_human_teams.csv), pass --human_teams_csv, or use --no_humans.")
         df = pd.concat([df, hum], ignore_index=True)
 
+    if args.stats_unit == "training":
+        pre = df[df["source"] == "pretrained"]
+        n_tr = pre.groupby(["switch_cost_condition", "walk", "cut"])["training_id"].nunique()
+        if len(n_tr) and (n_tr < 2).any():
+            print("\n[!] Some pretrained groups have a single training: with --stats_unit training their N is 1, "
+                  "so SEM and the t-tests involving them are undefined.\n"
+                  "    Simulate more pretrained trainings, or use --stats_unit episode (treats the simulated games "
+                  "of one training as independent samples).")
     df_stats = collapse_to_trainings(df) if args.stats_unit == "training" else df
     df_plot = collapse_to_trainings(df) if args.violin_unit == "training" else df
-    print(f"\nViolins: one sample per {args.violin_unit}; tests: one sample per {args.stats_unit}")
+    stats_unit_txt = ("one value per training (mean over its games / episodes)" if args.stats_unit == "training"
+                      else "one value per simulated game (training episode for --pretrained_source real)")
+    print(f"\nViolins: one sample per {args.violin_unit}; tests: {stats_unit_txt}")
 
     st, lines = pretraining_stats(df_stats, pairs, maps, human_mode)
-    txt_lines = print_stats(lines, human_mode, args.stats_unit)
+    st.insert(0, "stats_unit", args.stats_unit)
+    txt_lines = print_stats(lines, human_mode, stats_unit_txt)
     st_path = out_pdf.with_name(out_pdf.stem + "_stats.csv")
     st.to_csv(st_path, index=False)
     st_path.with_suffix(".txt").write_text("\n".join(txt_lines) + "\n", encoding="utf-8")
     print(f"\nStatistics saved -> {st_path} (+ .txt)")
+
+    pt = per_training_table(df)
+    pt_path = out_pdf.with_name(out_pdf.stem + "_per_training.csv")
+    pt.to_csv(pt_path, index=False)
+    print(f"Per-training values saved -> {pt_path} ({len(pt)} rows: trainings / human teams x conditions)")
+
+    psim = per_simulation_table(df)
+    psim_path = out_pdf.with_name(out_pdf.stem + "_per_simulation.csv")
+    psim.to_csv(psim_path, index=False)
+    print(f"Per-simulation values saved -> {psim_path} ({len(psim)} simulated games of the MARL agents)")
+    n_other = int((df["source"].isin(_MARL_SOURCES)).sum()) - len(psim)
+    if n_other > 0:
+        print(f"  ({n_other} MARL rows without a simulation id -- training episodes or synthetic games -- "
+              f"are not in it)")
 
     make_figure(df_plot, pairs, maps, out_pdf)
     return 0
