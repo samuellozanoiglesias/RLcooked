@@ -20,8 +20,8 @@ matplotlib figure (PDF + PNG), reproducing the Fig2 layout:
 
 Inputs
   ./figures/open_map.png, ./figures/PB_map.png      (map screenshots, --maps_dir)
-  Human   : the per-team file written by fig_sm_ability_pairs_humans_rl.py
-            (--human_teams_csv, default ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv):
+  Human   : the per-team file written by human_data_processing.py
+            (--human_teams_csv, default ./figures/human_teams.csv):
             the first 70 teams per condition (test phase), specialization index with the
             Methods formula, i.e. the same teams as Figs. 4, S-pairs and S-pretraining.
             Required: the script stops if the file is missing.
@@ -45,7 +45,7 @@ automatically over the panels of their group (see TITLES), so renaming them
 or changing axis labels keeps them centred.
 
 Usage:
-nohup python3 fig2_human_marl_comparison.py --human_teams_csv ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv --analytic_csv ./data/analytic_model/figure3_specialization_index_long.csv --map_baseline baseline_division_of_labor_large --map_encouraged encouraged_division_of_labor_large --synergy 1.35 --specialization 0.25 --init_type empty_init --checkpoint 750 --game_version classic_collision --cluster cuenca > log_fig2.out 2>&1 &
+nohup python3 fig2_human_marl_comparison.py --human_teams_csv ./figures/human_teams.csv --analytic_csv ./data/analytic_model/figure3_specialization_index_long.csv --map_baseline baseline_division_of_labor_large --map_encouraged encouraged_division_of_labor_large --synergy 1.35 --specialization 0.25 --init_type empty_init --checkpoint 750 --game_version classic_collision --cluster cuenca > log_fig2.out 2>&1 &
 
     # re-plot quickly from the MARL records cached by a previous run
     python3 fig2_human_marl_comparison.py --rl_csv ./figures/fig2_rl_records.csv
@@ -119,7 +119,7 @@ def _parse_column_label(col: str) -> tuple[str, str]:
     return switch, ability
 
 
-_HUMAN_TEAMS_DEFAULT = "./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv"
+_HUMAN_TEAMS_DEFAULT = "./figures/human_teams.csv"
 
 
 def load_human_teams(csv_path: Path) -> pd.DataFrame:
@@ -614,7 +614,7 @@ def main():
     parser = argparse.ArgumentParser(description="Figure 2: maps + HA vs MA (humans, MARL, theory).")
     # human
     parser.add_argument("--human_teams_csv", default=_HUMAN_TEAMS_DEFAULT,
-                        help="Per-team human data from fig_sm_ability_pairs_humans_rl.py (required)")
+                        help="Per-team human data from human_data_processing.py (required)")
     # analytic model
     parser.add_argument("--analytic_csv", default="data/analytic_model/figure3_specialization_index_long.csv")
     # MARL simulations
@@ -650,8 +650,8 @@ def main():
         # humans
         if not Path(args.human_teams_csv).exists():
             raise FileNotFoundError(
-                f"Per-team human file not found: {args.human_teams_csv}. Run fig_sm_ability_pairs_humans_rl.py "
-                f"first (it writes <output>_human_teams.csv) or pass --human_teams_csv.")
+                f"Per-team human file not found: {args.human_teams_csv}. Run human_data_processing.py "
+                f"first (it writes human_teams.csv) or pass --human_teams_csv.")
         human_df = load_human_teams(Path(args.human_teams_csv))
         print(f"Humans: {len(human_df)} teams from {args.human_teams_csv}")
         human = {'score': groups_from_long(human_df, "total_deliveries"),

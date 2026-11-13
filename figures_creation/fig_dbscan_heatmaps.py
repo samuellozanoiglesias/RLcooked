@@ -62,7 +62,7 @@ ROW_ORDER = ('human', 'rl')
 
 # DBSCAN parameter pair selected for each data set (marked with a star)
 SELECTED_PARAMS = {                          # (minimum cluster size, epsilon)
-    'human': (80, 8.2),
+    'human': (75, 8.5),
     'rl':    (70, 9.0),
 }
 

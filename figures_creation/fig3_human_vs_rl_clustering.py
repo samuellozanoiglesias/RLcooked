@@ -73,12 +73,12 @@ MARL_SIMS = {
 }
 
 FILES = {
-    'action_human':  '3a_human_action_counts.csv',
-    'action_rl':     '3d_rl_action_counts.csv',
-    'spec_human':    '3b_specialization.csv',
-    'spec_rl':       '3e_rl_specialization.csv',
-    'cluster_human': '3c_clusters_by_map.csv',
-    'cluster_rl':    '3f_clusters_by_map.csv',
+    'action_human':  '2a_human_action_counts.csv',
+    'action_rl':     '2d_rl_action_counts.csv',
+    'spec_human':    '2b_specialization.csv',
+    'spec_rl':       '2e_rl_specialization.csv',
+    'cluster_human': '2c_clusters_by_map.csv',
+    'cluster_rl':    '2f_clusters_by_map.csv',
 }
 
 # Canonical category order used by ALL the 3x CSVs (and everywhere in this

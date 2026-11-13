@@ -81,7 +81,7 @@ Open map,low,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-30-45,20.0,0.0,
 Open map,low,0.1,0.1,scratch,from scratch,Training_2026-10-30_00-31-00,20.0,0.8,19.084054834054832
 Open map,low,0.1,0.1,pretrained,pretrained,Training_2026-11-04_00-19-18,20.0,2.95,50.058383867594394
 Open map,low,0.1,0.1,pretrained,pretrained,Training_2026-11-04_00-20-15,20.0,2.45,38.319865319865315
-Open map,low,0.1,0.1,pretrained,pretrained,Training_2026-11-04_00-21-15,20.0,2.2,44.48972024707319
+Open map,low,0.1,0.1,pretrained,pretrained,Training_2026-11-04_00-21-15,20.0,2.25,46.48972024707319
 Open map,low,0.2,1.0,human,humans,00c4a0ed0ff31014,1.0,6.0,5.555555555555553
 Open map,low,0.2,1.0,human,humans,014b241f7fc70f76,1.0,8.0,100.0
 Open map,low,0.2,1.0,human,humans,0a7fc75aa43f3d5b,1.0,2.0,10.0
@@ -240,13 +240,13 @@ Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-17_23-54-26,20.0,6.4,
 Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-17_23-55-42,20.0,6.75,32.539845558829356
 Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-18_07-12-48,20.0,7.05,37.284717612175314
 Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-18_07-31-46,20.0,6.9,56.69030277986438
-Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-19_14-11-42,20.0,7.25,66.2932211447629
+Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-19_14-11-42,20.0,7.35,66.96451744105919
 Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-19_14-13-05,20.0,6.2,33.99075263390008
 Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-19_21-55-59,20.0,7.3,51.036785214508015
 Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-19_22-32-46,20.0,5.55,11.467490842490843
 Open map,low,0.4,0.2,scratch,from scratch,Training_2026-05-19_23-02-03,20.0,5.2,19.35732878517511
 Open map,low,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-19-01,20.0,7.05,26.804793543417667
-Open map,low,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-19-54,20.0,6.55,29.149908827690005
+Open map,low,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-19-54,20.0,6.7,25.56062311340429
 Open map,low,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-20-55,20.0,6.3,19.203128187610822
 Open map,low,0.7,0.4,human,humans,078307a9443f5424,1.0,7.0,62.5
 Open map,low,0.7,0.4,human,humans,07f48be620f073c9,1.0,8.0,5.555555555555555
@@ -330,7 +330,7 @@ Open map,low,0.7,0.4,scratch,from scratch,Training_2026-05-19_22-16-45,20.0,7.35
 Open map,low,0.7,0.4,scratch,from scratch,Training_2026-05-19_22-53-31,20.0,8.6,49.40570801907816
 Open map,low,0.7,0.4,pretrained,pretrained,Training_2026-11-04_00-18-45,20.0,8.25,58.11391924320105
 Open map,low,0.7,0.4,pretrained,pretrained,Training_2026-11-04_00-19-35,20.0,8.95,19.27919673987449
-Open map,low,0.7,0.4,pretrained,pretrained,Training_2026-11-04_00-20-34,20.0,8.8,36.24491945658683
+Open map,low,0.7,0.4,pretrained,pretrained,Training_2026-11-04_00-20-34,20.0,8.8,38.520905119669266
 Open map,low,1.0,1.0,human,humans,020cd7734be0cc71,1.0,15.0,100.0
 Open map,low,1.0,1.0,human,humans,048d8cc17de3a0a9,1.0,14.0,100.0
 Open map,low,1.0,1.0,human,humans,073ba41e9ff14cef,1.0,5.0,0.0
@@ -413,7 +413,7 @@ Open map,low,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-19_22-0
 Open map,low,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-19_22-34-18,20.0,9.4,43.313042581033194
 Open map,low,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-15-45,20.0,10.0,35.48226879230593
 Open map,low,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-16-16,20.0,9.8,38.16273160171569
-Open map,low,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-16-46,20.0,10.15,29.340289492150077
+Open map,low,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-16-46,20.0,10.2,33.150634319736284
 Partially-blocked map,high,0.1,0.1,human,humans,022d9120ca59a5ba,1.0,0.0,0.0
 Partially-blocked map,high,0.1,0.1,human,humans,11d402216c635a00,1.0,8.0,100.0
 Partially-blocked map,high,0.1,0.1,human,humans,17dc96754c1387f1,1.0,0.0,0.0
@@ -578,7 +578,7 @@ Partially-blocked map,high,0.2,1.0,scratch,from scratch,Training_2026-05-19_14-1
 Partially-blocked map,high,0.2,1.0,scratch,from scratch,Training_2026-05-20_00-41-32,20.0,2.55,59.81099456099456
 Partially-blocked map,high,0.2,1.0,scratch,from scratch,Training_2026-05-20_01-04-53,20.0,2.05,53.44352259960245
 Partially-blocked map,high,0.2,1.0,pretrained,pretrained,Training_2026-11-04_01-54-52,20.0,8.2,95.1140873015873
-Partially-blocked map,high,0.2,1.0,pretrained,pretrained,Training_2026-11-04_01-55-47,20.0,7.7,97.96212121212122
+Partially-blocked map,high,0.2,1.0,pretrained,pretrained,Training_2026-11-04_01-55-47,20.0,7.3,92.96212121212122
 Partially-blocked map,high,0.2,1.0,pretrained,pretrained,Training_2026-11-04_01-57-28,20.0,6.75,95.36002886002886
 Partially-blocked map,high,0.4,0.2,human,humans,06cc64074db7a150,1.0,0.0,0.0
 Partially-blocked map,high,0.4,0.2,human,humans,078d198ab17083ba,1.0,6.0,100.0
@@ -660,7 +660,7 @@ Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-19_14-1
 Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-19_14-14-11,20.0,7.75,95.83323147440794
 Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-20_00-44-42,20.0,7.9,96.96990699788687
 Partially-blocked map,high,0.4,0.2,scratch,from scratch,Training_2026-05-20_03-09-40,20.0,7.6,97.4498746867168
-Partially-blocked map,high,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-18-53,20.0,8.0,89.9191828778295
+Partially-blocked map,high,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-18-53,20.0,8.0,94.68108763973426
 Partially-blocked map,high,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-19-46,20.0,7.85,96.61856253537069
 Partially-blocked map,high,0.4,0.2,pretrained,pretrained,Training_2026-11-04_00-20-45,20.0,7.15,95.70561559331978
 Partially-blocked map,high,0.7,0.4,human,humans,01a052a128300557,1.0,3.0,16.666666666666664
@@ -828,4 +828,4 @@ Partially-blocked map,high,1.0,1.0,scratch,from scratch (= HA agents),Training_2
 Partially-blocked map,high,1.0,1.0,scratch,from scratch (= HA agents),Training_2026-05-20_01-03-54,20.0,6.0,47.39380933620647
 Partially-blocked map,high,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-15-46,20.0,6.7,66.20661005390856
 Partially-blocked map,high,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-16-16,20.0,6.9,67.83756391759816
-Partially-blocked map,high,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-16-47,20.0,7.15,57.773859661481524
+Partially-blocked map,high,1.0,1.0,pretrained,pretrained,Training_2026-11-04_00-16-47,20.0,7.2,62.773859661481524

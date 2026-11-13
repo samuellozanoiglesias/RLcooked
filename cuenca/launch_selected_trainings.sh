@@ -21,26 +21,25 @@
 #   nohup ./launch_selected_trainings.sh 5 --enable_video false > log_selected_trainings.out 2>&1 &
 # =============================================================================
 
-NUM_SIMULATIONS="${NUM_SIMULATIONS:-10}"
+NUM_SIMULATIONS="${NUM_SIMULATIONS:-3}"
 CHECKPOINT="${CHECKPOINT:-750}"
 BASE="${BASE:-/data/samuel_lozano/cooked/classic_collision/empty_init}"  # -> map_*/synergy_*/specialized_*/Training_*/config.txt
 SIMULATIONS_ROOT="${SIMULATIONS_ROOT:-/data/samuel_lozano/cooked/classic_collision/simulations}"
 #OUTPUT_SUBFOLDER="${OUTPUT_SUBFOLDER:-with_pretraining}"   # -> simulations/empty_init/with_pretraining/map_*/...
 
 ROOTS=(
-    #"${BASE}/map_d5_encouraged_division_of_labor_large"
-    #"${BASE}/map_d4_encouraged_division_of_labor_large"
-    #"${BASE}/map_d3_encouraged_division_of_labor_large"
-    #"${BASE}/map_d2_encouraged_division_of_labor_large"
-    #"${BASE}/map_d1_encouraged_division_of_labor_large"
-    #"${BASE}/map_a1_encouraged_division_of_labor_large"
-    #"${BASE}/map_a2_encouraged_division_of_labor_large"
-    #"${BASE}/map_a3_encouraged_division_of_labor_large"
-    #"${BASE}/map_a4_encouraged_division_of_labor_large"
-    #"${BASE}/map_a5_encouraged_division_of_labor_large"
+    "${BASE}/map_d5_encouraged_division_of_labor_large"
+    "${BASE}/map_d4_encouraged_division_of_labor_large"
+    "${BASE}/map_d3_encouraged_division_of_labor_large"
+    "${BASE}/map_d2_encouraged_division_of_labor_large"
+    "${BASE}/map_d1_encouraged_division_of_labor_large"
+    "${BASE}/map_a1_encouraged_division_of_labor_large"
+    "${BASE}/map_a2_encouraged_division_of_labor_large"
+    "${BASE}/map_a3_encouraged_division_of_labor_large"
+    "${BASE}/map_a4_encouraged_division_of_labor_large"
+    "${BASE}/map_a5_encouraged_division_of_labor_large"
     "${BASE}/map_baseline_division_of_labor_large"
     "${BASE}/map_encouraged_division_of_labor_large"
-    #"${BASE}/map_d3_encouraged_division_of_labor_large"
 )
 
 SYNERGY="${SYNERGY:-1.35}"
@@ -64,10 +63,14 @@ trap 'rm -f "$TRAININGS_FILE"' EXIT
 
 # Optional: [GLOB] lines and Training_* names to restrict the run (see launcher --trainings).
 cat > "$TRAININGS_FILE" <<'LIST'
+[map_baseline_division_of_labor_large/synergy_1.35/specialized_0.25]
+Training_2026-05-18_07-18-07
+Training_2026-05-19_14-09-31
 [map_encouraged_division_of_labor_large/synergy_1.35/specialized_0.25]
-Training_2026-05-16_02-10-51
-Training_2026-05-18_13-55-04
-Training_2026-06-05_12-14-25
+Training_2026-05-13_09-49-05
+Training_2026-05-20_01-03-54
+Training_2026-05-12_23-01-18
+Training_2026-05-20_00-44-42
 LIST
 
 if grep -q '^[[:space:]]*Training_' "$TRAININGS_FILE"; then

@@ -305,7 +305,6 @@ scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-11-4
 scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-11-42,,simulation_2026_11_06-12_10_21,8,62.5
 scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-11-42,,simulation_2026_11_06-12_10_42,8,76.92307692307692
 scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-11-42,,simulation_2026_11_06-12_10_54,8,50.0
-scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-11-42,,simulation_2026_11_06-12_11_05,8,74.07407407407408
 scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-11-42,,simulation_2026_11_06-12_11_13,8,54.166666666666664
 scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-11-42,,simulation_2026_11_06-12_11_14,7,39.285714285714285
 scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-11-42,,simulation_2026_11_06-12_11_19,6,66.66666666666666
@@ -319,6 +318,7 @@ scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-11-4
 scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-11-42,,simulation_2026_11_08-20_59_08,8,66.66666666666666
 scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-11-42,,simulation_2026_11_08-20_59_38,7,67.85714285714286
 scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-11-42,,simulation_2026_11_08-20_59_42,7,76.47058823529412
+scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-11-42,,simulation_2026_11_10-17_10_01,10,87.5
 scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-13-05,,simulation_2026_11_06-12_18_20,5,32.77777777777778
 scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-13-05,,simulation_2026_11_06-12_18_54,3,22.22222222222222
 scratch,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-05-19_14-13-05,,simulation_2026_11_06-12_18_57,8,55.35714285714286
@@ -1047,7 +1047,6 @@ pretrained,low,baseline_division_of_labor_large,0.1,0.1,Training_2026-11-04_00-2
 pretrained,low,baseline_division_of_labor_large,0.1,0.1,Training_2026-11-04_00-21-15,,simulation_2026_11_09-07_18_42,0,0.0
 pretrained,low,baseline_division_of_labor_large,0.1,0.1,Training_2026-11-04_00-21-15,,simulation_2026_11_09-07_18_45,4,85.71428571428572
 pretrained,low,baseline_division_of_labor_large,0.1,0.1,Training_2026-11-04_00-21-15,,simulation_2026_11_09-07_19_37,2,50.0
-pretrained,low,baseline_division_of_labor_large,0.1,0.1,Training_2026-11-04_00-21-15,,simulation_2026_11_09-07_19_51,0,0.0
 pretrained,low,baseline_division_of_labor_large,0.1,0.1,Training_2026-11-04_00-21-15,,simulation_2026_11_09-07_19_58,1,14.285714285714285
 pretrained,low,baseline_division_of_labor_large,0.1,0.1,Training_2026-11-04_00-21-15,,simulation_2026_11_09-07_19_59,3,66.66666666666666
 pretrained,low,baseline_division_of_labor_large,0.1,0.1,Training_2026-11-04_00-21-15,,simulation_2026_11_09-07_20_03,3,69.23076923076923
@@ -1059,6 +1058,7 @@ pretrained,low,baseline_division_of_labor_large,0.1,0.1,Training_2026-11-04_00-2
 pretrained,low,baseline_division_of_labor_large,0.1,0.1,Training_2026-11-04_00-21-15,,simulation_2026_11_09-07_20_45,1,50.0
 pretrained,low,baseline_division_of_labor_large,0.1,0.1,Training_2026-11-04_00-21-15,,simulation_2026_11_09-07_20_47,2,75.0
 pretrained,low,baseline_division_of_labor_large,0.1,0.1,Training_2026-11-04_00-21-15,,simulation_2026_11_09-07_20_58,3,33.333333333333336
+pretrained,low,baseline_division_of_labor_large,0.1,0.1,Training_2026-11-04_00-21-15,,simulation_2026_11_10-17_02_47,1,40.0
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-01,,simulation_2026_11_09-06_35_52,5,8.75
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-01,,simulation_2026_11_09-06_35_58,7,38.92857142857142
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-01,,simulation_2026_11_09-06_36_00,6,4.545454545454546
@@ -1091,7 +1091,6 @@ pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-1
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-54,,simulation_2026_11_09-06_55_35,7,42.85714285714286
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-54,,simulation_2026_11_09-06_56_12,9,26.523297491039425
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-54,,simulation_2026_11_09-06_56_21,7,33.130699088145896
-pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-54,,simulation_2026_11_09-06_56_23,5,100.0
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-54,,simulation_2026_11_09-06_56_24,7,5.82010582010582
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-54,,simulation_2026_11_09-06_56_41,7,33.54037267080746
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-54,,simulation_2026_11_09-06_56_52,5,8.717948717948719
@@ -1099,6 +1098,7 @@ pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-1
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-54,,simulation_2026_11_09-06_57_39,7,27.142857142857146
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-54,,simulation_2026_11_09-06_57_50,8,21.75925925925926
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-54,,simulation_2026_11_09-06_57_51,6,38.888888888888886
+pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-54,,simulation_2026_11_10-17_02_42,8,28.214285714285715
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-20-55,,simulation_2026_11_09-07_10_46,7,4.761904761904762
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-20-55,,simulation_2026_11_09-07_10_48,6,19.696969696969695
 pretrained,low,baseline_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-20-55,,simulation_2026_11_09-07_10_54,8,28.40909090909091
@@ -1171,7 +1171,6 @@ pretrained,low,baseline_division_of_labor_large,0.7,0.4,Training_2026-11-04_00-2
 pretrained,low,baseline_division_of_labor_large,0.7,0.4,Training_2026-11-04_00-20-34,,simulation_2026_11_09-07_07_04,7,62.38095238095238
 pretrained,low,baseline_division_of_labor_large,0.7,0.4,Training_2026-11-04_00-20-34,,simulation_2026_11_09-07_07_26,10,13.333333333333334
 pretrained,low,baseline_division_of_labor_large,0.7,0.4,Training_2026-11-04_00-20-34,,simulation_2026_11_09-07_07_28,10,55.714285714285715
-pretrained,low,baseline_division_of_labor_large,0.7,0.4,Training_2026-11-04_00-20-34,,simulation_2026_11_09-07_07_43,9,0.0
 pretrained,low,baseline_division_of_labor_large,0.7,0.4,Training_2026-11-04_00-20-34,,simulation_2026_11_09-07_08_18,8,39.77272727272727
 pretrained,low,baseline_division_of_labor_large,0.7,0.4,Training_2026-11-04_00-20-34,,simulation_2026_11_09-07_10_15,8,16.666666666666664
 pretrained,low,baseline_division_of_labor_large,0.7,0.4,Training_2026-11-04_00-20-34,,simulation_2026_11_09-07_10_16,8,78.80434782608697
@@ -1179,6 +1178,7 @@ pretrained,low,baseline_division_of_labor_large,0.7,0.4,Training_2026-11-04_00-2
 pretrained,low,baseline_division_of_labor_large,0.7,0.4,Training_2026-11-04_00-20-34,,simulation_2026_11_09-12_56_34,8,33.46774193548387
 pretrained,low,baseline_division_of_labor_large,0.7,0.4,Training_2026-11-04_00-20-34,,simulation_2026_11_09-12_56_59,8,5.555555555555555
 pretrained,low,baseline_division_of_labor_large,0.7,0.4,Training_2026-11-04_00-20-34,,simulation_2026_11_09-12_57_20,7,29.142857142857142
+pretrained,low,baseline_division_of_labor_large,0.7,0.4,Training_2026-11-04_00-20-34,,simulation_2026_11_10-17_02_45,9,45.51971326164875
 pretrained,low,baseline_division_of_labor_large,0.2,1.0,Training_2026-11-04_00-16-00,,simulation_2026_11_09-05_53_48,6,4.999999999999999
 pretrained,low,baseline_division_of_labor_large,0.2,1.0,Training_2026-11-04_00-16-00,,simulation_2026_11_09-05_54_04,6,15.384615384615385
 pretrained,low,baseline_division_of_labor_large,0.2,1.0,Training_2026-11-04_00-16-00,,simulation_2026_11_09-05_54_16,4,40.0
@@ -1284,7 +1284,6 @@ pretrained,low,baseline_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-1
 pretrained,low,baseline_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-46,,simulation_2026_11_09-06_15_52,8,35.0
 pretrained,low,baseline_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-46,,simulation_2026_11_09-06_17_35,9,46.52777777777778
 pretrained,low,baseline_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-46,,simulation_2026_11_09-06_18_56,9,56.72514619883041
-pretrained,low,baseline_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-46,,simulation_2026_11_09-06_19_50,9,0.0
 pretrained,low,baseline_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-46,,simulation_2026_11_09-06_20_34,9,20.77294685990338
 pretrained,low,baseline_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-46,,simulation_2026_11_09-12_26_05,9,14.942528735632182
 pretrained,low,baseline_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-46,,simulation_2026_11_09-12_26_35,15,69.16666666666667
@@ -1299,6 +1298,7 @@ pretrained,low,baseline_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-1
 pretrained,low,baseline_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-46,,simulation_2026_11_09-12_27_38,11,11.688311688311687
 pretrained,low,baseline_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-46,,simulation_2026_11_09-12_27_44,10,36.09756097560975
 pretrained,low,baseline_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-46,,simulation_2026_11_09-12_27_52,9,30.555555555555557
+pretrained,low,baseline_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-46,,simulation_2026_11_10-17_02_40,10,76.20689655172414
 scratch,high,encouraged_division_of_labor_large,0.1,0.1,Training_2026-05-15_03-02-31,,simulation_2026_11_06-09_34_08,0,0.0
 scratch,high,encouraged_division_of_labor_large,0.1,0.1,Training_2026-05-15_03-02-31,,simulation_2026_11_06-09_34_26,2,80.0
 scratch,high,encouraged_division_of_labor_large,0.1,0.1,Training_2026-05-15_03-02-31,,simulation_2026_11_06-09_34_31,0,0.0
@@ -2376,9 +2376,9 @@ pretrained,high,encouraged_division_of_labor_large,0.4,0.2,Training_2026-11-04_0
 pretrained,high,encouraged_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-18-53,,simulation_2026_11_09-06_21_24,9,100.0
 pretrained,high,encouraged_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-18-53,,simulation_2026_11_09-06_21_58,9,100.0
 pretrained,high,encouraged_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-18-53,,simulation_2026_11_09-06_22_05,8,100.0
-pretrained,high,encouraged_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-18-53,,simulation_2026_11_09-06_23_03,8,0.0
 pretrained,high,encouraged_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-18-53,,simulation_2026_11_09-06_23_14,6,63.26530612244898
 pretrained,high,encouraged_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-18-53,,simulation_2026_11_09-06_23_18,8,100.0
+pretrained,high,encouraged_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-18-53,,simulation_2026_11_10-17_02_53,8,95.23809523809523
 pretrained,high,encouraged_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-46,,simulation_2026_11_09-06_41_46,6,86.66666666666667
 pretrained,high,encouraged_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-46,,simulation_2026_11_09-06_41_48,8,100.0
 pretrained,high,encouraged_division_of_labor_large,0.4,0.2,Training_2026-11-04_00-19-46,,simulation_2026_11_09-06_41_50,9,100.0
@@ -2500,7 +2500,6 @@ pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_0
 pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-54-52,,simulation_2026_11_09-13_07_53,5,88.88888888888889
 pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-54-52,,simulation_2026_11_09-13_07_57,8,100.0
 pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-55-47,,simulation_2026_11_09-07_24_17,9,100.0
-pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-55-47,,simulation_2026_11_09-07_24_19,8,100.0
 pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-55-47,,simulation_2026_11_09-07_24_30,7,100.0
 pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-55-47,,simulation_2026_11_09-07_25_17,8,100.0
 pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-55-47,,simulation_2026_11_09-07_25_32,7,93.33333333333333
@@ -2519,6 +2518,7 @@ pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_0
 pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-55-47,,simulation_2026_11_09-13_09_25,6,100.0
 pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-55-47,,simulation_2026_11_09-13_09_31,5,100.0
 pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-55-47,,simulation_2026_11_09-13_09_39,8,100.0
+pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-55-47,,simulation_2026_11_10-17_02_55,0,0.0
 pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-57-28,,simulation_2026_11_09-07_27_42,7,100.0
 pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-57-28,,simulation_2026_11_09-07_28_16,8,100.0
 pretrained,high,encouraged_division_of_labor_large,0.2,1.0,Training_2026-11-04_01-57-28,,simulation_2026_11_09-07_28_23,7,100.0
@@ -2581,7 +2581,6 @@ pretrained,high,encouraged_division_of_labor_large,1.0,1.0,Training_2026-11-04_0
 pretrained,high,encouraged_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-16,,simulation_2026_11_09-12_12_27,4,8.333333333333332
 pretrained,high,encouraged_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-47,,simulation_2026_11_09-06_05_50,5,9.230769230769232
 pretrained,high,encouraged_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-47,,simulation_2026_11_09-06_05_51,7,82.35294117647058
-pretrained,high,encouraged_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-47,,simulation_2026_11_09-06_05_53,9,0.0
 pretrained,high,encouraged_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-47,,simulation_2026_11_09-06_06_00,10,96.15384615384616
 pretrained,high,encouraged_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-47,,simulation_2026_11_09-06_07_00,10,92.3076923076923
 pretrained,high,encouraged_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-47,,simulation_2026_11_09-06_07_06,6,25.757575757575758
@@ -2599,3 +2598,4 @@ pretrained,high,encouraged_division_of_labor_large,1.0,1.0,Training_2026-11-04_0
 pretrained,high,encouraged_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-47,,simulation_2026_11_09-06_10_06,6,95.23809523809523
 pretrained,high,encouraged_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-47,,simulation_2026_11_09-06_10_20,6,56.52173913043478
 pretrained,high,encouraged_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-47,,simulation_2026_11_09-12_17_07,7,4.201680672268907
+pretrained,high,encouraged_division_of_labor_large,1.0,1.0,Training_2026-11-04_00-16-47,,simulation_2026_11_10-17_02_49,10,100.0

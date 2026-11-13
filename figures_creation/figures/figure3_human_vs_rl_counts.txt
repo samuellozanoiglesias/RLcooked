@@ -1,0 +1,27 @@
+================================================================================
+FIG. 3 -- players per condition and archetype (rows of 3c / 3f)
+================================================================================
+
+Humans (I, CS, CC, O):
+  Open HA (100%,100%)  total=  140   104     2     4    30
+  Open MA (40%,20%)    total=  140   108     8    14    10
+  PB HA (100%,100%)    total=  140    76    23    40     1
+  PB MA (40%,20%)      total=  140    33    50    55     2
+  all conditions       total=  560
+  OK: 140 players (70 teams) per condition, as in Figs. 2 and 4
+
+MARL agents (I, CS, CC, O):
+  Open HA (100%,100%)  total=  400   365    20     1    14
+  Open MA (40%,20%)    total=  400   356     3    13    28
+  PB HA (100%,100%)    total=  400   182   155    35    28
+  PB MA (40%,20%)      total=  400    16   190   189     5
+  all conditions       total= 1600
+
+MARL simulation tree (checkpoint_750, synergy 1.35, specialization 0.25, empty_init):
+  Open HA (100%,100%)  simulations=  200  trainings= 10  agents=  400  3f total=  400  OK
+  Open MA (40%,20%)    simulations=  200  trainings= 10  agents=  400  3f total=  400  OK
+  PB HA (100%,100%)    simulations=  200  trainings= 10  agents=  400  3f total=  400  OK
+  PB MA (40%,20%)      simulations=  200  trainings= 10  agents=  400  3f total=  400  OK
+  (a MISMATCH means 3d/3e/3f were not computed from these simulations: re-run the clustering on figure3_marl_simulations_index.csv)
+
+Note: panel b/e specialization values come from 3b/3e as computed by the clustering pipeline; they must use the specialization index of the Methods (same as Fig. 2).

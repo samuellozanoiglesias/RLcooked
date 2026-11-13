@@ -20,16 +20,16 @@ ablation figures):
 Each panel shows condition means +- SEM (humans: across teams; RL: across
 simulated games); lines join the open and PB means of the same ability pair.
 
-MARL data (--rl_source sims, default): SIMULATED GAMES read from the simulation tree
+HUMAN DATA: read from the per-team CSV written by human_data_processing.py
+(<prefix>_teams.csv). Team selection, test-phase metrics, the data audit and the
+demographics are all done there; this script only analyses and plots.
+
+MARL data (--rl_source sims, default): simulated games read from the simulation tree
 (marl_simulations.py, same loaders as Fig. 2e-f and the SI ablation):
     <base>/data/samuel_lozano/cooked/<game_type>/simulations/<init_type>/map_<map>/
         synergy_1.35/specialized_0.25/abilities_<walk>_<cut>/Training_*/checkpoint_750/simulation_*/
-where abilities_<walk>_<cut> holds the walking speed of ai_rl_1 (walk) and the cutting
-speed of ai_rl_2 (cut); the other two speeds are 1.0. Every Training_* and every
-simulation_* folder of checkpoint_750 is used, for each of the five pairs. The
-specialization index is computed per simulated game from the per-agent cut and delivery
-counts, then averaged per training: ONE VALUE PER TRAINING is the unit of every RL test
-and of the RL means +- SEM, because games of one training are not independent.
+or from the cache of a previous run (--rl_csv). Unit of the MARL statistics: one simulated
+game (default) or one training (--rl_unit training).
 
 Statistics (written to <output>_stats.txt and <output>_stats.csv), with the
 reporting conventions of paper_stats.py (higher group first, |t|, Welch df,
@@ -40,62 +40,25 @@ p = .059 / p < .001, F(df1,df2) with eta_p^2):
     contrasts of every MA pair against (100%,100%) within each map (Holm over the 8
     contrasts of each measure; Mann-Whitney U as rank-based check); Map x Ability
     interaction for each MA pair vs (100%,100%) (Holm over the 4 pairs).
-  * The same analyses on the RL trainings, and a human-vs-RL summary of the
+  * The same analyses on the MARL simulations, and a human-vs-RL summary of the
     MA - HA differences (sign agreement, Pearson r over the 8 cells).
 
-Specialization index (in %, same formula as the MARL scripts):
-    S = 100 * | (D1 - D2)/(D1 + D2) + (C2 - C1)/(C1 + C2) | / 2
-with D = deliveries and C = cuts per player; independent of which player is 1.
-Teams/episodes with no deliveries or no cuts get S = 0 (as in the MARL scripts).
-
-Human data selection
-  * condition suffix '_ability_hints_large_map_with_collision' (the '_large_map'
-    sessions without collision are an earlier game version and are excluded, as are
-    the small v2 maps and stray ability pairs),
-  * maps baseline_division_of_labor_large (Open), encouraged_division_of_labor_large (PB),
-  * the first --n_teams teams (default 70) of each ability pair x map, in the order in which
-    the games appear in the (pre-ordered) CSV files -- no re-ordering; files are read in the
-    order given in --human_data; games present in several files are counted once,
-  * game score and specialization index from the TEST phase only (phase == 'test'),
-  * <o>_selected_games.csv: one column per condition with the game_id of the selected games
-    in selection order (row 'team' = 1..70); the check that every game_id is unique is
-    written to <o>_stats.txt.
-  Required files in human_data/: combined_actions_with_demographics_csv.zip,
-  oct2026_new_condition_encouraged.zip and oct2026_new_condition_encouraged_2.zip
-  (+ any later batch). The files are put in this canonical order by the script
-  (HUMAN_BATCH_ORDER; later unknown batches after them, numerically sorted), so the
-  result does not depend on how the shell expands *.zip (locale collation can put
-  '..._2.zip' before '....zip'). --keep_file_order uses the order given instead.
-  A folder can be given to --human_data: every .zip / .csv in it is used.
-  The audit lists, per ability pair x map, how many selected teams come from each file,
-  and warns if a cell has fewer than --n_teams teams.
+# 1. human data (once)
+    python3 human_data_processing.py --human_data ./data/human_data/ --output_dir ./figures
 
 Usage
-# humans + RL simulated games (checkpoint_750, every Training_* / simulation_*)
-nohup python3 fig_sm_ability_pairs_humans_rl.py --human_data ./data/human_data/ --rl_source sims --synergy 1.35 --specialization 0.25 --init_type empty_init --rl_checkpoint 750 > log_fig_sm_pairs.out 2>&1 &
-
-    # re-plot from the caches written by a previous run
-    python3 fig_sm_ability_pairs_humans_rl.py \\
-        --human_csv ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv \\
+# 2. figure + statistics
+nohup python3 fig_sm_ability_pairs_humans_rl.py --human_teams ./figures/human_teams.csv --rl_source sims --synergy 1.35 --specialization 0.25 --init_type empty_init --rl_checkpoint 750 > log_fig_sm_ability_pairs_humans_rl.out 2>&1 &
+    # re-plot from the RL cache of a previous run
+    python3 fig_sm_ability_pairs_humans_rl.py --human_teams ./figures/human_teams.csv \\
         --rl_csv ./figures/fig_sm_ability_pairs_humans_rl_rl_records_sims.csv
-
-RL per-training CSV (<output>_rl_per_training.csv, written whenever RL data are loaded,
-from the tree or from --rl_csv): one row per training x ability pair x map with the mean
-(and SD) over that training's simulated games of the game score and the specialization
-index, n_simulations, the map, the ability pair, the reward folders and the checkpoint.
-
-The per-team human CSV written here (<output>_human_teams.csv) is also the human
-input of fig_sm_marl_ablation.py (pretraining) and fig4_human_vs_rl_gridmap.py
-(--human_teams_csv), so the three figures use the same human teams.
 
 Author: Samuel Lozano
 """
 
 import argparse
-import io
 import re
 import sys
-import zipfile
 from pathlib import Path
 
 import matplotlib
@@ -113,6 +76,9 @@ from scipy import stats
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import paper_stats as ps                                   # noqa: E402
 import marl_simulations as ms                              # noqa: E402
+# conditions shared with the human data processing (identical definitions in every script)
+from human_data_processing import (PAIRS, HA, MAIN_MA, MA_PAIRS, MAPS, MAP_NAMES,   # noqa: E402
+                                   pair_label, pair_key as _pair_key)
 
 # ---------------------------------------------------------------------------
 # Global Style Configuration (PNAS requirements) -- identical to Fig. 2
@@ -134,18 +100,8 @@ mpl.rcParams.update({
 })
 
 # ===========================================================================
-# 0. CONDITIONS
+# 0. CONDITIONS (shared definitions imported from human_data_processing.py) and colors
 # ===========================================================================
-# (walking speed of player 1, cutting speed of player 2), as fractions of full speed
-PAIRS = [(1.0, 1.0), (0.7, 0.4), (0.4, 0.2), (0.2, 1.0), (0.1, 0.1)]
-HA = (1.0, 1.0)
-MAIN_MA = (0.4, 0.2)
-MA_PAIRS = [p for p in PAIRS if p != HA]
-MAPS = ["Open", "PB"]
-MAP_NAMES = {"baseline_division_of_labor_large": "Open",
-             "encouraged_division_of_labor_large": "PB"}
-HUMAN_SUFFIX = "_ability_hints_large_map_with_collision"
-
 _PAIR_COLOR = {
     (1.0, 1.0): "#E24A33",   # HA, same red as Fig. 2
     (0.7, 0.4): "#9ECAE1",
@@ -154,276 +110,26 @@ _PAIR_COLOR = {
     (0.1, 0.1): "#0B2545",
 }
 
-
-def pair_label(p, tex=False):
-    a, b = int(round(p[0] * 100)), int(round(p[1] * 100))
-    return rf"({a}\%, {b}\%)" if tex else f"({a}%, {b}%)"
-
-
 # Short names shown in the figure for the two main-experiment conditions
 PAIR_ABBREV = {(1.0, 1.0): "HA", (0.4, 0.2): "MA"}
 
 
 def pair_display(p, tex=False):
-    """Figure label: 'HA' for (100%,100%), 'MA' for (40%,20%), otherwise the percentages.
-    (pair_label stays unchanged because it is also used as a data key and in the report.)"""
+    """Figure label: 'HA' for (100%,100%), 'MA' for (40%,20%), otherwise the percentages."""
     for k, name in PAIR_ABBREV.items():
         if abs(p[0] - k[0]) < 1e-6 and abs(p[1] - k[1]) < 1e-6:
             return name
     return pair_label(p, tex=tex)
 
 
-def _pair_key(w, c):
-    """Snap a (walk, cut) pair to the canonical PAIRS entry (or None)."""
-    for p in PAIRS:
-        if abs(p[0] - float(w)) < 1e-6 and abs(p[1] - float(c)) < 1e-6:
-            return p
-    return None
-
-
-# ===========================================================================
-# 1. HUMAN DATA
-# ===========================================================================
-_COND_RE = re.compile(r"\[p\((\d+), (\d+)\)_cs\(([\d.]+)\)_ws\(([\d.]+)\)\]_"
-                      r"\[p\((\d+), (\d+)\)_cs\(([\d.]+)\)_ws\(([\d.]+)\)\](.*)$")
-_USECOLS = ["game_id", "player_id", "prolific_id", "phase", "action", "action_long",
-            "map_name", "condition", "game_start_time"]
-_DEMO_COLS = ["game_id", "prolific_id", "Age", "Sex"]
-
-
-def parse_condition(cond: str):
-    """'[p(1, 2)_cs(1.0)_ws(0.4)]_[p(5, 2)_cs(0.2)_ws(1.0)]_suffix' -> ((0.4, 0.2), suffix).
-    Player 1 is the one whose cutting speed is 1.0 (slowed walker), player 2 the one
-    whose walking speed is 1.0 (slowed cutter)."""
-    m = _COND_RE.match(str(cond))
-    if not m:
-        return None, None
-    cs1, ws1, cs2, ws2 = map(float, (m.group(3), m.group(4), m.group(7), m.group(8)))
-    suffix = m.group(9)
-    if cs1 == 1.0 and ws2 == 1.0:
-        return (ws1, cs2), suffix
-    if cs2 == 1.0 and ws1 == 1.0:
-        return (ws2, cs1), suffix
-    return None, suffix
-
-
-# Canonical order of the human data batches: the first --n_teams games of each condition are
-# taken in this order (older batches first, the new batches only fill up the missing teams).
-HUMAN_BATCH_ORDER = [
-    "combined_actions_with_demographics",
-    "oct2026_new_condition_encouraged",
-    "oct2026_new_condition_encouraged_2",
-]
-
-
-def _batch_sort_key(path: Path):
-    """Known batches in HUMAN_BATCH_ORDER; any other file afterwards, sorted by base name and
-    then by its trailing batch number (..._2 < ..._3 < ..._10), independent of the locale."""
-    stem = path.stem
-    if stem in HUMAN_BATCH_ORDER:
-        return (0, HUMAN_BATCH_ORDER.index(stem), "", 0)
-    m = re.match(r"^(.*?)(?:_(\d+))?$", stem)
-    return (1, 0, m.group(1), int(m.group(2) or 0))
-
-
-def order_human_paths(paths, keep_order=False):
-    """Expand folders, drop duplicates (same resolved file) and, unless keep_order, sort the
-    files into the canonical batch order."""
-    out, seen = [], set()
-    for p in map(Path, paths):
-        items = (sorted(q for q in p.iterdir() if q.suffix.lower() in (".zip", ".csv"))
-                 if p.is_dir() else [p])
-        for q in items:
-            if not q.exists():
-                print(f"[WARN] human data file not found: {q}")
-                continue
-            r = q.resolve()
-            if r not in seen:
-                seen.add(r)
-                out.append(q)
-    return out if keep_order else sorted(out, key=_batch_sort_key)
-
-
-def _iter_csv_sources(paths):
-    """Yield (label, file-like) for every CSV given directly or inside a zip.
-    Inside each zip (or folder) the slimmest variant is used for actions:
-    combined_actions.csv > *_with_history.csv > *_with_demographics.csv > ..."""
-    pref = ["combined_actions.csv", "combined_actions_with_history.csv",
-            "combined_actions_with_demographics.csv",
-            "combined_actions_with_history_and_demographics.csv"]
-    for p in map(Path, paths):
-        if p.suffix.lower() == ".zip":
-            with zipfile.ZipFile(p) as zf:
-                names = [n for n in zf.namelist() if n.lower().endswith(".csv")]
-                by_base = {Path(n).name: n for n in names}
-                chosen = next((by_base[b] for b in pref if b in by_base), names[0] if names else None)
-                if chosen is None:
-                    continue
-                yield f"{p.name}:{chosen}", io.BytesIO(zf.read(chosen))
-        elif p.suffix.lower() == ".csv":
-            yield str(p), p
-
-
-def _iter_demographic_sources(paths):
-    for p in map(Path, paths):
-        if p.suffix.lower() == ".zip":
-            with zipfile.ZipFile(p) as zf:
-                for n in zf.namelist():
-                    if "demographics" in Path(n).name and n.lower().endswith(".csv"):
-                        yield f"{p.name}:{n}", io.BytesIO(zf.read(n))
-                        break
-        elif p.suffix.lower() == ".csv" and "demographics" in p.name:
-            yield str(p), p
-
-
-def specialization_from_counts(D1, D2, C1, C2, undefined="zero"):
-    if D1 + D2 == 0 or C1 + C2 == 0:
-        return 0.0 if undefined == "zero" else np.nan
-    return abs((D1 - D2) / (D1 + D2) + (C2 - C1) / (C1 + C2)) * 100 / 2
-
-
-def load_human_teams(paths, n_teams=70, cut_def="start_cutting", spec_undefined="zero",
-                     audit=None):
-    """Return one row per selected team (test game) and fill `audit` (list of lines)."""
-    audit = audit if audit is not None else []
-    frames, seen, file_rows = [], set(), []
-    for label, fh in _iter_csv_sources(paths):
-        df = pd.read_csv(fh, usecols=lambda c: c in _USECOLS, dtype={"game_id": str}, low_memory=False)
-        df = df[df["game_id"].notna()]
-        df["game_id"] = df["game_id"].str.strip()        # same id format in every batch
-        games = set(df["game_id"].unique())
-        new_games = games - seen
-        file_rows.append((label, len(df), len(games), len(games - new_games)))
-        frames.append(df[df["game_id"].isin(new_games)].assign(source=label.split(":")[0]))
-        seen |= new_games
-    if not frames:
-        raise SystemExit("No human CSV found in --human_data")
-    raw = pd.concat(frames, ignore_index=True)
-
-    audit.append("Files read (rows, games, games already loaded from an earlier file):")
-    for label, nr, ng, ndup in file_rows:
-        audit.append(f"  {label:<75} rows={nr:>7}  games={ng:>5}  duplicates={ndup:>4}")
-    audit.append(f"  -> {raw['game_id'].nunique()} unique games in total")
-
-    # ---- classify every game -------------------------------------------------
-    # sort=False keeps the games in the order of the CSV files (files in the order given in
-    # --human_data, then row order); the files are pre-ordered, so no re-ordering is done here.
-    g0 = raw.groupby("game_id", sort=False).agg(condition=("condition", "first"), map_name=("map_name", "first"),
-                                                start=("game_start_time", "first"),
-                                                source=("source", "first"))
-    g0["order"] = np.arange(len(g0))
-    parsed = g0["condition"].map(parse_condition)
-    g0["pair"] = parsed.map(lambda x: x[0])
-    g0["suffix"] = parsed.map(lambda x: x[1])
-    g0["map"] = g0["map_name"].map(MAP_NAMES)
-    g0["pair_key"] = g0["pair"].map(lambda p: _pair_key(*p) if p else None)
-    ok = (g0["suffix"] == HUMAN_SUFFIX) & g0["map"].notna() & g0["pair_key"].notna()
-
-    audit.append("\nAll game versions found (games per condition x map); [USED] = analysed version:")
-    tab = g0.assign(used=ok).groupby(["condition", "map_name", "used"]).size()
-    for (cond, mp, used), n in tab.items():
-        audit.append(f"  {'[USED]' if used else '      '} {n:>4}  {mp:<36} {cond}")
-
-    sel = g0[ok].copy()                         # already in CSV order: no sorting
-    sel["rank"] = sel.groupby(["pair_key", "map"]).cumcount()
-    kept = sel[sel["rank"] < n_teams]
-
-    # ---- per-team metrics ------------------------------------------------------
-    raw = raw[raw["game_id"].isin(kept.index)]
-    players = raw.groupby("game_id")["player_id"].unique()
-    pid_of = raw.groupby("player_id")["prolific_id"].first()
-    test = raw[raw["phase"] == "test"]
-    if cut_def == "start_cutting":
-        test = test.assign(_cut=test["action"].eq("start cutting"))
-    else:
-        test = test.assign(_cut=test["action_long"].astype(str).str.contains("cut", case=False))
-    test = test.assign(_del=test["action"].eq("deliver"))
-    cnt = test.groupby(["game_id", "player_id"])[["_del", "_cut"]].sum()
-
-    # only the TEST phase is used for the game score and the specialization index
-    no_test = sorted(set(kept.index) - set(test["game_id"].unique()))
-
-    rows = []
-    for gid, r in kept.iterrows():
-        pl = sorted(players[gid])
-        D = [int(cnt["_del"].get((gid, p), 0)) for p in pl] + [0, 0]
-        C = [int(cnt["_cut"].get((gid, p), 0)) for p in pl] + [0, 0]
-        rows.append({
-            "game_id": gid, "walk": r["pair_key"][0], "cut": r["pair_key"][1],
-            "map": r["map"], "rank": int(r["rank"]) + 1, "order": int(r["order"]),
-            "game_start_time": r["start"], "source_file": r["source"], "n_players": len(pl),
-            "prolific_ids": ";".join(str(pid_of.get(p)) for p in pl),
-            "total_deliveries": sum(D[:2]),
-            "D1": D[0], "D2": D[1], "C1": C[0], "C2": C[1],
-            "specialization_index": specialization_from_counts(D[0], D[1], C[0], C[1], spec_undefined),
-            "spec_undefined": (D[0] + D[1] == 0) or (C[0] + C[1] == 0),
-        })
-    teams = pd.DataFrame(rows)
-
-    audit.append(f"\nTest phase only: deliveries and cuts are counted in phase == 'test'; "
-                 f"selected games without any test-phase row: {len(no_test)}"
-                 + (f" -> {', '.join(map(str, no_test))}" if no_test else ""))
-    audit.append(f"\nSelection: first {n_teams} teams per ability pair x map, in the order of the CSV files "
-                 f"(no re-ordering):")
-    avail = sel.groupby(["pair_key", "map"]).size()
-    for p in PAIRS:
-        for mp in MAPS:
-            a = int(avail.get((p, mp), 0))
-            k = int(((teams["walk"] == p[0]) & (teams["cut"] == p[1]) & (teams["map"] == mp)).sum())
-            flag = "" if k == n_teams else f"   <-- only {k} teams available"
-            sub = kept[(kept["pair_key"] == p) & (kept["map"] == mp)]
-            span = f"{str(sub['start'].min())[:10]} .. {str(sub['start'].max())[:10]}" if len(sub) else ""
-            audit.append(f"  {pair_label(p):<12} {mp:<4}  available={a:>4}  used={k:>3}  dates {span}{flag}")
-            if len(sub):
-                by_src = sub.groupby("source", sort=False).size()
-                audit.append("        from: " + ", ".join(f"{s}={n}" for s, n in by_src.items()))
-
-    short = [(p, mp) for p in PAIRS for mp in MAPS
-             if int(((teams["walk"] == p[0]) & (teams["cut"] == p[1]) & (teams["map"] == mp)).sum()) < n_teams]
-    if short:
-        msg = (f"[WARN] {len(short)} condition(s) with fewer than {n_teams} teams: "
-               + ", ".join(f"{pair_label(p)} {mp}" for p, mp in short)
-               + " -- check that every batch (e.g. oct2026_new_condition_encouraged_2.zip) is in --human_data")
-        print(msg)
-        audit.append("\n" + msg)
-    else:
-        audit.append(f"\nAll {len(PAIRS) * len(MAPS)} conditions have {n_teams} teams  OK")
-    return teams
-
-
-def write_selected_games(teams: pd.DataFrame, path: Path) -> list[str]:
-    """CSV table of the selected games: one column per condition (map x ability pair), one row
-    per selected game in selection order (column 'team' = 1..70); each cell = game_id.
-    Returns the check that every selected game_id is unique."""
-    table = {}
-    for mp in MAPS:
-        for p in PAIRS:
-            g = teams[(teams["walk"] == p[0]) & (teams["cut"] == p[1]) & (teams["map"] == mp)].sort_values("rank")
-            table[f"{mp} {pair_label(p)}"] = pd.Series(g["game_id"].to_list(), dtype=object)
-    df = pd.DataFrame(table)
-    df.index = pd.RangeIndex(1, len(df) + 1, name="team")
-    df.to_csv(path)
-    dup = teams["game_id"][teams["game_id"].duplicated()].unique()
-    check = [f"  game_id: all {len(teams)} selected games unique  OK" if not len(dup) else
-             f"  game_id: {len(dup)} game_id(s) selected more than once  <-- NOT UNIQUE: {', '.join(map(str, dup))}"]
-    print(f"Selected games table -> {path}")
-    print(check[0])
-    return check
-
-
-def load_demographics(paths, teams):
-    """Per-participant age / sex for the selected teams (first record per participant)."""
-    frames = []
-    for _, fh in _iter_demographic_sources(paths):
-        frames.append(pd.read_csv(fh, usecols=lambda c: c in _DEMO_COLS, low_memory=False))
-    if not frames:
-        return None
-    d = pd.concat(frames, ignore_index=True).drop_duplicates(["game_id", "prolific_id"])
-    d = d[d["game_id"].isin(teams["game_id"])]
-    d = d.merge(teams[["game_id", "walk", "cut", "map"]], on="game_id")
-    d = d[~d["prolific_id"].astype(str).str.lower().isin(["undefined", "nan", "none", ""])]
-    d["Age"] = pd.to_numeric(d["Age"], errors="coerce")
-    return d
+def read_human_teams(path) -> pd.DataFrame:
+    """Per-team CSV of human_data_processing.py; pairs snapped to the canonical PAIRS."""
+    h = pd.read_csv(path, dtype={"game_id": str})
+    keys = [_pair_key(w, c) for w, c in zip(h["walk"], h["cut"])]
+    h = h[[k is not None for k in keys]].copy()
+    h["walk"] = [k[0] for k in keys if k is not None]
+    h["cut"] = [k[1] for k in keys if k is not None]
+    return h
 
 
 # ===========================================================================
@@ -860,19 +566,8 @@ def make_figure(human: pd.DataFrame, rl: pd.DataFrame | None, output_path: Path,
 # ===========================================================================
 def main():
     ap = argparse.ArgumentParser(description="SI figure + statistics: five ability pairs, humans and RL.")
-    ap.add_argument("--human_data", nargs="*", default=[],
-                    help="Human zips / CSVs or folders holding them (duplicate games are counted once); "
-                         "sorted into the canonical batch order unless --keep_file_order")
-    ap.add_argument("--keep_file_order", action="store_true",
-                    help="Read the human files in the order given instead of the canonical batch order")
-    ap.add_argument("--human_csv", default=None, help="Per-team CSV written by a previous run")
-    ap.add_argument("--n_teams", type=int, default=70, help="Teams per ability pair x map (first ones in the order of the CSV files)")
-    ap.add_argument("--cut_def", default="start_cutting", choices=["start_cutting", "contains_cut"],
-                    help="Human cut count C: 'start cutting' actions (default) or any action containing 'cut'")
-    ap.add_argument("--spec_undefined", default="zero", choices=["zero", "nan"],
-                    help="Spec. index of teams with no deliveries or no cuts (MARL scripts use 0)")
-    ap.add_argument("--exclude_repeat_participants", action="store_true",
-                    help="Drop teams with a participant who already played in an earlier selected team")
+    ap.add_argument("--human_teams", default=None,
+                    help="Per-team CSV written by human_data_processing.py (<prefix>_teams.csv)")
     # --- RL: simulated games of the simulation tree ---
     ap.add_argument("--rl_source", choices=["sims", "none"], default="sims",
                     help="'sims' (default): simulated games of every ability pair, read from the "
@@ -922,80 +617,15 @@ def main():
         f"    MARL agents (checkpoint_{args.rl_checkpoint}, abilities_<walk>_<cut> folders).\n"
         f"  RL source: {args.rl_source if not args.rl_csv else 'cached CSV ' + args.rl_csv}.\n"
         "  Specialization index = 100 * |(D1 - D2)/(D1 + D2) + (C2 - C1)/(C1 + C2)| / 2 (D deliveries,\n"
-        f"    C cuts per player); no deliveries or no cuts -> {'0' if args.spec_undefined == 'zero' else 'excluded'}.\n"
-        f"    Human cuts: {args.cut_def!r}. RL cuts: per-agent cut actions of each simulated game.\n"
+        "    C cuts per player); no deliveries or no cuts -> 0.\n"
+        "    Human teams, selection and test-phase metrics: see the report of human_data_processing.py.\n"
         f"  Units: humans = team; RL = {'simulated game' if args.rl_unit == 'simulation' else 'training (mean over its simulated games)'}.")
 
     # ---------------- humans ---------------------------------------------------
     human = None
-    if args.human_csv:
-        human = pd.read_csv(args.human_csv)
-        report.append(f"\nHuman teams read from {args.human_csv}")
-    elif args.human_data:
-        args.human_data = order_human_paths(args.human_data, args.keep_file_order)
-        print("Human data files (in reading order):\n  " + "\n  ".join(map(str, args.human_data)))
-        audit = []
-        human = load_human_teams(args.human_data, args.n_teams, args.cut_def, args.spec_undefined, audit)
-        report.append("\n" + "=" * 100 + "\nDATA AUDIT (humans)\n" + "=" * 100)
-        report += audit
-
-        report.append(f"\nSelected games -> {Path(stem).name}_selected_games.csv:")
-        report += write_selected_games(human, Path(f"{stem}_selected_games.csv"))
-
-        human = human.sort_values("order").reset_index(drop=True)       # selection (CSV) order
-        seen, rep = set(), []
-        unknown = {"undefined", "nan", "none", ""}
-        n_unknown = 0
-        for i, r in human.iterrows():
-            all_ids = str(r["prolific_ids"]).split(";")
-            ids = [x for x in all_ids if x.strip().lower() not in unknown]
-            n_unknown += len(all_ids) - len(ids)
-            if seen & set(ids):
-                rep.append(i)
-            seen |= set(ids)
-        human["repeat_participant"] = human.index.isin(rep)
-        report.append(f"\nPlayer seats without a valid Prolific ID ('undefined'): {n_unknown}")
-        report.append(f"Teams with a participant who already played in an earlier selected team: {len(rep)}")
-        for (w, c, mp), n in human[human.repeat_participant].groupby(["walk", "cut", "map"]).size().items():
-            report.append(f"    {pair_label((w, c)):<12} {mp:<4} {n}")
-        if args.exclude_repeat_participants:
-            human = human[~human.repeat_participant]
-            report.append(f"  -> EXCLUDED; {len(human)} teams remain")
-        else:
-            report.append("  (kept; --exclude_repeat_participants for the sensitivity check)")
-        report.append("\nTeams with no deliveries or no cuts (specialization index "
-                      f"{'0' if args.spec_undefined == 'zero' else 'NaN'}):")
-        for (w, c, mp), n in human.groupby(["walk", "cut", "map"])["spec_undefined"].sum().items():
-            if n:
-                report.append(f"    {pair_label((w, c)):<12} {mp:<4} {int(n)}")
-
-        report.append("\nCollection batches (cells whose games span more than 30 days):")
-        for (w, c, mp), g in human.groupby(["walk", "cut", "map"]):
-            dt = pd.to_datetime(g["game_start_time"], errors="coerce")
-            if dt.notna().any() and (dt.max() - dt.min()).days > 30:
-                split = dt.sort_values()[dt.sort_values().diff().idxmax()]
-                b1, b2 = g[dt < split], g[dt >= split]
-                report.append(f"  {pair_label((w, c))} {mp}: batch 1 n={len(b1)} "
-                              f"({str(b1.game_start_time.min())[:10]}..{str(b1.game_start_time.max())[:10]}), "
-                              f"batch 2 n={len(b2)} ({str(b2.game_start_time.min())[:10]}.."
-                              f"{str(b2.game_start_time.max())[:10]})")
-                for col, name, pct in METRICS:
-                    txt, _ = ps.fmt_compare("batch 1", b1[col], "batch 2", b2[col], pct)
-                    report.append(f"      {name}: {txt}")
-
-        demo = load_demographics(args.human_data, human)
-        if demo is not None:
-            report.append("\nDemographics (unique valid Prolific IDs of the selected teams; age numeric only):")
-            demo["round"] = np.where(((demo["walk"] == 1.0) & (demo["cut"] == 1.0)) |
-                                     ((demo["walk"] == MAIN_MA[0]) & (demo["cut"] == MAIN_MA[1])),
-                                     "main experiment", "second round")
-            for rnd, g in demo.groupby("round"):
-                a = g["Age"].dropna()
-                report.append(f"  {rnd:<16} participants={g.prolific_id.nunique()}  age mean={a.mean():.2f} "
-                              f"SD={a.std(ddof=1):.2f} (n with age={len(a)})  "
-                              + ", ".join(f"{k}={v}" for k, v in g["Sex"].value_counts().items()))
-        human.to_csv(f"{stem}_human_teams.csv", index=False)
-        print(f"Per-team human data -> {stem}_human_teams.csv")
+    if args.human_teams:
+        human = read_human_teams(args.human_teams)
+        report.append(f"\nHuman teams read from {args.human_teams} ({len(human)} teams)")
 
     if human is not None:
         report.append("\n" + "=" * 100 + "\nHUMANS (unit = team)\n" + "=" * 100)

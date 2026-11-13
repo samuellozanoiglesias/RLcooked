@@ -20,11 +20,11 @@ MARL SIMULATIONS (unit = training; mean of its simulated games)
   n PB   MA: 10
   n Open HA: 10
   n Open MA: 10
-  Game score: Map x Ability ($F(1,36) = 132.88$, $p < .001$, $\eta_p^2 = .79$); map ($F(1,36) = 51.74$, $p < .001$, $\eta_p^2 = .59$); ability ($F(1,36) = 18.79$, $p < .001$, $\eta_p^2 = .34$)
-    Open HA > MA: ($9.84 \pm 0.16$ vs.\ $6.46 \pm 0.23$; Welch's $t(16.0) = 12.17$, $p < .001$)
+  Game score: Map x Ability ($F(1,36) = 131.00$, $p < .001$, $\eta_p^2 = .78$); map ($F(1,36) = 51.55$, $p < .001$, $\eta_p^2 = .59$); ability ($F(1,36) = 18.40$, $p < .001$, $\eta_p^2 = .34$)
+    Open HA > MA: ($9.84 \pm 0.16$ vs.\ $6.47 \pm 0.23$; Welch's $t(15.9) = 11.99$, $p < .001$)
     PB   MA > HA: ($7.38 \pm 0.23$ vs.\ $5.84 \pm 0.23$; Welch's $t(18.0) = 4.74$, $p < .001$)
-  Specialization index: Map x Ability ($F(1,36) = 29.89$, $p < .001$, $\eta_p^2 = .45$); map ($F(1,36) = 73.54$, $p < .001$, $\eta_p^2 = .67$); ability ($F(1,36) = 11.27$, $p = .002$, $\eta_p^2 = .24$)
-    Open HA > MA: ($44.4 \pm 5.6\%$ vs.\ $35.6 \pm 5.6\%$; Welch's $t(18.0) = 1.11$, $p = .283$)
+  Specialization index: Map x Ability ($F(1,36) = 29.60$, $p < .001$, $\eta_p^2 = .45$); map ($F(1,36) = 72.92$, $p < .001$, $\eta_p^2 = .67$); ability ($F(1,36) = 11.25$, $p = .002$, $\eta_p^2 = .24$)
+    Open HA > MA: ($44.4 \pm 5.6\%$ vs.\ $35.7 \pm 5.7\%$; Welch's $t(18.0) = 1.09$, $p = .289$)
     PB   MA > HA: ($94.0 \pm 1.4\%$ vs.\ $57.3 \pm 2.0\%$; Welch's $t(16.2) = 14.68$, $p < .001$)
 
 MARL SIMULATIONS (unit = simulated game)
@@ -32,9 +32,9 @@ MARL SIMULATIONS (unit = simulated game)
   n PB   MA: 200
   n Open HA: 200
   n Open MA: 200
-  Game score: Map x Ability ($F(1,796) = 343.12$, $p < .001$, $\eta_p^2 = .30$); map ($F(1,796) = 133.60$, $p < .001$, $\eta_p^2 = .14$); ability ($F(1,796) = 48.51$, $p < .001$, $\eta_p^2 = .06$)
-    Open HA > MA: ($9.84 \pm 0.18$ vs.\ $6.46 \pm 0.10$; Welch's $t(303.6) = 16.21$, $p < .001$)
+  Game score: Map x Ability ($F(1,796) = 340.50$, $p < .001$, $\eta_p^2 = .30$); map ($F(1,796) = 133.98$, $p < .001$, $\eta_p^2 = .14$); ability ($F(1,796) = 47.82$, $p < .001$, $\eta_p^2 = .06$)
+    Open HA > MA: ($9.84 \pm 0.18$ vs.\ $6.46 \pm 0.10$; Welch's $t(305.9) = 16.12$, $p < .001$)
     PB   MA > HA: ($7.38 \pm 0.11$ vs.\ $5.84 \pm 0.12$; Welch's $t(397.2) = 9.35$, $p < .001$)
-  Specialization index: Map x Ability ($F(1,796) = 166.04$, $p < .001$, $\eta_p^2 = .17$); map ($F(1,796) = 408.52$, $p < .001$, $\eta_p^2 = .34$); ability ($F(1,796) = 62.63$, $p < .001$, $\eta_p^2 = .07$)
-    Open HA > MA: ($44.4 \pm 2.0\%$ vs.\ $35.6 \pm 1.8\%$; Welch's $t(390.4) = 3.29$, $p = .001$)
+  Specialization index: Map x Ability ($F(1,796) = 165.15$, $p < .001$, $\eta_p^2 = .17$); map ($F(1,796) = 406.76$, $p < .001$, $\eta_p^2 = .34$); ability ($F(1,796) = 62.78$, $p < .001$, $\eta_p^2 = .07$)
+    Open HA > MA: ($44.4 \pm 2.0\%$ vs.\ $35.7 \pm 1.8\%$; Welch's $t(391.0) = 3.26$, $p = .001$)
     PB   MA > HA: ($94.0 \pm 0.9\%$ vs.\ $57.3 \pm 2.1\%$; Welch's $t(270.4) = 15.88$, $p < .001$)

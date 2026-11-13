@@ -61,12 +61,12 @@ Data modes
         with the same number of games and trainings as the real scratch data;
   --pretrained_source real : the pretraining_ablation TRAINING episodes are loaded instead.
   --demo                   : scratch / HA synthetic too (layout test).
-Humans: read from the per-team CSV written by fig_sm_ability_pairs_humans_rl.py
-(--human_teams_csv; default ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv),
+Humans: read from the per-team CSV written by human_data_processing.py
+(--human_teams_csv; default ./figures/human_teams.csv),
 the same file used by Figs. 2 and 4, i.e. the same 70 teams per condition used everywhere
 in the paper; MARL agents are compared with them by Welch's t-tests (one value per
 simulated game vs one value per team; one value per training with --stats_unit training). The script stops if that file is missing (run
-fig_sm_ability_pairs_humans_rl.py first, or --no_humans). --human_csv uses a
+human_data_processing.py first, or --no_humans). --human_csv uses a
 condition-means table instead (one-sample t-tests against the human mean).
 Only real records are written to the cache CSV (--rl_csv re-uses it).
 
@@ -677,11 +677,11 @@ def load_human_summary(csv_path: Path) -> pd.DataFrame:
     return df
 
 
-_HUMAN_TEAMS_DEFAULT = Path("./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv")
+_HUMAN_TEAMS_DEFAULT = Path("./figures/human_teams.csv")
 
 
 def load_human_teams_csv(path: Path) -> pd.DataFrame:
-    """Per-team human data (fig_sm_ability_pairs_humans_rl.py) -> one row per team,
+    """Per-team human data (human_data_processing.py) -> one row per team,
     source 'human' (or 'human_ha' for (1, 1)), n_games = 1."""
     raw = pd.read_csv(path)
     df = pd.DataFrame({
@@ -1211,8 +1211,8 @@ def main():
                    help="Use a human condition-means table instead of the per-team file (Walk, Cut, Map, Score, "
                         "Specialization Index[, Number of Games]); one-sample t-tests")
     p.add_argument("--human_teams_csv", default=None,
-                   help="Per-team human data from fig_sm_ability_pairs_humans_rl.py (default: "
-                        "./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv)")
+                   help="Per-team human data from human_data_processing.py (default: "
+                        "./figures/human_teams.csv)")
     p.add_argument("--no_humans", action="store_true", help="Do not draw human stars")
     p.add_argument("--pretrained_source", default="simulations", choices=["simulations", "values", "real"],
                    help="'simulations' (default): simulated games of the pretrained agents under "
@@ -1282,8 +1282,8 @@ def main():
             print(f"\nHumans: {len(hum)} teams from {teams_path} (Welch's t-tests against the MARL trainings)")
         else:
             raise FileNotFoundError(
-                f"Per-team human file not found: {teams_path}. Run fig_sm_ability_pairs_humans_rl.py first "
-                f"(it writes <output>_human_teams.csv), pass --human_teams_csv, or use --no_humans.")
+                f"Per-team human file not found: {teams_path}. Run human_data_processing.py first "
+                f"(it writes human_teams.csv), pass --human_teams_csv, or use --no_humans.")
         df = pd.concat([df, hum], ignore_index=True)
 
     if args.stats_unit == "training":

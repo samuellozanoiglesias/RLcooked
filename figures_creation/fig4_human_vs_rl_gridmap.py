@@ -43,7 +43,7 @@ nohup python fig4_human_vs_rl_gridmap.py --init_type empty_init --specialization
     # <name>_per_training.csv (abilities, map, training_id, num_simulations, mean_score)
 
     # re-plot from the per-game records cached by a previous run
-    python fig4_human_vs_rl_gridmap.py --specialization 0.25 --synergy 1.35 --records_csv ./figures/figure4_human_vs_rl_gridmap_synergy1p35_lambda0p25_sim_records.csv
+    python fig4_human_vs_rl_gridmap.py --specialization 0.25 --synergy 1.35 --records_csv ./figures/fig4_human_vs_rl_gridmap_synergy1p35_lambda0p25_sim_records.csv
 
     # Layout test without the project data (synthetic MARL grids)
     python fig4_human_vs_rl_gridmap.py --demo --output_dir ./figures
@@ -112,12 +112,12 @@ def _format_speed_token(value: float) -> str:
 # --------------------------------------------------------------------------
 # Human results (raw scores; the figure shows score - score(1.0, 1.0)).
 # Keys are (walking speed of player 1, cutting speed of player 2) as fractions of full speed.
-# Filled ONLY from the per-team file written by fig_sm_ability_pairs_humans_rl.py
-# (--human_teams_csv, default ./figures/fig_sm_ability_pairs_humans_rl_human_teams.csv):
+# Filled ONLY from the per-team file written by human_data_processing.py
+# (--human_teams_csv, default ./figures/human_teams.csv):
 # condition means of the selected teams, the same teams as Fig. 2 and the SI. No hard-coded values.
 # --------------------------------------------------------------------------
 HUMAN_RESULTS: Dict[str, Dict[str, Dict[Tuple[float, float], float]]] = {}
-_HUMAN_TEAMS_DEFAULT = './figures/fig_sm_ability_pairs_humans_rl_human_teams.csv'
+_HUMAN_TEAMS_DEFAULT = './figures/human_teams.csv'
 _HUMAN_MAP_OF = {'Open': 'baseline_division_of_labor_large', 'PB': 'encouraged_division_of_labor_large'}
 
 
@@ -402,7 +402,7 @@ def configure_style(use_latex: bool = True) -> bool:
             return True
         except Exception as exc:
             plt.close('all')
-            print(f'[make_figure4] LaTeX unavailable ({type(exc).__name__}); '
+            print(f'[make_fig4] LaTeX unavailable ({type(exc).__name__}); '
                   f'falling back to a matched non-LaTeX serif style.')
     mpl.rcParams['text.usetex'] = False
     mpl.rcParams['mathtext.fontset'] = 'cm'
@@ -428,7 +428,7 @@ def _text_kw(font: str, size: float) -> dict:
     return kw
 
 
-class Figure4Plotter:
+class fig4Plotter:
     """Assemble the complete Fig4 in a single matplotlib figure."""
 
     def __init__(self, walk1_values: List[float], cut2_values: List[float]):
@@ -699,6 +699,40 @@ def write_coverage_files(records: List[pd.DataFrame], map_names: Dict[str, str],
     print(f'\nCoverage report -> {txt_path}\nPer-training table -> {csv_path}')
 
 
+def write_grids_csv(grids: Dict[str, np.ndarray], map_names: Dict[str, str],
+                    walk1_values: List[float], cut2_values: List[float], path: Path) -> None:
+    """Write both Fig. 4 grids (panel a and b) to one long-format CSV.
+
+    One row per (panel, walk1, cut2) cell with the MARL score difference w.r.t. (100%, 100%)
+    exactly as plotted (grid rows = cut2 ascending, columns = walk1 ascending), plus the
+    human difference where a human diamond is drawn (empty otherwise)."""
+    panel_titles = {'a': 'Open Map', 'b': 'Partially-Blocked Map'}
+    rows = []
+    for key, grid in grids.items():
+        map_name = map_names[key]
+        human_key = _resolve_human_map_key(map_name)
+        human = HUMAN_RESULTS.get(human_key, {}).get('scores', {}) if human_key else {}
+        human_base = human.get((1.0, 1.0))
+        for i, cut2 in enumerate(cut2_values):
+            for j, walk1 in enumerate(walk1_values):
+                h = human.get((round(float(walk1), 4), round(float(cut2), 4)))
+                rows.append({
+                    'panel': key,
+                    'panel_title': panel_titles.get(key, key),
+                    'map_name': map_name,
+                    'walk_speed_player1': walk1,
+                    'cut_speed_player2': cut2,
+                    'walk_speed_player1_pct': round(walk1 * 100),
+                    'cut_speed_player2_pct': round(cut2 * 100),
+                    'marl_score_diff': grid[i, j],
+                    'human_score': h,
+                    'human_score_diff': (h - human_base) if (h is not None and human_base is not None) else
+                                        (h if h is not None else None),
+                })
+    pd.DataFrame(rows).to_csv(path, index=False)
+    print(f'Grid values of both panels -> {path}')
+
+
 def setup_argument_parser() -> argparse.ArgumentParser:
     """Set up command line argument parser for the 2D ability sweep."""
     parser = argparse.ArgumentParser(
@@ -734,7 +768,7 @@ def setup_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--fixed_cut1', type=float, default=1.0, help='Fixed cutting speed for agent 1')
     parser.add_argument('--fixed_walk2', type=float, default=1.0, help='Fixed walking speed for agent 2')
     parser.add_argument('--human_teams_csv', type=str, default=_HUMAN_TEAMS_DEFAULT,
-                        help='Per-team human data from fig_sm_ability_pairs_humans_rl.py (required, except '
+                        help='Per-team human data from human_data_processing.py (required, except '
                              'with --demo); the human diamonds are its condition means')
     parser.add_argument('--no_latex', action='store_true', help='Do not use LaTeX for text')
     parser.add_argument('--demo', action='store_true',
@@ -753,7 +787,7 @@ def main():
         LATEX_OK = configure_style(not args.no_latex)
         if not load_human_results_from_teams(args.human_teams_csv):
             msg = (f'Per-team human file not found: {args.human_teams_csv}. Run '
-                   f'fig_sm_ability_pairs_humans_rl.py first (it writes <output>_human_teams.csv) or pass --human_teams_csv.')
+                   f'human_data_processing.py first (it writes human_teams.csv) or pass --human_teams_csv.')
             if not args.demo:
                 raise FileNotFoundError(msg)
             print(f'[demo] {msg} No human markers drawn.')
@@ -822,7 +856,7 @@ def main():
         output_dir = Path(output_dir_base)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        filename_parts = ['figure4_human_vs_rl_gridmap']
+        filename_parts = ['fig4_human_vs_rl_gridmap']
         if str(args.checkpoint) != ms.DEFAULT_CHECKPOINT:
             filename_parts.append(f'checkpoint{args.checkpoint}')
         if args.init_type != 'empty_init':
@@ -848,8 +882,11 @@ def main():
             pd.concat(records, ignore_index=True).to_csv(cache, index=False)
             print(f'\nPer-game MARL records cached -> {cache}  (re-use with --records_csv)')
 
+        write_grids_csv(grids, map_names, analyzers['a'].walk1_values, analyzers['a'].cut2_values,
+                        output_dir / 'fig4_grids.csv')
+
         print('\n=== Creating Figure 4 ===\n')
-        plotter = Figure4Plotter(analyzers['a'].walk1_values, analyzers['a'].cut2_values)
+        plotter = fig4Plotter(analyzers['a'].walk1_values, analyzers['a'].cut2_values)
         fig = plotter.create_figure(grids, map_names, str(out_path))
         plt.close(fig)
         print('\n=== Analysis Complete ===\n')

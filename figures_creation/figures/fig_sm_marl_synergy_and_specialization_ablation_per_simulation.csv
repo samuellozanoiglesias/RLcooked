@@ -189,7 +189,6 @@ neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-11,750,simulation_2026_11_05-22_53_15,3,87.5
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-11,750,simulation_2026_11_05-22_53_17,5,90.90909090909092
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-11,750,simulation_2026_11_05-22_53_20,4,80.0
-neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-11,750,simulation_2026_11_05-22_51_29,0,0.0
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-11,750,simulation_2026_11_05-22_54_30,4,48.91304347826087
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-11,750,simulation_2026_11_05-22_55_30,6,100.0
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-11,750,simulation_2026_11_05-22_54_33,2,80.59701492537313
@@ -199,6 +198,7 @@ neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-11,750,simulation_2026_11_05-22_54_40,2,66.66666666666666
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-11,750,simulation_2026_11_08-23_29_52,5,100.0
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-11,750,simulation_2026_11_05-22_53_55,6,4.166666666666669
+neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-01-11,750,simulation_2026_11_10-17_10_55,4,87.5
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-02-18,750,simulation_2026_11_05-23_08_02,2,71.42857142857143
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-02-18,750,simulation_2026_11_05-23_08_04,6,52.56410256410257
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-02-18,750,simulation_2026_11_05-23_05_07,5,35.0
@@ -228,7 +228,6 @@ neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-03-37,750,simulation_2026_11_05-23_18_17,2,54.54545454545454
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-03-37,750,simulation_2026_11_05-23_19_17,0,0.0
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-03-37,750,simulation_2026_11_05-23_20_17,9,94.11764705882352
-neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-03-37,750,simulation_2026_11_05-23_18_23,1,100.0
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-03-37,750,simulation_2026_11_05-23_19_25,10,95.0
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-03-37,750,simulation_2026_11_05-23_19_27,3,46.666666666666664
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-03-37,750,simulation_2026_11_05-23_19_28,0,0.0
@@ -239,6 +238,7 @@ neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-03-37,750,simulation_2026_11_08-23_29_53,7,29.761904761904763
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-03-37,750,simulation_2026_11_05-23_20_55,2,10.0
 neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-03-37,750,simulation_2026_11_05-23_19_57,4,5.769230769230768
+neither,Neither specialization nor synergy,False,False,PB,encouraged_division_of_labor_large,MA,Training_2026-06-25_14-03-37,750,simulation_2026_11_10-17_10_58,4,17.857142857142858
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,HA,Training_2026-06-25_14-03-14,750,simulation_2026_11_05-22_29_02,12,69.56521739130434
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,HA,Training_2026-06-25_14-03-14,750,simulation_2026_11_05-22_31_02,10,65.38461538461539
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,HA,Training_2026-06-25_14-03-14,750,simulation_2026_11_05-22_29_04,10,60.731707317073166
@@ -342,12 +342,13 @@ spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Tra
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_35_02,6,14.814814814814813
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_34_05,6,16.666666666666664
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_34_06,5,46.666666666666664
-spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_35_09,7,0.0
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_38_09,8,65.0
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_39_12,7,10.084033613445378
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_38_18,6,0.0
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_35_20,6,53.57142857142857
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_35_25,6,53.84615384615385
+spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_10-17_10_25,7,4.761904761904762
+spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_10-17_10_27,6,25.0
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_36_31,5,13.333333333333334
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_36_33,6,29.166666666666664
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_36_34,7,8.866995073891626
@@ -358,7 +359,6 @@ spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Tra
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_36_49,6,66.66666666666666
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_37_49,6,20.238095238095237
 spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_33_57,4,26.666666666666668
-spec,Specialization only,False,True,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-03-54,750,simulation_2026_11_05-22_37_59,7,0.0
 spec,Specialization only,False,True,PB,encouraged_division_of_labor_large,HA,Training_2026-06-25_14-03-18,750,simulation_2026_11_05-22_35_00,6,21.21212121212121
 spec,Specialization only,False,True,PB,encouraged_division_of_labor_large,HA,Training_2026-06-25_14-03-18,750,simulation_2026_11_05-22_33_01,8,30.263157894736842
 spec,Specialization only,False,True,PB,encouraged_division_of_labor_large,HA,Training_2026-06-25_14-03-18,750,simulation_2026_11_05-22_30_02,9,11.82795698924731
@@ -569,6 +569,7 @@ syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_20
 syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-28,750,simulation_2026_11_07-05_27_15,5,18.88888888888889
 syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-28,750,simulation_2026_11_07-05_26_18,5,10.0
 syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-28,750,simulation_2026_11_07-05_27_18,6,15.333333333333332
+syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-28,750,simulation_2026_11_10-17_11_21,3,11.494252873563218
 syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-28,750,simulation_2026_11_07-05_25_23,6,7.142857142857142
 syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-28,750,simulation_2026_11_07-05_27_23,6,14.516129032258066
 syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-28,750,simulation_2026_11_07-05_26_26,3,52.38095238095239
@@ -577,7 +578,6 @@ syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_20
 syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-28,750,simulation_2026_11_07-05_26_34,3,18.01801801801802
 syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-28,750,simulation_2026_11_07-05_25_35,6,3.571428571428571
 syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-28,750,simulation_2026_11_07-05_26_39,3,0.9803921568627472
-syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-28,750,simulation_2026_11_07-05_27_44,6,0.0
 syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-01-28,750,simulation_2026_11_07-05_27_48,8,13.23529411764706
 syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-00-56,750,simulation_2026_11_07-05_22_00,8,19.444444444444446
 syn,Synergy only,True,False,Open,baseline_division_of_labor_large,MA,Training_2026-06-25_14-00-56,750,simulation_2026_11_07-05_20_02,4,45.370370370370374
@@ -1020,8 +1020,8 @@ both,Specialization and synergy,True,True,Open,baseline_division_of_labor_large,
 both,Specialization and synergy,True,True,Open,baseline_division_of_labor_large,MA,Training_2026-05-17_23-55-42,750,simulation_2026_11_06-07_59_52,8,78.57142857142857
 both,Specialization and synergy,True,True,Open,baseline_division_of_labor_large,MA,Training_2026-05-17_23-55-42,750,simulation_2026_11_06-07_59_57,8,9.558823529411764
 both,Specialization and synergy,True,True,Open,baseline_division_of_labor_large,MA,Training_2026-05-19_14-11-42,750,simulation_2026_11_08-20_59_01,8,72.22222222222221
+both,Specialization and synergy,True,True,Open,baseline_division_of_labor_large,MA,Training_2026-05-19_14-11-42,750,simulation_2026_11_10-17_10_01,10,87.5
 both,Specialization and synergy,True,True,Open,baseline_division_of_labor_large,MA,Training_2026-05-19_14-11-42,750,simulation_2026_11_06-12_12_04,5,80.0
-both,Specialization and synergy,True,True,Open,baseline_division_of_labor_large,MA,Training_2026-05-19_14-11-42,750,simulation_2026_11_06-12_11_05,8,74.07407407407408
 both,Specialization and synergy,True,True,Open,baseline_division_of_labor_large,MA,Training_2026-05-19_14-11-42,750,simulation_2026_11_06-12_12_08,8,74.07407407407408
 both,Specialization and synergy,True,True,Open,baseline_division_of_labor_large,MA,Training_2026-05-19_14-11-42,750,simulation_2026_11_08-20_59_08,8,66.66666666666666
 both,Specialization and synergy,True,True,Open,baseline_division_of_labor_large,MA,Training_2026-05-19_14-11-42,750,simulation_2026_11_06-12_10_10,6,40.74074074074075
