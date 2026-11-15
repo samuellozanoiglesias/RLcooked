@@ -33,7 +33,7 @@ LR=3e-4
 GAME_VERSIONS=(classic_collision)  # List of game versions to run
 NUM_AGENTS=2
 NUM_EPOCHS=2000  # Number of training epochs
-SEEDS=(0 10 20 30 40 50 60 70 80 90)  # Different random seeds for runs
+SEEDS=(0 10 20)  # Different random seeds for runs
 REWARDS_ON_DELIVERY_ONLY=False  # Whether to use rewards on delivery only
 RANDOM_INITIAL_STATE=False  # Whether to randomize initial state
 AGENTS_TO_TRAIN=("")  # Specify which agent to train when NUM_AGENTS=1 (e.g., "1" for agent 1, "2" for agent 2)
@@ -44,7 +44,7 @@ ALLOW_BLOCKED=False  # Whether to allow agents to attempt blocked actions
 # Custom checkpoint directory (optional)
 # If set, this will be used for all simulations instead of auto-generated paths
 # Leave empty to use automatic checkpoint name generation
-CUSTOM_CHECKPOINT_DIR="checkpoints/checkpoints_pretrained.txt"  # e.g., "checkpoints/my_custom_checkpoint.txt"
+CUSTOM_CHECKPOINT_DIR="checkpoints/checkpoint_HA_O.txt"  # e.g., "checkpoints/my_custom_checkpoint.txt"
 ACTIVATE_CHECKPOINTS=False  # Set to False to disable checkpoint loading
 
 # Entropy coefficient for training
@@ -56,11 +56,11 @@ ANGLE_PAIRS=("0 0")  # Format: "angle_agent_1 angle_agent_2 ... angle_agent_N"
 # Define agent speed vectors
 # Format: "cut_speed_1,walk_speed_1 cut_speed_2,walk_speed_2 ..."
 SPEED_PAIRS=(
-#    "1.0,1.0 1.0,1.0"
-#    "1.0,0.2 1.0,1.0"
-#    "1.0,0.7 0.4,1.0"
-#    "1.0,0.4 0.2,1.0"
-    "1.0,0.1 0.1,1.0"
+    #"1.0,1.0 1.0,1.0"
+    "1.0,0.2 0.9,1.0"
+    #"1.0,0.7 0.4,1.0"
+    #"1.0,0.4 0.2,1.0"
+    #"1.0,0.1 0.1,1.0"
 )
 
 #SPEED_PAIRS=(
@@ -420,7 +420,7 @@ for job in "${job_list[@]}"; do
     fi
     
     wait_for_log_output "$LOG_FILE" "$job_pid"
-    sleep 10  # Delay between job starts after the log becomes active
+    sleep 100  # Delay between job starts after the log becomes active
 done
 
 # Wait for all remaining jobs to complete

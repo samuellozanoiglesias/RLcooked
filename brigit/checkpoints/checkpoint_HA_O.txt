@@ -1,0 +1,6 @@
+policy_ai_rl_1
+753
+/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/classic_collision/empty_init/PNAS_RESULTS/map_baseline_division_of_labor_large/synergy_1.35/specialized_0.25/Training_2026-05-18_07-18-07/
+policy_ai_rl_2
+753
+/mnt/lustre/home/samuloza/data/samuel_lozano/cooked/classic_collision/empty_init/PNAS_RESULTS/map_baseline_division_of_labor_large/synergy_1.35/specialized_0.25/Training_2026-05-18_07-18-07/
